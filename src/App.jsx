@@ -354,6 +354,15 @@ Write a professional direct email. List issues with a 5-business-day corrective 
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginTop:12}}>
             {[["location","Location"],["city","City / State"],["managerEmail","Manager Email"],["specialist","Specialist"],["date","Visit Date"]].map(([k,label])=>(
               <div key={k}>
+                <div style={{fontSize:9,opacity:0.55,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>{label}</div>
+                <input value={meta[k]} onChange={e=>setMeta(p=>({...p,[k]:e.target.value}))} placeholder={label}
+                  className="form-control form-control-sm"
+                  style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff"}} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Draft banner */}
       {hasDraft && view==="form" && (
@@ -400,7 +409,7 @@ Write a professional direct email. List issues with a 5-business-day corrective 
             <div className="d-flex gap-2 mb-3 flex-wrap">
               {[["yes","Mark all compliant","#198754"],["no","Mark all issues","#dc3545"],["na","Mark all N/A","#6c757d"]].map(([v,l,c])=>(
                 <button key={v} onClick={()=>sec.items.forEach((_,ii)=>setState(`${activeTab}-${ii}`,v))}
-                  className="btn btn-sm btn-outline-secondary" style={{fontSize:11,borderColor:c,color:c}}>{l}</button>
+                  className="btn btn-sm" style={{fontSize:11,borderColor:c,color:c,border:`1px solid ${c}`,background:"#fff"}}>{l}</button>
               ))}
             </div>
 
@@ -421,11 +430,11 @@ Write a professional direct email. List issues with a 5-business-day corrective 
                         {["yes","no","na"].map(v=>{
                           const sel=state===v;
                           const clr=v==="yes"?{bg:"#198754",border:"#198754"}:v==="no"?{bg:"#dc3545",border:"#dc3545"}:{bg:"#6c757d",border:"#6c757d"};
-                          const label=v==="yes"?"Y":v==="no"?"N":"N/A";
+                          const lbl=v==="yes"?"Y":v==="no"?"N":"N/A";
                           return(
                             <button key={v} onClick={()=>setState(key,v)}
                               style={{width:v==="na"?40:32,height:30,fontSize:10,fontWeight:600,padding:0,cursor:"pointer",borderRadius:4,background:sel?clr.bg:"#fff",color:sel?"#fff":clr.bg,border:`1px solid ${clr.border}`}}>
-                              {label}
+                              {lbl}
                             </button>
                           );
                         })}
@@ -510,6 +519,5 @@ Write a professional direct email. List issues with a 5-business-day corrective 
         </div>
       )}
     </div>
-  )
-)
-            }
+  );
+}

@@ -441,22 +441,19 @@ Write a professional direct email. List issues with a 5-business-day corrective 
                           className="form-control form-control-sm mt-2" style={{fontSize:12}} />}
                       </div>
                       <div className="d-flex gap-1 flex-shrink-0 mt-1">
-                        {["yes","no","na"].map(v=>(
-                          <button key={v} onClick={()=>setState(key,v)}
-                            className={`btn btn-sm ${state===v?(v==="yes"?"btn-success":v==="no"?"btn-danger":"btn-secondary"):(v==="yes"?"btn-outline-success":v==="no"?"btn-outline-danger":"btn-outline-secondary")}`}
-                            style={{width:36,height:30,fontSize:10,fontWeight:600,padding:0}}>
-                            {SC[v].label}
-                          </button>
-                        ))}
+                        {["yes","no","na"].map(v=>{
+                          const sel = state===v;
+                          const clr = v==="yes"?{bg:"#198754",border:"#198754"}:v==="no"?{bg:"#dc3545",border:"#dc3545"}:{bg:"#6c757d",border:"#6c757d"};
+                          return(
+                            <button key={v} onClick={()=>setState(key,v)}
+                              className="btn btn-sm"
+                              style={{width:36,height:30,fontSize:10,fontWeight:600,padding:0,background:sel?clr.bg:"#fff",color:sel?"#fff":clr.bg,border:`1px solid ${clr.border}`}}>
+                              {SC[v].label}
+                            </button>
+                          );
+                        })}
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
+
 
       {/* REVIEW VIEW */}
       {view==="review"&&(

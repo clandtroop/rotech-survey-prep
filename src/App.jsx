@@ -379,7 +379,7 @@ Write a professional direct email. List issues with a 5-business-day corrective 
             <div className={`progress-bar ${allStats.no>0?"bg-danger":"bg-success"}`} style={{width:`${pct}%`,transition:"width 0.3s"}} />
           </div>
 
-          <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"center",padding:"8px 16px",background:"#fff",borderBottom:"1px solid #dee2e6"}}>
+          <div className="d-flex flex-wrap gap-4 align-items-center px-3 py-2 bg-white border-bottom">
             {[["Y",allStats.yes,"#2e7d32","Compliant"],["N",allStats.no,"#c62828","Issues"],["?",allStats.pending,"#9e9e9e","Pending"]].map(([sym,n,c,label])=>(
               <div key={label} className="d-flex align-items-center gap-1" style={{fontSize:13}}>
                 <span style={{color:c,fontWeight:700}}>{sym} {n}</span>
@@ -450,69 +450,87 @@ Write a professional direct email. List issues with a 5-business-day corrective 
 
       {/* REVIEW VIEW */}
       {view==="review"&&(
-        <div className="p-3">
-          <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-            <div className="fw-semibold fs-5">Review and Export</div>
-            <div className="d-flex gap-2">
-              <button onClick={downloadPDF} className="btn btn-primary btn-sm fw-semibold">Download PDF Report</button>
-              <button onClick={startFresh} className="btn btn-outline-success btn-sm fw-semibold">Mark Complete and Clear</button>
+        <div style={{padding:16}}>
+
+          {/* Action buttons */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+            <div style={{fontSize:17,fontWeight:700,color:BRAND}}>Accreditation Survey Prep Report</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={downloadPDF} style={{padding:"7px 16px",fontSize:13,background:BRAND,color:"#fff",border:"none",borderRadius:5,cursor:"pointer",fontWeight:600}}>Download PDF Report</button>
+              <button onClick={startFresh} style={{padding:"7px 16px",fontSize:13,background:"#fff",color:"#198754",border:"1px solid #198754",borderRadius:5,cursor:"pointer",fontWeight:600}}>Mark Complete and Clear</button>
             </div>
           </div>
 
-          <div className="row g-2 mb-3">
-            {[
-              ["Compliant",summary.reduce((a,s)=>a+s.yes,0),"success"],
-              ["Issues",summary.reduce((a,s)=>a+s.no,0),"danger"],
-              ["N/A",summary.reduce((a,s)=>a+s.na,0),"secondary"],
-              ["Pending",summary.reduce((a,s)=>a+s.pending,0),"warning"]
-            ].map(([l,n,variant])=>(
-              <div key={l} className="col-6 col-md-3">
-                <div className={`card border-${variant} text-center shadow-sm`}>
-                  <div className="card-body py-2">
-                    <div className={`fs-3 fw-bold text-${variant}`}>{n}</div>
-                    <div className={`small text-${variant}`}>{l}</div>
-                  </div>
-                </div>
+          {/* Visit info bar */}
+          <div style={{background:"#f0f4f8",border:"1px solid #d0dae6",borderRadius:6,padding:"10px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8}}>
+            {[["Location",meta.location||"—"],["City / State",meta.city||"—"],["Specialist",meta.specialist||"—"],["Visit Date",meta.date]].map(([label,val])=>(
+              <div key={label}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",color:"#6c757d",marginBottom:2}}>{label}</div>
+                <div style={{fontSize:13,fontWeight:600,color:"#212121"}}>{val}</div>
               </div>
             ))}
           </div>
 
-          {summary.map((s,i)=>(
-            <div key={i} className={`card mb-2 shadow-sm border-${s.no>0?"danger":s.pending>0?"warning":"success"}`}>
-              <div className={`card-header d-flex justify-content-between align-items-center py-2 bg-${s.no>0?"danger":s.pending>0?"warning":"success"} bg-opacity-10`}>
-                <span className="fw-semibold" style={{fontSize:13}}>{s.label}</span>
-                <span className="text-muted" style={{fontSize:11}}>Y:{s.yes} N:{s.no} NA:{s.na} ?:{s.pending}</span>
+          {/* Summary stat boxes */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16}}>
+            {[
+              ["Compliant",summary.reduce((a,s)=>a+s.yes,0),"#2e7d32","#e8f5e9","#a5d6a7"],
+              ["Issues",   summary.reduce((a,s)=>a+s.no,0), "#c62828","#ffebee","#ef9a9a"],
+              ["N/A",      summary.reduce((a,s)=>a+s.na,0), "#616161","#f5f5f5","#bdbdbd"],
+              ["Pending",  summary.reduce((a,s)=>a+s.pending,0),"#e65100","#fff3e0","#ffcc80"]
+            ].map(([l,n,tc,bg,border])=>(
+              <div key={l} style={{background:bg,border:`1px solid ${border}`,borderRadius:6,padding:"12px 8px",textAlign:"center"}}>
+                <div style={{fontSize:30,fontWeight:700,color:tc,lineHeight:1}}>{n}</div>
+                <div style={{fontSize:11,color:tc,marginTop:4}}>{l}</div>
               </div>
-              {s.issues.length>0?(
-                <div className="card-body py-2">
-                  {s.issues.map((iss,j)=>(
-                    <div key={j} className="alert alert-danger py-2 mb-2" style={{fontSize:12}}>
-                      <div>- {iss.text}</div>
-                      {iss.comment&&<div className="fw-semibold mt-1">Note: {iss.comment}</div>}
-                    </div>
-                  ))}
-                </div>
-              ):(
-                <div className="card-body py-2 text-success fst-italic" style={{fontSize:12}}>All items compliant - no corrective action required.</div>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
 
-          <div className="card mt-3 shadow-sm">
-            <div className="card-header d-flex justify-content-between align-items-center py-2">
-              <div className="fw-semibold" style={{fontSize:14}}>
-                Follow-up email draft
-                {meta.managerEmail&&<span className="text-muted fw-normal ms-2" style={{fontSize:11}}>To: {meta.managerEmail}</span>}
+          {/* Section summaries */}
+          {summary.map((s,i)=>{
+            const hdrBg=s.no>0?"#ffebee":s.pending>0?"#fff8e1":"#e8f5e9";
+            const borderClr=s.no>0?"#ef9a9a":s.pending>0?"#ffe082":"#a5d6a7";
+            return(
+              <div key={i} style={{border:`1px solid ${borderClr}`,borderRadius:6,marginBottom:8,overflow:"hidden"}}>
+                <div style={{background:hdrBg,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontWeight:700,fontSize:13,color:"#212121"}}>{s.label}</span>
+                  <span style={{fontSize:11,color:"#616161"}}>
+                    <span style={{color:"#2e7d32",fontWeight:600}}>Y:{s.yes}</span>{"  "}
+                    <span style={{color:"#c62828",fontWeight:600}}>N:{s.no}</span>{"  "}
+                    <span style={{color:"#616161"}}>NA:{s.na}</span>{"  "}
+                    <span style={{color:"#e65100"}}>?:{s.pending}</span>
+                  </span>
+                </div>
+                {s.issues.length>0?(
+                  <div style={{padding:"8px 14px"}}>
+                    {s.issues.map((iss,j)=>(
+                      <div key={j} style={{fontSize:12,padding:"6px 10px",marginBottom:4,background:"#fff8f8",border:"1px solid #ef9a9a",borderRadius:4}}>
+                        <div style={{color:"#212121"}}>— {iss.text}</div>
+                        {iss.comment&&<div style={{color:"#c62828",marginTop:3,fontWeight:600}}>Note: {iss.comment}</div>}
+                      </div>
+                    ))}
+                  </div>
+                ):(
+                  <div style={{padding:"6px 14px",fontSize:12,color:"#2e7d32",fontStyle:"italic"}}>All items compliant — no corrective action required.</div>
+                )}
               </div>
-              <button onClick={copyEmail} className={`btn btn-sm ${copied?"btn-success":"btn-outline-secondary"}`}>
+            );
+          })}
+
+          {/* Email card */}
+          <div style={{border:"1px solid #dee2e6",borderRadius:6,overflow:"hidden",marginTop:16}}>
+            <div style={{background:"#f8f9fa",borderBottom:"1px solid #dee2e6",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:14,fontWeight:600,color:"#212121"}}>
+                Follow-up email draft
+                {meta.managerEmail&&<span style={{fontSize:11,fontWeight:400,color:"#9e9e9e",marginLeft:8}}>To: {meta.managerEmail}</span>}
+              </div>
+              <button onClick={copyEmail} style={{padding:"4px 14px",fontSize:12,background:copied?"#198754":"#fff",color:copied?"#fff":"#424242",border:"1px solid #dee2e6",borderRadius:4,cursor:"pointer",fontWeight:copied?600:400}}>
                 {copied?"Copied!":"Copy to clipboard"}
               </button>
             </div>
-            <div className="card-body p-0">
-              <textarea value={emailText} onChange={e=>setEmailText(e.target.value)} rows={14}
-                className="form-control border-0" style={{fontSize:12,lineHeight:1.7,resize:"vertical",borderRadius:"0 0 4px 4px"}} />
-            </div>
-            <div className="card-footer text-muted" style={{fontSize:11}}>
+            <textarea value={emailText} onChange={e=>setEmailText(e.target.value)} rows={14}
+              style={{width:"100%",fontSize:12,lineHeight:1.7,padding:"12px 16px",border:"none",resize:"vertical",color:"#212121",background:"#fff",boxSizing:"border-box",outline:"none"}} />
+            <div style={{background:"#f8f9fa",borderTop:"1px solid #dee2e6",padding:"8px 16px",fontSize:11,color:"#9e9e9e"}}>
               Edit above if needed, then copy and paste into Outlook. The PDF report downloads separately via the button above.
             </div>
           </div>

@@ -379,7 +379,7 @@ Write a professional direct email. List issues with a 5-business-day corrective 
             <div className={`progress-bar ${allStats.no>0?"bg-danger":"bg-success"}`} style={{width:`${pct}%`,transition:"width 0.3s"}} />
           </div>
 
-          <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"center",padding:"8px 16px",background:"#fff",borderBottom:"1px solid #dee2e6"}}>
+          <div className="d-flex flex-wrap gap-4 align-items-center px-3 py-2 bg-white border-bottom">
             {[["Y",allStats.yes,"#2e7d32","Compliant"],["N",allStats.no,"#c62828","Issues"],["?",allStats.pending,"#9e9e9e","Pending"]].map(([sym,n,c,label])=>(
               <div key={label} className="d-flex align-items-center gap-1" style={{fontSize:13}}>
                 <span style={{color:c,fontWeight:700}}>{sym} {n}</span>
@@ -474,14 +474,14 @@ Write a professional direct email. List issues with a 5-business-day corrective 
           {/* Summary stat boxes */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16}}>
             {[
-              ["Compliant",summary.reduce((a,s)=>a+s.yes,0),"#2e7d32","#e8f5e9","#a5d6a7"],
-              ["Issues",   summary.reduce((a,s)=>a+s.no,0), "#c62828","#ffebee","#ef9a9a"],
-              ["N/A",      summary.reduce((a,s)=>a+s.na,0), "#616161","#f5f5f5","#bdbdbd"],
-              ["Pending",  summary.reduce((a,s)=>a+s.pending,0),"#e65100","#fff3e0","#ffcc80"]
-            ].map(([l,n,tc,bg,border])=>(
-              <div key={l} style={{background:bg,border:`1px solid ${border}`,borderRadius:6,padding:"12px 8px",textAlign:"center"}}>
-                <div style={{fontSize:30,fontWeight:700,color:tc,lineHeight:1}}>{n}</div>
-                <div style={{fontSize:11,color:tc,marginTop:4}}>{l}</div>
+              ["Compliant",summary.reduce((a,s)=>a+s.yes,0),"text-bg-success"],
+              ["Issues",   summary.reduce((a,s)=>a+s.no,0), "text-bg-danger"],
+              ["N/A",      summary.reduce((a,s)=>a+s.na,0), "text-bg-secondary"],
+              ["Pending",  summary.reduce((a,s)=>a+s.pending,0),"text-bg-primary"]
+            ].map(([l,n,variant])=>(
+              <div key={l} style={{textAlign:"center",padding:"8px 4px"}}>
+                <div><span className={`badge ${variant}`} style={{fontSize:22,padding:"8px 14px"}}>{n}</span></div>
+                <div style={{fontSize:12,marginTop:6,color:"#616161",fontWeight:600}}>{l}</div>
               </div>
             ))}
           </div>

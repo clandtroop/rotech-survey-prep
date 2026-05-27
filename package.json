@@ -1,0 +1,20 @@
+{
+  "name": "rotech-survey-prep-gh-pages",
+  "version": "1.0.0",
+  "description": "Rotech Survey Prep - GitHub Pages testing version",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && gh-pages -d dist"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "gh-pages": "^6.1.1",
+    "vite": "^5.2.0"
+  }
+}

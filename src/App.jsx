@@ -222,12 +222,6 @@ function buildPDFBlob(meta, summaryData) {
   return doc.output("blob");
 }
 
-const SC = {
-  yes: { label: "Y" },
-  no:  { label: "N" },
-  na:  { label: "N/A" },
-};
-
 function initStates() {
   const s={},c={};
   SECTIONS.forEach((sec,si)=>sec.items.forEach((_,ii)=>{s[`${si}-${ii}`]=null;c[`${si}-${ii}`]="";}));
@@ -359,7 +353,7 @@ Write a professional direct email. List issues with a 5-business-day corrective 
         {(view==="form"||view==="review")&&(
           <div className="d-flex flex-wrap gap-2 mt-2">
             {[["location","Location"],["city","City / State"],["managerEmail","Manager Email"],["specialist","Specialist"],["date","Visit Date"]].map(([k,label])=>(
-            <div key={k} style={{flex:"1 1 130px"}}>
+              <div key={k} style={{flex:"1 1 130px"}}>
                 <div style={{fontSize:9,opacity:0.55,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>{label}</div>
                 <input value={meta[k]} onChange={e=>setMeta(p=>({...p,[k]:e.target.value}))} placeholder={label}
                   className="form-control form-control-sm"
@@ -381,49 +375,41 @@ Write a professional direct email. List issues with a 5-business-day corrective 
       {/* FORM VIEW */}
       {view==="form"&&(
         <>
-          {/* Progress bar */}
           <div className="progress" style={{height:4,borderRadius:0}}>
             <div className={`progress-bar ${allStats.no>0?"bg-danger":"bg-success"}`} style={{width:`${pct}%`,transition:"width 0.3s"}} />
           </div>
 
-          {/* Stats bar */}
           <div className="d-flex flex-wrap gap-4 align-items-center px-3 py-2 bg-white border-bottom">
-            {[["Y",allStats.yes,"text-success","Compliant"],["N",allStats.no,"text-danger","Issues"],["?",allStats.pending,"text-secondary","Pending"]].map(([sym,n,cls,label])=>(
+            {[["Y",allStats.yes,"#2e7d32","Compliant"],["N",allStats.no,"#c62828","Issues"],["?",allStats.pending,"#9e9e9e","Pending"]].map(([sym,n,c,label])=>(
               <div key={label} className="d-flex align-items-center gap-1" style={{fontSize:13}}>
-                <span className={`fw-bold ${cls}`}>{sym} {n}</span>
+                <span style={{color:c,fontWeight:700}}>{sym} {n}</span>
                 <span className="text-muted">{label}</span>
               </div>
             ))}
             <div className="ms-auto text-muted" style={{fontSize:12}}>{pct}% reviewed ({totalItems-allStats.pending}/{totalItems})</div>
           </div>
 
-          {/* Tabs */}
-          <div className="bg-white border-bottom" style={{overflowX:"auto"}}>
-            <ul className="nav nav-tabs border-0 flex-nowrap px-2 pt-1">
-              {SECTIONS.map((s,i)=>{
-                const st=getStats(i);
-                return(
-                  <li key={i} className="nav-item">
-                    <button onClick={()=>setActiveTab(i)}
-                      className={`nav-link d-flex align-items-center gap-1 ${i===activeTab?"active fw-semibold":""}`}
-                      style={{fontSize:12,whiteSpace:"nowrap",color:i===activeTab?BRAND:"#616161",border:"none",borderBottom:i===activeTab?`2px solid ${BRAND}`:"2px solid transparent",background:"none"}}>
-                      {s.short}
-                      {st.no>0&&<span className="badge bg-danger rounded-pill" style={{fontSize:9}}>{st.no}</span>}
-                      {st.no===0&&st.pending===0&&<span className="badge bg-success rounded-pill" style={{fontSize:9}}>✓</span>}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+          <div className="bg-white border-bottom d-flex" style={{overflowX:"auto"}}>
+            {SECTIONS.map((s,i)=>{
+              const st=getStats(i);
+              return(
+                <button key={i} onClick={()=>setActiveTab(i)}
+                  className="d-flex align-items-center gap-1 border-0 bg-transparent"
+                  style={{fontSize:12,whiteSpace:"nowrap",padding:"10px 14px",color:i===activeTab?BRAND:"#616161",fontWeight:i===activeTab?600:400,borderBottom:i===activeTab?`2px solid ${BRAND}`:"2px solid transparent",cursor:"pointer"}}>
+                  {s.short}
+                  {st.no>0&&<span className="badge bg-danger rounded-pill" style={{fontSize:9}}>{st.no}</span>}
+                  {st.no===0&&st.pending===0&&<span className="badge bg-success rounded-pill" style={{fontSize:9}}>✓</span>}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Checklist content */}
           <div className="p-3">
             <div className="text-muted mb-2" style={{fontSize:11}}>{sec.ref}</div>
             <div className="d-flex gap-2 mb-3 flex-wrap">
-              {[["yes","Mark all compliant","btn-outline-success"],["no","Mark all issues","btn-outline-danger"],["na","Mark all N/A","btn-outline-secondary"]].map(([v,l,cls])=>(
+              {[["yes","Mark all compliant","#198754"],["no","Mark all issues","#dc3545"],["na","Mark all N/A","#6c757d"]].map(([v,l,c])=>(
                 <button key={v} onClick={()=>sec.items.forEach((_,ii)=>setState(`${activeTab}-${ii}`,v))}
-                  className={`btn btn-sm ${cls}`} style={{fontSize:11}}>{l}</button>
+                  className="btn btn-sm btn-outline-secondary" style={{fontSize:11,borderColor:c,color:c}}>{l}</button>
               ))}
             </div>
 
@@ -431,8 +417,8 @@ Write a professional direct email. List issues with a 5-business-day corrective 
               {sec.items.map((item,ii)=>{
                 const key=`${activeTab}-${ii}`, state=states[key];
                 return(
-                  <div key={ii} className={`card shadow-sm border ${state==="no"?"border-danger":state==="yes"?"border-success":"border-light"}`}
-                    style={{background:state==="no"?"#fff8f8":state==="yes"?"#f9fff9":"#fff"}}>
+                  <div key={ii} className="card shadow-sm"
+                    style={{border:`1px solid ${state==="no"?"#f5c6cb":state==="yes"?"#c3e6cb":"#e0e0e0"}`,background:state==="no"?"#fff8f8":state==="yes"?"#f9fff9":"#fff"}}>
                     <div className="card-body py-2 px-3 d-flex gap-3 align-items-start">
                       <div className="flex-grow-1">
                         <div style={{fontSize:13,lineHeight:1.5,color:"#212121"}}>{item.text}</div>
@@ -442,18 +428,25 @@ Write a professional direct email. List issues with a 5-business-day corrective 
                       </div>
                       <div className="d-flex gap-1 flex-shrink-0 mt-1">
                         {["yes","no","na"].map(v=>{
-                          const sel = state===v;
-                          const clr = v==="yes"?{bg:"#198754",border:"#198754"}:v==="no"?{bg:"#dc3545",border:"#dc3545"}:{bg:"#6c757d",border:"#6c757d"};
+                          const sel=state===v;
+                          const clr=v==="yes"?{bg:"#198754",border:"#198754"}:v==="no"?{bg:"#dc3545",border:"#dc3545"}:{bg:"#6c757d",border:"#6c757d"};
+                          const label=v==="yes"?"Y":v==="no"?"N":"N/A";
                           return(
                             <button key={v} onClick={()=>setState(key,v)}
-                              className="btn btn-sm"
-                              style={{width:36,height:30,fontSize:10,fontWeight:600,padding:0,background:sel?clr.bg:"#fff",color:sel?"#fff":clr.bg,border:`1px solid ${clr.border}`}}>
-                              {SC[v].label}
+                              style={{width:v==="na"?40:32,height:30,fontSize:10,fontWeight:600,padding:0,cursor:"pointer",borderRadius:4,background:sel?clr.bg:"#fff",color:sel?"#fff":clr.bg,border:`1px solid ${clr.border}`}}>
+                              {label}
                             </button>
                           );
                         })}
                       </div>
-
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* REVIEW VIEW */}
       {view==="review"&&(

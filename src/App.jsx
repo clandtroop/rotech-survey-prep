@@ -379,14 +379,18 @@ Write a professional direct email. List issues with a 5-business-day corrective 
             <div className={`progress-bar ${allStats.no>0?"bg-danger":"bg-success"}`} style={{width:`${pct}%`,transition:"width 0.3s"}} />
           </div>
 
-          <div className="d-flex flex-wrap gap-4 align-items-center px-3 py-2 bg-white border-bottom">
-            {[["Y",allStats.yes,"#2e7d32","Compliant"],["N",allStats.no,"#c62828","Issues"],["?",allStats.pending,"#9e9e9e","Pending"]].map(([sym,n,c,label])=>(
-              <div key={label} className="d-flex align-items-center gap-1" style={{fontSize:13}}>
-                <span style={{color:c,fontWeight:700}}>{sym} {n}</span>
-                <span className="text-muted">{label}</span>
+          <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"center",padding:"8px 16px",background:"#fff",borderBottom:"1px solid #dee2e6"}}>
+            {[
+              ["Compliant", allStats.yes,     "text-bg-success"],
+              ["Issues",    allStats.no,      "text-bg-danger"],
+              ["Pending",   allStats.pending, "text-bg-primary"]
+            ].map(([label,n,variant])=>(
+              <div key={label} style={{display:"flex",alignItems:"center",gap:6}}>
+                <span className={`badge ${variant}`} style={{fontSize:13}}>{n}</span>
+                <span style={{fontSize:13,color:"#616161"}}>{label}</span>
               </div>
             ))}
-            <div className="ms-auto text-muted" style={{fontSize:12}}>{pct}% reviewed ({totalItems-allStats.pending}/{totalItems})</div>
+            <div style={{marginLeft:"auto",fontSize:12,color:"#9e9e9e"}}>{pct}% reviewed ({totalItems-allStats.pending}/{totalItems})</div>
           </div>
 
           <div className="bg-white border-bottom d-flex" style={{overflowX:"auto"}}>

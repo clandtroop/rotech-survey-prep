@@ -223,9 +223,9 @@ function buildPDFBlob(meta, summaryData) {
 }
 
 const SC = {
-  yes:{bg:"#e8f5e9",border:"#66bb6a",text:"#2e7d32",label:"Y"},
-  no: {bg:"#ffebee",border:"#ef5350",text:"#c62828",label:"N"},
-  na: {bg:"#f5f5f5",border:"#bdbdbd",text:"#616161",label:"N/A"},
+  yes: { label: "Y" },
+  no:  { label: "N" },
+  na:  { label: "N/A" },
 };
 
 function initStates() {
@@ -238,17 +238,17 @@ export default function App() {
   const draft = loadDraft();
   const blank = initStates();
 
-  const [meta,      setMeta]      = useState(draft?.meta     ?? {location:"",city:"",managerEmail:"",specialist:"",date:new Date().toLocaleDateString("en-US")});
-  const [states,    setStates]    = useState(draft?.states   ?? blank.states);
-  const [comments,  setComments]  = useState(draft?.comments ?? blank.comments);
-  const [activeTab, setActiveTab] = useState(0);
-  const [view,      setView]      = useState("form");
-  const [emailText, setEmailText] = useState("");
-  const [summary,   setSummary]   = useState([]);
-  const [generating,setGenerating]= useState(false);
-  const [copied,    setCopied]    = useState(false);
-  const [hasDraft,  setHasDraft]  = useState(!!draft);
-  const [savedAt,   setSavedAt]   = useState(draft?.savedAt ?? null);
+  const [meta,       setMeta]      = useState(draft?.meta     ?? {location:"",city:"",managerEmail:"",specialist:"",date:new Date().toLocaleDateString("en-US")});
+  const [states,     setStates]    = useState(draft?.states   ?? blank.states);
+  const [comments,   setComments]  = useState(draft?.comments ?? blank.comments);
+  const [activeTab,  setActiveTab] = useState(0);
+  const [view,       setView]      = useState("form");
+  const [emailText,  setEmailText] = useState("");
+  const [summary,    setSummary]   = useState([]);
+  const [generating, setGenerating]= useState(false);
+  const [copied,     setCopied]    = useState(false);
+  const [hasDraft,   setHasDraft]  = useState(!!draft);
+  const [savedAt,    setSavedAt]   = useState(draft?.savedAt ?? null);
 
   useEffect(()=>{
     saveDraft(meta,states,comments);
@@ -341,28 +341,29 @@ Write a professional direct email. List issues with a 5-business-day corrective 
   const fmtSaved=savedAt?new Date(savedAt).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):null;
 
   return (
-    <div style={{fontFamily:"Segoe UI,system-ui,sans-serif",maxWidth:960,margin:"0 auto",background:"#fff",minHeight:"100vh"}}>
+    <div style={{maxWidth:960,margin:"0 auto",minHeight:"100vh",background:"#f8f9fa"}}>
 
       {/* Header */}
-      <div style={{background:BRAND,color:"#fff",padding:"14px 20px 12px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+      <div style={{background:BRAND,color:"#fff"}} className="px-3 py-3">
+        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div>
             <div style={{fontSize:11,opacity:0.6,textTransform:"uppercase",letterSpacing:"0.1em"}}>Rotech Healthcare · Accreditation</div>
             <div style={{fontSize:18,fontWeight:600,marginTop:2}}>Survey Prep Checklist</div>
           </div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <div className="d-flex gap-2 align-items-center">
             {fmtSaved && view==="form" && <span style={{fontSize:11,opacity:0.5}}>Draft saved {fmtSaved}</span>}
-            {view==="review" && <button onClick={()=>setView("form")} style={{padding:"6px 14px",fontSize:13,background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff",borderRadius:5,cursor:"pointer"}}>Back to form</button>}
-            {view==="form" && <button onClick={handleReview} disabled={generating} style={{padding:"6px 18px",fontSize:13,background:"#fff",color:BRAND,border:"none",borderRadius:5,cursor:"pointer",fontWeight:600,opacity:generating?0.7:1}}>{generating?"Generating...":"Review & Generate"}</button>}
+            {view==="review" && <button onClick={()=>setView("form")} className="btn btn-sm btn-outline-light">Back to form</button>}
+            {view==="form" && <button onClick={handleReview} disabled={generating} className="btn btn-sm btn-light fw-semibold" style={{color:BRAND,opacity:generating?0.7:1}}>{generating?"Generating...":"Review & Generate"}</button>}
           </div>
         </div>
         {(view==="form"||view==="review")&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginTop:12}}>
+          <div className="row g-2 mt-2">
             {[["location","Location"],["city","City / State"],["managerEmail","Manager Email"],["specialist","Specialist"],["date","Visit Date"]].map(([k,label])=>(
-              <div key={k}>
+              <div key={k} className="col">
                 <div style={{fontSize:9,opacity:0.55,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>{label}</div>
                 <input value={meta[k]} onChange={e=>setMeta(p=>({...p,[k]:e.target.value}))} placeholder={label}
-                  style={{width:"100%",padding:"5px 8px",fontSize:12,background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:4,color:"#fff",outline:"none",boxSizing:"border-box"}} />
+                  className="form-control form-control-sm"
+                  style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff"}} />
               </div>
             ))}
           </div>
@@ -371,125 +372,157 @@ Write a professional direct email. List issues with a 5-business-day corrective 
 
       {/* Draft banner */}
       {hasDraft && view==="form" && (
-        <div style={{background:"#fff8e1",borderBottom:"1px solid #ffe082",padding:"8px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}>
-          <span>Draft restored from your last session.</span>
-          <button onClick={startFresh} style={{fontSize:12,padding:"3px 10px",border:"1px solid #ffca28",background:"#fff",borderRadius:4,cursor:"pointer",color:"#6d4c00"}}>Clear and start fresh</button>
+        <div className="alert alert-warning mb-0 py-2 px-3 d-flex justify-content-between align-items-center" style={{borderRadius:0}}>
+          <span style={{fontSize:13}}>Draft restored from your last session.</span>
+          <button onClick={startFresh} className="btn btn-sm btn-outline-warning" style={{fontSize:12}}>Clear and start fresh</button>
         </div>
       )}
 
       {/* FORM VIEW */}
       {view==="form"&&(
         <>
-          <div style={{height:3,background:"#e0e0e0"}}>
-            <div style={{height:3,width:`${pct}%`,background:allStats.no>0?"#ef5350":"#66bb6a",transition:"width 0.3s"}} />
+          {/* Progress bar */}
+          <div className="progress" style={{height:4,borderRadius:0}}>
+            <div className={`progress-bar ${allStats.no>0?"bg-danger":"bg-success"}`} style={{width:`${pct}%`,transition:"width 0.3s"}} />
           </div>
-          <div style={{background:"#f8f9fa",borderBottom:"1px solid #e0e0e0",padding:"8px 20px",display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
-            {[["Y",allStats.yes,"#2e7d32","Compliant"],["N",allStats.no,"#c62828","Issues"],["?",allStats.pending,"#9e9e9e","Pending"]].map(([sym,n,c,label])=>(
-              <div key={label} style={{fontSize:13,display:"flex",alignItems:"center",gap:5}}>
-                <span style={{color:c,fontWeight:700}}>{sym} {n}</span>
-                <span style={{color:"#9e9e9e"}}>{label}</span>
+
+          {/* Stats bar */}
+          <div className="d-flex flex-wrap gap-4 align-items-center px-3 py-2 bg-white border-bottom">
+            {[["Y",allStats.yes,"text-success","Compliant"],["N",allStats.no,"text-danger","Issues"],["?",allStats.pending,"text-secondary","Pending"]].map(([sym,n,cls,label])=>(
+              <div key={label} className="d-flex align-items-center gap-1" style={{fontSize:13}}>
+                <span className={`fw-bold ${cls}`}>{sym} {n}</span>
+                <span className="text-muted">{label}</span>
               </div>
             ))}
-            <div style={{marginLeft:"auto",fontSize:12,color:"#9e9e9e"}}>{pct}% reviewed ({totalItems-allStats.pending}/{totalItems})</div>
+            <div className="ms-auto text-muted" style={{fontSize:12}}>{pct}% reviewed ({totalItems-allStats.pending}/{totalItems})</div>
           </div>
 
-          <div style={{display:"flex",overflowX:"auto",borderBottom:"1px solid #e0e0e0",background:"#fafafa"}}>
-            {SECTIONS.map((s,i)=>{
-              const st=getStats(i);
-              return(
-                <button key={i} onClick={()=>setActiveTab(i)} style={{padding:"9px 14px",fontSize:12,whiteSpace:"nowrap",background:"none",border:"none",borderBottom:i===activeTab?`2px solid ${BRAND}`:"2px solid transparent",color:i===activeTab?BRAND:"#616161",cursor:"pointer",fontWeight:i===activeTab?600:400,display:"flex",alignItems:"center",gap:5}}>
-                  {s.short}
-                  {st.no>0&&<span style={{background:"#ffebee",color:"#c62828",borderRadius:9,padding:"1px 6px",fontSize:10}}>{st.no}</span>}
-                  {st.no===0&&st.pending===0&&<span style={{background:"#e8f5e9",color:"#2e7d32",borderRadius:9,padding:"1px 5px",fontSize:10}}>Y</span>}
-                </button>
-              );
-            })}
+          {/* Tabs */}
+          <div className="bg-white border-bottom" style={{overflowX:"auto"}}>
+            <ul className="nav nav-tabs border-0 flex-nowrap px-2 pt-1">
+              {SECTIONS.map((s,i)=>{
+                const st=getStats(i);
+                return(
+                  <li key={i} className="nav-item">
+                    <button onClick={()=>setActiveTab(i)}
+                      className={`nav-link d-flex align-items-center gap-1 ${i===activeTab?"active fw-semibold":""}`}
+                      style={{fontSize:12,whiteSpace:"nowrap",color:i===activeTab?BRAND:"#616161",border:"none",borderBottom:i===activeTab?`2px solid ${BRAND}`:"2px solid transparent",background:"none"}}>
+                      {s.short}
+                      {st.no>0&&<span className="badge bg-danger rounded-pill" style={{fontSize:9}}>{st.no}</span>}
+                      {st.no===0&&st.pending===0&&<span className="badge bg-success rounded-pill" style={{fontSize:9}}>✓</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
 
-          <div style={{padding:"14px 20px"}}>
-            <div style={{fontSize:11,color:"#bdbdbd",marginBottom:10}}>{sec.ref}</div>
-            <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-              {[["yes","Mark all compliant"],["no","Mark all issues"],["na","Mark all N/A"]].map(([v,l])=>(
+          {/* Checklist content */}
+          <div className="p-3">
+            <div className="text-muted mb-2" style={{fontSize:11}}>{sec.ref}</div>
+            <div className="d-flex gap-2 mb-3 flex-wrap">
+              {[["yes","Mark all compliant","btn-outline-success"],["no","Mark all issues","btn-outline-danger"],["na","Mark all N/A","btn-outline-secondary"]].map(([v,l,cls])=>(
                 <button key={v} onClick={()=>sec.items.forEach((_,ii)=>setState(`${activeTab}-${ii}`,v))}
-                  style={{fontSize:11,padding:"4px 10px",border:`1px solid ${SC[v].border}`,background:SC[v].bg,color:SC[v].text,borderRadius:4,cursor:"pointer"}}>{l}</button>
+                  className={`btn btn-sm ${cls}`} style={{fontSize:11}}>{l}</button>
               ))}
             </div>
-            {sec.items.map((item,ii)=>{
-              const key=`${activeTab}-${ii}`, state=states[key];
-              return(
-                <div key={ii} style={{display:"flex",gap:10,padding:"9px 10px",marginBottom:5,borderRadius:6,border:`1px solid ${state==="no"?"#ef9a9a":state==="yes"?"#a5d6a7":"#e8e8e8"}`,background:state==="no"?"#fff8f8":state==="yes"?"#f9fff9":"#fff",alignItems:"flex-start"}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,lineHeight:1.5,color:"#212121"}}>{item.text}</div>
-                    {item.note&&<div style={{fontSize:11,color:"#9e9e9e",marginTop:2}}>{item.note}</div>}
-                    {state==="no"&&<textarea placeholder="Describe the issue..." value={comments[key]} onChange={e=>setComment(key,e.target.value)} rows={2}
-                      style={{marginTop:8,width:"100%",fontSize:12,padding:"6px 8px",border:"1px solid #ef9a9a",borderRadius:4,resize:"vertical",color:"#212121",background:"#fff",boxSizing:"border-box"}} />}
+
+            <div className="d-flex flex-column gap-2">
+              {sec.items.map((item,ii)=>{
+                const key=`${activeTab}-${ii}`, state=states[key];
+                return(
+                  <div key={ii} className={`card shadow-sm border ${state==="no"?"border-danger":state==="yes"?"border-success":"border-light"}`}
+                    style={{background:state==="no"?"#fff8f8":state==="yes"?"#f9fff9":"#fff"}}>
+                    <div className="card-body py-2 px-3 d-flex gap-3 align-items-start">
+                      <div className="flex-grow-1">
+                        <div style={{fontSize:13,lineHeight:1.5,color:"#212121"}}>{item.text}</div>
+                        {item.note&&<div className="text-muted mt-1" style={{fontSize:11}}>{item.note}</div>}
+                        {state==="no"&&<textarea placeholder="Describe the issue..." value={comments[key]} onChange={e=>setComment(key,e.target.value)} rows={2}
+                          className="form-control form-control-sm mt-2" style={{fontSize:12}} />}
+                      </div>
+                      <div className="d-flex gap-1 flex-shrink-0 mt-1">
+                        {["yes","no","na"].map(v=>(
+                          <button key={v} onClick={()=>setState(key,v)}
+                            className={`btn btn-sm ${state===v?(v==="yes"?"btn-success":v==="no"?"btn-danger":"btn-secondary"):(v==="yes"?"btn-outline-success":v==="no"?"btn-outline-danger":"btn-outline-secondary")}`}
+                            style={{width:36,height:30,fontSize:10,fontWeight:600,padding:0}}>
+                            {SC[v].label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{display:"flex",gap:3,flexShrink:0}}>
-                    {["yes","no","na"].map(v=>(
-                      <button key={v} onClick={()=>setState(key,v)} style={{width:32,height:28,fontSize:10,fontWeight:600,border:`1px solid ${state===v?SC[v].border:"#e0e0e0"}`,background:state===v?SC[v].bg:"#fafafa",color:state===v?SC[v].text:"#bdbdbd",borderRadius:4,cursor:"pointer"}}>{SC[v].label}</button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </>
       )}
 
       {/* REVIEW VIEW */}
       {view==="review"&&(
-        <div style={{padding:"20px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
-            <div style={{fontSize:16,fontWeight:600,color:"#212121"}}>Review and Export</div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={downloadPDF} style={{padding:"8px 16px",fontSize:13,background:BRAND,color:"#fff",border:"none",borderRadius:5,cursor:"pointer",fontWeight:600}}>Download PDF Report</button>
-              <button onClick={startFresh} style={{padding:"8px 16px",fontSize:13,background:"#e8f5e9",color:"#2e7d32",border:"1px solid #a5d6a7",borderRadius:5,cursor:"pointer",fontWeight:600}}>Mark Complete and Clear</button>
+        <div className="p-3">
+          <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div className="fw-semibold fs-5">Review and Export</div>
+            <div className="d-flex gap-2">
+              <button onClick={downloadPDF} className="btn btn-primary btn-sm fw-semibold">Download PDF Report</button>
+              <button onClick={startFresh} className="btn btn-outline-success btn-sm fw-semibold">Mark Complete and Clear</button>
             </div>
           </div>
 
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:20}}>
-            {[["Compliant",summary.reduce((a,s)=>a+s.yes,0),"#2e7d32","#e8f5e9"],["Issues",summary.reduce((a,s)=>a+s.no,0),"#c62828","#ffebee"],["N/A",summary.reduce((a,s)=>a+s.na,0),"#757575","#f5f5f5"],["Pending",summary.reduce((a,s)=>a+s.pending,0),"#e65100","#fff3e0"]].map(([l,n,tc,bg])=>(
-              <div key={l} style={{background:bg,borderRadius:6,padding:"10px",textAlign:"center"}}>
-                <div style={{fontSize:22,fontWeight:700,color:tc}}>{n}</div>
-                <div style={{fontSize:11,color:tc}}>{l}</div>
+          <div className="row g-2 mb-3">
+            {[
+              ["Compliant",summary.reduce((a,s)=>a+s.yes,0),"success"],
+              ["Issues",summary.reduce((a,s)=>a+s.no,0),"danger"],
+              ["N/A",summary.reduce((a,s)=>a+s.na,0),"secondary"],
+              ["Pending",summary.reduce((a,s)=>a+s.pending,0),"warning"]
+            ].map(([l,n,variant])=>(
+              <div key={l} className="col-6 col-md-3">
+                <div className={`card border-${variant} text-center shadow-sm`}>
+                  <div className="card-body py-2">
+                    <div className={`fs-3 fw-bold text-${variant}`}>{n}</div>
+                    <div className={`small text-${variant}`}>{l}</div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
 
           {summary.map((s,i)=>(
-            <div key={i} style={{marginBottom:10,border:"1px solid #e0e0e0",borderRadius:6,overflow:"hidden"}}>
-              <div style={{background:s.no>0?"#ffebee":s.pending>0?"#fff8e1":"#e8f5e9",padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontWeight:600,fontSize:13}}>{s.label}</span>
-                <span style={{fontSize:11,color:"#616161"}}>Y:{s.yes} N:{s.no} NA:{s.na} ?:{s.pending}</span>
+            <div key={i} className={`card mb-2 shadow-sm border-${s.no>0?"danger":s.pending>0?"warning":"success"}`}>
+              <div className={`card-header d-flex justify-content-between align-items-center py-2 bg-${s.no>0?"danger":s.pending>0?"warning":"success"} bg-opacity-10`}>
+                <span className="fw-semibold" style={{fontSize:13}}>{s.label}</span>
+                <span className="text-muted" style={{fontSize:11}}>Y:{s.yes} N:{s.no} NA:{s.na} ?:{s.pending}</span>
               </div>
               {s.issues.length>0?(
-                <div style={{padding:"8px 14px"}}>
+                <div className="card-body py-2">
                   {s.issues.map((iss,j)=>(
-                    <div key={j} style={{fontSize:12,padding:"5px 8px",marginBottom:4,background:"#fff8f8",border:"1px solid #ef9a9a",borderRadius:4}}>
-                      <div style={{color:"#212121"}}>- {iss.text}</div>
-                      {iss.comment&&<div style={{color:"#c62828",marginTop:2}}>Note: {iss.comment}</div>}
+                    <div key={j} className="alert alert-danger py-2 mb-2" style={{fontSize:12}}>
+                      <div>- {iss.text}</div>
+                      {iss.comment&&<div className="fw-semibold mt-1">Note: {iss.comment}</div>}
                     </div>
                   ))}
                 </div>
               ):(
-                <div style={{padding:"6px 14px",fontSize:12,color:"#2e7d32",fontStyle:"italic"}}>All items compliant - no corrective action required.</div>
+                <div className="card-body py-2 text-success fst-italic" style={{fontSize:12}}>All items compliant - no corrective action required.</div>
               )}
             </div>
           ))}
 
-          <div style={{marginTop:24,border:"1px solid #e0e0e0",borderRadius:8,overflow:"hidden"}}>
-            <div style={{background:"#f8f9fa",borderBottom:"1px solid #e0e0e0",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontSize:14,fontWeight:600,color:"#212121"}}>
+          <div className="card mt-3 shadow-sm">
+            <div className="card-header d-flex justify-content-between align-items-center py-2">
+              <div className="fw-semibold" style={{fontSize:14}}>
                 Follow-up email draft
-                {meta.managerEmail&&<span style={{fontSize:11,fontWeight:400,color:"#9e9e9e",marginLeft:8}}>To: {meta.managerEmail}</span>}
+                {meta.managerEmail&&<span className="text-muted fw-normal ms-2" style={{fontSize:11}}>To: {meta.managerEmail}</span>}
               </div>
-              <button onClick={copyEmail} style={{padding:"5px 14px",fontSize:12,background:copied?"#e8f5e9":"#fff",border:"1px solid #e0e0e0",borderRadius:4,cursor:"pointer",color:copied?"#2e7d32":"#424242",fontWeight:copied?600:400}}>
+              <button onClick={copyEmail} className={`btn btn-sm ${copied?"btn-success":"btn-outline-secondary"}`}>
                 {copied?"Copied!":"Copy to clipboard"}
               </button>
             </div>
-            <textarea value={emailText} onChange={e=>setEmailText(e.target.value)} rows={14}
-              style={{width:"100%",fontSize:12,lineHeight:1.7,padding:"12px 16px",border:"none",resize:"vertical",color:"#212121",background:"#fff",boxSizing:"border-box",outline:"none"}} />
-            <div style={{background:"#f8f9fa",borderTop:"1px solid #e0e0e0",padding:"8px 16px",fontSize:11,color:"#9e9e9e"}}>
+            <div className="card-body p-0">
+              <textarea value={emailText} onChange={e=>setEmailText(e.target.value)} rows={14}
+                className="form-control border-0" style={{fontSize:12,lineHeight:1.7,resize:"vertical",borderRadius:"0 0 4px 4px"}} />
+            </div>
+            <div className="card-footer text-muted" style={{fontSize:11}}>
               Edit above if needed, then copy and paste into Outlook. The PDF report downloads separately via the button above.
             </div>
           </div>
@@ -498,4 +531,3 @@ Write a professional direct email. List issues with a 5-business-day corrective 
     </div>
   );
 }
-

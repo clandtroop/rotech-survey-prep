@@ -357,9 +357,9 @@ Write a professional direct email. List issues with a 5-business-day corrective 
           </div>
         </div>
         {(view==="form"||view==="review")&&(
-          <div className="row g-2 mt-2">
+          <div className="d-flex flex-wrap gap-2 mt-2">
             {[["location","Location"],["city","City / State"],["managerEmail","Manager Email"],["specialist","Specialist"],["date","Visit Date"]].map(([k,label])=>(
-              <div key={k} className="col">
+            <div key={k} style={{flex:"1 1 130px"}}>
                 <div style={{fontSize:9,opacity:0.55,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>{label}</div>
                 <input value={meta[k]} onChange={e=>setMeta(p=>({...p,[k]:e.target.value}))} placeholder={label}
                   className="form-control form-control-sm"

@@ -427,7 +427,7 @@ Write a professional direct email. List issues with a 5-business-day corrective 
                       <div className="flex-grow-1">
                         <div style={{fontSize:13,lineHeight:1.5,color:"#212121"}}>{item.text}</div>
                         {item.note&&<div className="text-muted mt-1" style={{fontSize:11}}>{item.note}</div>}
-                        {state==="no"&&<textarea placeholder="Describe the issue..." value={comments[key]} onChange={e=>setComment(key,e.target.value)} rows={2}
+                        {state==="no"&&<textarea placeholder="Describe the issue...Hold Shift then hit Enter before typing" value={comments[key]} onChange={e=>setComment(key,e.target.value)} rows={2}
                           className="form-control form-control-sm mt-2" style={{fontSize:12}} />}
                       </div>
                       <div className="d-flex gap-1 flex-shrink-0 mt-1">

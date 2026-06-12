@@ -163,7 +163,6 @@ function buildPDFBlob(meta, summaryData) {
   doc.setFont("helvetica","bold"); doc.setFontSize(7); doc.setTextColor(255,255,255);
   doc.text("ROTECH HEALTHCARE",M,22);
   doc.setFontSize(16); doc.text("Accreditation Survey Prep Report",M,46);
-  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.text("Rev 03.24.2026",M,64);
   y=100;
 
   [["Location",meta.location||"-"],["City / State",meta.city||"-"],["Accreditation Specialist",meta.specialist||"-"],["Visit Date",meta.date]].forEach(([label,val])=>{

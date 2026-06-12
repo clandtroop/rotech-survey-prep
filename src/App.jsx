@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 const BRAND = "#1a3a5c";
+const ACCENT = "#2e6da4";
 
 const SECTIONS = [
   {
-    id: "morning", label: "Morning Meeting Binder", short: "Morning", ref: "Binder 1 · OP 541 & OP 840",
+    id: "morning", label: "Morning Meeting Binder", ref: "Binder 1 · OP 541 & OP 840",
     items: [
       { text: "Policy 1.1.25 Morning Meetings present" },
       { text: "OP 843 Morning Meeting Checklist current and complete" },
@@ -14,7 +15,7 @@ const SECTIONS = [
     ]
   },
   {
-    id: "inservice", label: "In-Service Binder", short: "In-Service", ref: "Binder 2 · OP 541 & OP 840",
+    id: "inservice", label: "In-Service Binder", ref: "Binder 2 · OP 541 & OP 840",
     items: [
       { text: "Policy 1.1.21 Educational In-Services present" },
       { text: "OP 520 In-Service Attendance Record current" },
@@ -25,48 +26,48 @@ const SECTIONS = [
     ]
   },
   {
-    id: "site", label: "Site Inspection Binder", short: "Site", ref: "Binder 3 · OP 840",
+    id: "site", label: "Site Inspection Binder", ref: "Binder 3 · OP 840",
     items: [
       { text: "Policy 1.1.14 Inspections, Audits & Investigations present" },
       { text: "All applicable licenses on file (pharmacy, health dept, sales tax, business, clinician, etc.)", note: "Board of Pharmacy or Dept of Health, Sales Tax, Business/Professional, County Occupational, Clinicians'" },
-      { text: "Certificate of Insurance - Property and Liability" },
+      { text: "Certificate of Insurance — Property and Liability" },
       { text: "Policy 2.1.29 Patient Complaints and OP 564 Patient Complaint Report" },
       { text: "Policy 1.1.12 Medicare Supplier Standards" },
       { text: "Policy 6.5.10 Notice of Privacy Practices" },
       { text: "Patient Information Booklet (RHI 1000) with all required sections flagged", note: "Flag: Patient Rights, Delivery/Repair, Complaint Resolution, Financial/Billing, Terms of Agreement" },
-      { text: "Phone listing - business section of white pages or print Google page" },
+      { text: "Phone listing — business section of white pages or print Google page" },
       { text: "OSHA 300 Logs present" },
       { text: "OP 201 Field Management Organizational Chart" },
     ]
   },
   {
-    id: "jc", label: "JC / Operations Binder", short: "JC / Ops", ref: "Binder 4 · OP 541 & OP 840",
+    id: "jc", label: "JC / Operations Binder", ref: "Binder 4 · OP 541 & OP 840",
     items: [
-      { text: "Tab 1 - Policy 1.1.22 Performance Improvement Program" },
-      { text: "Tab 1 - Location metrics and corrective action plan (as applicable)" },
-      { text: "Tab 1 - EMR reviews (20 semi-annually) and corrective actions" },
-      { text: "Tab 1 - OP 541 Location Readiness Tool completed January and July" },
-      { text: "Tab 1 - JC 427 Personnel Records Review completed January and July" },
-      { text: "Tab 1 - Quarterly Patient Perception of Care reports" },
-      { text: "Tab 1 - Annual Referral Source Perception of Care report" },
-      { text: "Tab 1 - Infection Control Targeted Surveillance Logs (OP 519)" },
-      { text: "Tab 1 - Semi-annual Infectious Disease Trending Reports (OP 542)" },
-      { text: "Tab 1 - Influenza Vaccination Data Collection (OP 752)" },
-      { text: "Tab 1 - Quarterly Don't Bug Me newsletter and OP 520 attendance record" },
-      { text: "Tab 1 - OP 201 Organizational Chart and Policy 1.1.2 Scope of Service" },
-      { text: "Tab 1 - Key contact person name documented for surveyor tracer selection" },
-      { text: "Tab 2 - Emergency Preparedness: Policy 2.2.2, OP 525, OP 857" },
-      { text: "Tab 2 - Fire Prevention: Policy 2.4.13, RM 1240" },
-      { text: "Tab 2 - FDA 001 Equipment Maintenance Log - smoke alarm checks (weekly)" },
-      { text: "Tab 2 - FDA 001 - monthly emergency lighting / exit sign checks (as applicable)" },
-      { text: "Tab 3 - Incidents: Policy 2.4.1, OP 518, RM 1202, copies of all incidents" },
-      { text: "Tab 4 - Complaints: Policy 2.1.29, OP 522, OP 564, OP 566, copies of all complaints" },
-      { text: "Tab 5 - Facility Safety Inspection OP 512 (Jan & July) with fire drill record" },
-      { text: "Tab 5 - Policy 2.2.4 and maintenance/calibration docs for all instrumentation", note: "Self-calibrating analyzer FDA 025, O2 analyzer FDA 003, annual calibration records" },
+      { text: "Tab 1 — Policy 1.1.22 Performance Improvement Program" },
+      { text: "Tab 1 — Location metrics and corrective action plan (as applicable)" },
+      { text: "Tab 1 — EMR reviews (20 semi-annually) and corrective actions" },
+      { text: "Tab 1 — OP 541 Location Readiness Tool completed January and July" },
+      { text: "Tab 1 — JC 427 Personnel Records Review completed January and July" },
+      { text: "Tab 1 — Quarterly Patient Perception of Care reports" },
+      { text: "Tab 1 — Annual Referral Source Perception of Care report" },
+      { text: "Tab 1 — Infection Control Targeted Surveillance Logs (OP 519)" },
+      { text: "Tab 1 — Semi-annual Infectious Disease Trending Reports (OP 542)" },
+      { text: "Tab 1 — Influenza Vaccination Data Collection (OP 752)" },
+      { text: "Tab 1 — Quarterly Don't Bug Me newsletter and OP 520 attendance record" },
+      { text: "Tab 1 — OP 201 Organizational Chart and Policy 1.1.2 Scope of Service" },
+      { text: "Tab 1 — Key contact person name documented for surveyor tracer selection" },
+      { text: "Tab 2 — Emergency Preparedness: Policy 2.2.2, OP 525, OP 857" },
+      { text: "Tab 2 — Fire Prevention: Policy 2.4.13, RM 1240" },
+      { text: "Tab 2 — FDA 001 Equipment Maintenance Log — smoke alarm checks (weekly)" },
+      { text: "Tab 2 — FDA 001 — monthly emergency lighting / exit sign checks (as applicable)" },
+      { text: "Tab 3 — Incidents: Policy 2.4.1, OP 518, RM 1202, copies of all incidents" },
+      { text: "Tab 4 — Complaints: Policy 2.1.29, OP 522, OP 564, OP 566, copies of all complaints" },
+      { text: "Tab 5 — Facility Safety Inspection OP 512 (Jan & July) with fire drill record" },
+      { text: "Tab 5 — Policy 2.2.4 and maintenance/calibration docs for all instrumentation", note: "Self-calibrating analyzer FDA 025, O2 analyzer FDA 003, annual calibration records" },
     ]
   },
   {
-    id: "sds", label: "SDS / Hazmat Binder", short: "SDS", ref: "Binder 5 · JC 427, OP 541 & OP 840",
+    id: "sds", label: "SDS / Hazmat Binder", ref: "Binder 5 · JC 427, OP 541 & OP 840",
     items: [
       { text: "RM 1232 Hazardous Chemical Inventory List" },
       { text: "RM 1233 Site Specific Information Sheet" },
@@ -76,7 +77,7 @@ const SECTIONS = [
     ]
   },
   {
-    id: "pst", label: "PST Home Visit", short: "PST Visit", ref: "Form JC 426",
+    id: "pst", label: "PST Home Visit", ref: "Form JC 426",
     items: [
       { text: "All equipment, supplies, and tanks secured in vehicle" },
       { text: "Testing equipment, gloves, Madawipes, hand gel, non-clear bags and red tags on vehicle" },
@@ -85,14 +86,14 @@ const SECTIONS = [
       { text: "Vehicle locked and secured when unattended (windows up, all doors locked)" },
       { text: "Hand gel applied prior to entering patient's home" },
       { text: "Back-up tank assembled to take into home" },
-      { text: "No Smoking sign(s) posted at entrance to home", note: "Required if oxygen is in the home" },
+      { text: '"No Smoking" sign(s) posted at entrance to home', note: "Required if oxygen is in the home" },
       { text: "Correct patient confirmed using two patient identifiers" },
       { text: "Patient instructed on portable/back-up system per order; conserving device cycling verified" },
       { text: "Hand gel used between clean and dirty tasks; gloves changed appropriately" },
       { text: "Concentrator plugged in and minimum run times observed per OP 609" },
       { text: "Portable liquid oxygen or gaseous systems checked" },
       { text: "Back-up tanks verified and patient ability to operate confirmed (AMA on file if refused)", note: "Back-up tanks must have RHI 600 tag" },
-      { text: "Cylinder storage safe - not in closets, not freestanding, 15 ft from heat/flame" },
+      { text: "Cylinder storage safe — not in closets, not freestanding, 15 ft from heat/flame" },
       { text: "Concentrator oxygen percentage analyzed, minimum run time observed" },
       { text: "Oxygen flow checked at end of longest tubing" },
       { text: "Concentrator alarm checked; patient/caregiver can hear alarm" },
@@ -108,7 +109,7 @@ const SECTIONS = [
     ]
   },
   {
-    id: "clinician", label: "Clinician Visit", short: "Clinician", ref: "Form JC 423 / JC 424",
+    id: "clinician", label: "Clinician Visit", ref: "Form JC 423 / JC 424",
     items: [
       { text: "Physician order verified (can be completed prior to setup)" },
       { text: "Correct patient confirmed using two identifiers (name, DOB, address, etc.)" },
@@ -120,7 +121,7 @@ const SECTIONS = [
       { text: "Operation of PAP device, humidifier, and accessories demonstrated" },
       { text: "Return demonstration received from patient for device/humidifier and accessories" },
       { text: "Mask options discussed if specific mask not ordered" },
-      { text: "Magnetic PAP mask risk discussed - pacemaker, defibrillator, cochlear implant (6 inch rule)", note: "Applies on setup or mask exchange" },
+      { text: "Magnetic PAP mask risk discussed — pacemaker, defibrillator, cochlear implant (6 inch rule)", note: "Applies on setup or mask exchange" },
       { text: "Mask fitting performed; device turned on during fitting to reduce rebreathing risk", note: "Do not use sample masks; direct patient to self-fit if non-clinician" },
       { text: "Tubing/mask connection to PAP/humidifier demonstrated" },
       { text: "PAP device turned on so patient can experience pressures", note: "Non-clinician: patient turns on device; do not touch the patient" },
@@ -131,7 +132,7 @@ const SECTIONS = [
       { text: "Humidifier emptying daily (distilled water) and before transport discussed" },
       { text: "Compliance requirements discussed" },
       { text: "All equipment/supplies and serial/lot numbers documented on ticket" },
-      { text: "Initial Plan of Care (CL 307) fully completed - home safety and fall risk included" },
+      { text: "Initial Plan of Care (CL 307) fully completed — home safety and fall risk included" },
       { text: "Patient internet access confirmed; Rotech website reviewed; RHI 1080 card provided" },
       { text: "Credentials used when signing (clinician only)" },
       { text: "Hand gel applied at end of visit; table wiped down" },
@@ -139,406 +140,425 @@ const SECTIONS = [
   }
 ];
 
-const STORAGE_KEY = "rotech_survey_draft";
-
-function saveDraft(meta, states, comments) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ meta, states, comments, savedAt: new Date().toISOString() })); } catch {}
-}
-function loadDraft() {
-  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
-}
-function clearDraft() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
-}
-
-function buildPDFBlob(meta, summaryData) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
-  const W = 612, M = 40, CW = W - M * 2;
-  let y = M;
-  const rule = () => { doc.setDrawColor(220,220,220); doc.line(M,y,W-M,y); y+=8; };
-  const checkPage = (n=60) => { if(y+n>760){doc.addPage();y=M;} };
-
-  doc.setFillColor(26,58,92); doc.rect(0,0,W,80,"F");
-  doc.setFont("helvetica","bold"); doc.setFontSize(7); doc.setTextColor(255,255,255);
-  doc.text("ROTECH HEALTHCARE",M,22);
-  doc.setFontSize(16); doc.text("Accreditation Survey Prep Report",M,46);
-  y=100;
-
-  [["Location",meta.location||"-"],["City / State",meta.city||"-"],["Accreditation Specialist",meta.specialist||"-"],["Visit Date",meta.date]].forEach(([label,val])=>{
-    doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(100,100,100); doc.text(label.toUpperCase(),M,y);
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(30,30,30); doc.text(val,M+160,y); y+=16;
-  });
-  y+=8; rule();
-
-  const tY=summaryData.reduce((a,s)=>a+s.yes,0), tN=summaryData.reduce((a,s)=>a+s.no,0),
-        tNA=summaryData.reduce((a,s)=>a+s.na,0), tP=summaryData.reduce((a,s)=>a+s.pending,0);
-  [[tY,"Compliant",[46,125,50],[232,245,233]],[tN,"Issues",[198,40,40],[255,235,238]],[tNA,"N/A",[97,97,97],[245,245,245]],[tP,"Not Reviewed",[230,81,0],[255,243,224]]].forEach(([n,label,tc,bg],i)=>{
-    const bw=CW/4-6, x=M+i*(bw+8);
-    doc.setFillColor(...bg); doc.roundedRect(x,y,bw,44,4,4,"F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(18); doc.setTextColor(...tc); doc.text(String(n),x+bw/2,y+22,{align:"center"});
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.text(label,x+bw/2,y+36,{align:"center"});
-  });
-  y+=58; rule();
-
-  summaryData.forEach(sec=>{
-    checkPage(50);
-    const bg=sec.no>0?[255,235,238]:sec.pending>0?[255,248,225]:[232,245,233];
-    doc.setFillColor(...bg); doc.rect(M,y-2,CW,18,"F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(30,30,30); doc.text(sec.label,M+4,y+10);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(80,80,80);
-    doc.text("Y:"+sec.yes+"  N:"+sec.no+"  NA:"+sec.na+"  ?:"+sec.pending,W-M-4,y+10,{align:"right"});
-    y+=22;
-    if(sec.issues.length>0){
-      sec.issues.forEach(iss=>{
-        checkPage(40);
-        doc.setFillColor(255,248,248); doc.rect(M+8,y-2,CW-8,iss.comment?32:18,"F");
-        doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(30,30,30);
-        const lines=doc.splitTextToSize("- "+iss.text,CW-20); doc.text(lines,M+12,y+8); y+=lines.length*11;
-        if(iss.comment){ doc.setTextColor(180,40,40); const cl=doc.splitTextToSize("  Note: "+iss.comment,CW-20); doc.text(cl,M+12,y+2); y+=cl.length*10+4; }
-        y+=4;
-      });
-    } else {
-      doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(46,125,50);
-      doc.text("All items compliant.",M+4,y+8); y+=16;
-    }
-    y+=6;
-  });
-
-  checkPage(70); rule();
-  doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(26,58,92); doc.text("Additional Comments",M,y); y+=14;
-  doc.setDrawColor(200,200,200); doc.rect(M,y,CW,54); y+=70;
-
-  checkPage(70); rule();
-  const sigW=CW/2-16;
-  ["Accreditation Specialist","Location Manager"].forEach((role,i)=>{
-    const x=M+i*(sigW+32);
-    doc.setDrawColor(30,30,30); doc.line(x,y+30,x+sigW,y+30);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(100,100,100);
-    doc.text(role,x,y+42); doc.text("Date: _______________",x,y+56);
-  });
-
-  return doc.output("blob");
-}
-
 function initStates() {
-  const s={},c={};
-  SECTIONS.forEach((sec,si)=>sec.items.forEach((_,ii)=>{s[`${si}-${ii}`]=null;c[`${si}-${ii}`]="";}));
-  return {states:s,comments:c};
+  const s = {}, c = {};
+  SECTIONS.forEach((sec, si) => sec.items.forEach((_, ii) => {
+    s[`${si}-${ii}`] = null;
+    c[`${si}-${ii}`] = "";
+  }));
+  return { states: s, comments: c };
 }
+
+const STATUS_COLORS = {
+  yes: { bg: "#e8f5e9", border: "#66bb6a", text: "#2e7d32", label: "Y" },
+  no:  { bg: "#ffebee", border: "#ef5350", text: "#c62828", label: "N" },
+  na:  { bg: "#f5f5f5", border: "#bdbdbd", text: "#616161", label: "N/A" },
+};
 
 export default function App() {
-  const draft = loadDraft();
-  const blank = initStates();
+  const [meta, setMeta] = useState({ location: "", city: "", specialist: "", date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
+  const [activeTab, setActiveTab] = useState(0);
+  const [{ states, comments }, setForm] = useState(initStates);
+  const [view, setView] = useState("form"); // form | email | report
+  const [emailText, setEmailText] = useState("");
+  const [reportLines, setReportLines] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const [meta,       setMeta]      = useState(draft?.meta     ?? {location:"",city:"",managerEmail:"",specialist:"",date:new Date().toLocaleDateString("en-US")});
-  const [states,     setStates]    = useState(draft?.states   ?? blank.states);
-  const [comments,   setComments]  = useState(draft?.comments ?? blank.comments);
-  const [activeTab,  setActiveTab] = useState(0);
-  const [view,       setView]      = useState("form");
-  const [emailText,  setEmailText] = useState("");
-  const [summary,    setSummary]   = useState([]);
-  const [generating, setGenerating]= useState(false);
-  const [copied,     setCopied]    = useState(false);
-  const [hasDraft,   setHasDraft]  = useState(!!draft);
-  const [savedAt,    setSavedAt]   = useState(draft?.savedAt ?? null);
+  const setState = useCallback((key, val) => {
+    setForm(prev => ({ ...prev, states: { ...prev.states, [key]: prev.states[key] === val ? null : val } }));
+  }, []);
 
-  useEffect(()=>{
-    saveDraft(meta,states,comments);
-    setSavedAt(new Date().toISOString());
-  },[meta,states,comments]);
+  const setComment = useCallback((key, val) => {
+    setForm(prev => ({ ...prev, comments: { ...prev.comments, [key]: val } }));
+  }, []);
 
-  const setState = useCallback((key,val)=>{
-    setStates(p=>({...p,[key]:p[key]===val?null:val}));
-  },[]);
-  const setComment = useCallback((key,val)=>{
-    setComments(p=>({...p,[key]:val}));
-  },[]);
-
-  function getStats(si){
-    let yes=0,no=0,na=0,pending=0;
-    SECTIONS[si].items.forEach((_,ii)=>{
-      const s=states[`${si}-${ii}`];
-      if(s==="yes")yes++;else if(s==="no")no++;else if(s==="na")na++;else pending++;
+  function getSectionStats(si) {
+    let yes = 0, no = 0, na = 0, pending = 0;
+    SECTIONS[si].items.forEach((_, ii) => {
+      const s = states[`${si}-${ii}`];
+      if (s === "yes") yes++; else if (s === "no") no++; else if (s === "na") na++; else pending++;
     });
-    return{yes,no,na,pending,total:SECTIONS[si].items.length};
+    return { yes, no, na, pending, total: SECTIONS[si].items.length };
   }
 
-  function buildSummary(){
-    return SECTIONS.map((sec,si)=>{
-      const stats=getStats(si);
-      const issues=sec.items.flatMap((item,ii)=>{
-        const key=`${si}-${ii}`;
-        return states[key]==="no"?[{text:item.text,comment:comments[key]}]:[];
+  function getAllIssues() {
+    return SECTIONS.flatMap((sec, si) =>
+      sec.items.flatMap((item, ii) => {
+        const key = `${si}-${ii}`;
+        if (states[key] === "no") return [{ section: sec.label, text: item.text, comment: comments[key] }];
+        return [];
+      })
+    );
+  }
+
+  function buildSummaryData() {
+    return SECTIONS.map((sec, si) => {
+      const stats = getSectionStats(si);
+      const issues = sec.items.flatMap((item, ii) => {
+        const key = `${si}-${ii}`;
+        if (states[key] === "no") return [{ text: item.text, comment: comments[key], type: "no" }];
+        return [];
       });
-      return{label:sec.label,ref:sec.ref,...stats,issues};
+      const observations = sec.items.flatMap((item, ii) => {
+        const key = `${si}-${ii}`;
+        if (states[key] === "yes" && comments[key]) return [{ text: item.text, comment: comments[key] }];
+        return [];
+      });
+      return { label: sec.label, ref: sec.ref, ...stats, issues, observations };
     });
   }
 
-  async function handleReview(){
-    setGenerating(true);
-    const sd=buildSummary();
-    setSummary(sd);
-    const issues=sd.flatMap(s=>s.issues.map(i=>`- [${s.label}] ${i.text}${i.comment?` - ${i.comment}`:""}`));
-    const issueBlock=issues.length===0?"No issues - all areas compliant.":issues.join("\n");
-    const prompt=`You are an accreditation compliance specialist at a home medical equipment company. Generate a professional follow-up email to the location manager.
+  async function generateOutputs() {
+    setLoading(true);
+    const issues = getAllIssues();
+    const summaryData = buildSummaryData();
+    const loc = meta.location || "[Location]";
+    const city = meta.city || "[City, ST]";
+    const spec = meta.specialist || "[Specialist]";
+    const date = meta.date || new Date().toLocaleDateString("en-US");
 
-Location: ${meta.location||"[Location]"}, ${meta.city||"[City, ST]"}
-Date: ${meta.date}
-Specialist: ${meta.specialist||"[Specialist]"}
-Compliant: ${sd.reduce((a,s)=>a+s.yes,0)} | Issues: ${sd.reduce((a,s)=>a+s.no,0)} | N/A: ${sd.reduce((a,s)=>a+s.na,0)} | Pending: ${sd.reduce((a,s)=>a+s.pending,0)}
+    const totalYes = summaryData.reduce((a, s) => a + s.yes, 0);
+    const totalNo = summaryData.reduce((a, s) => a + s.no, 0);
+    const totalNa = summaryData.reduce((a, s) => a + s.na, 0);
+    const totalPending = summaryData.reduce((a, s) => a + s.pending, 0);
 
-Issues:
+    const issueBlock = issues.length === 0
+      ? "No issues identified. All reviewed areas are compliant."
+      : issues.map(i => `- [${i.section}] ${i.text}${i.comment ? ` — Note: ${i.comment}` : ""}`).join("\n");
+
+    const prompt = `You are an accreditation compliance specialist at a home medical equipment company. Generate a professional follow-up email to the location manager based on the survey prep visit below.
+
+Location: ${loc}, ${city}
+Date: ${date}
+Accreditation Specialist: ${spec}
+Compliant items: ${totalYes} | Issues found: ${totalNo} | N/A: ${totalNa} | Not reviewed: ${totalPending}
+
+Issues found:
 ${issueBlock}
 
-Write a professional direct email. List issues with a 5-business-day corrective action deadline. Mention a follow-up Teams call with LCM and Area/Region Manager will be scheduled. Use plain dashes not bullets. If no issues, write a brief congratulatory message. Sign as ${meta.specialist||"[Specialist]"}, Accreditation Specialist.`;
+Write a professional but direct email. If there are issues, list them clearly with requested corrective actions and a deadline of 5 business days to report back. Mention a follow-up teams call with LCM and Area/Region Manager will be scheduled. If no issues, write a brief congratulatory message. Do not use bullet symbols - use plain dashes. Sign off as ${spec}, Accreditation Specialist.`;
 
-    try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
-      const data=await res.json();
-      setEmailText(data.content?.find(b=>b.type==="text")?.text||fallback(meta,issueBlock));
-    }catch{setEmailText(fallback(meta,issueBlock));}
-    setGenerating(false);
-    setView("review");
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.find(b => b.type === "text")?.text || "";
+      setEmailText(text);
+    } catch {
+      setEmailText(`Subject: Accreditation Survey Prep Follow-Up — ${loc}, ${city} — ${date}\n\nHello,\n\nThank you for your time during the accreditation survey prep visit on ${date} for ${loc}, ${city}.\n\n${issues.length === 0 ? "All reviewed areas were found to be in compliance. No corrective action is required at this time." : `The following items require corrective action within 5 business days:\n\n${issueBlock}\n\nPlease address each item and report back with your findings. A follow-up Teams call with the LCM and Area/Region Manager will be scheduled.`}\n\nBest regards,\n${spec}\nAccreditation Specialist`);
+    }
+
+    setReportLines(summaryData);
+    setLoading(false);
+    setView("email");
   }
 
-  function fallback(m,issueBlock){
-    const noIssues=issueBlock==="No issues - all areas compliant.";
-    return `Subject: Accreditation Survey Prep Follow-Up - ${m.location||"[Location]"}, ${m.city||""} - ${m.date}\n\nHello,\n\nThank you for your time during the accreditation survey prep visit on ${m.date} for ${m.location||"[Location]"}, ${m.city||""}.\n\n${noIssues?"All reviewed areas were found to be in compliance. No corrective action is required at this time. Great work keeping your location survey-ready!":`The following items require corrective action within 5 business days:\n\n${issueBlock}\n\nPlease address each item and report back. A follow-up Teams call with the LCM and Area/Region Manager will be scheduled.`}\n\nBest regards,\n${m.specialist||"[Specialist]"}\nAccreditation Specialist`;
+  function copyText(txt) {
+    navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
-  function downloadPDF(){
-    const blob=buildPDFBlob(meta,summary);
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url; a.download=`SurveyPrep_${(meta.location||"Location").replace(/\s+/g,"_")}_${meta.date.replace(/\//g,"-")}.pdf`; a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function copyEmail(){
-    navigator.clipboard.writeText(emailText).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);});
-  }
-
-  function startFresh(){
-    clearDraft();
-    const b=initStates();
-    setMeta({location:"",city:"",managerEmail:"",specialist:meta.specialist,date:new Date().toLocaleDateString("en-US")});
-    setStates(b.states); setComments(b.comments);
-    setActiveTab(0); setView("form"); setSummary([]); setEmailText(""); setHasDraft(false);
-  }
-
-  const allStats=SECTIONS.reduce((a,_,si)=>{const s=getStats(si);return{yes:a.yes+s.yes,no:a.no+s.no,pending:a.pending+s.pending};},{yes:0,no:0,pending:0});
-  const totalItems=SECTIONS.reduce((a,s)=>a+s.items.length,0);
-  const pct=Math.round(((totalItems-allStats.pending)/totalItems)*100);
-  const sec=SECTIONS[activeTab];
-  const fmtSaved=savedAt?new Date(savedAt).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):null;
+  const sec = SECTIONS[activeTab];
+  const stats = getSectionStats(activeTab);
+  const allStats = SECTIONS.reduce((a, _, si) => {
+    const s = getSectionStats(si);
+    return { yes: a.yes + s.yes, no: a.no + s.no, pending: a.pending + s.pending };
+  }, { yes: 0, no: 0, pending: 0 });
 
   return (
-    <div style={{maxWidth:960,margin:"0 auto",minHeight:"100vh",background:"#f8f9fa"}}>
-
+    <div style={{ fontFamily: "system-ui, sans-serif", maxWidth: 900, margin: "0 auto", background: "#fff", minHeight: "100vh" }}>
       {/* Header */}
-      <div style={{background:BRAND,color:"#fff"}} className="px-3 py-3">
-        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div style={{ background: BRAND, color: "#fff", padding: "16px 24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <div style={{fontSize:11,opacity:0.6,textTransform:"uppercase",letterSpacing:"0.1em"}}>Rotech Healthcare · Accreditation</div>
-            <div style={{fontSize:18,fontWeight:600,marginTop:2}}>Survey Prep Checklist</div>
+            <div style={{ fontSize: 13, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Rotech Healthcare</div>
+            <div style={{ fontSize: 20, fontWeight: 600 }}>Accreditation Survey Prep Checklist</div>
           </div>
-          <div className="d-flex gap-2 align-items-center">
-            {fmtSaved && view==="form" && <span style={{fontSize:11,opacity:0.5}}>Draft saved {fmtSaved}</span>}
-            {view==="review" && <button onClick={()=>setView("form")} className="btn btn-sm btn-outline-light">Back to form</button>}
-            {view==="form" && <button onClick={handleReview} disabled={generating} className="btn btn-sm btn-light fw-semibold" style={{color:BRAND,opacity:generating?0.7:1}}>{generating?"Generating...":"Review & Generate"}</button>}
+          <div style={{ display: "flex", gap: 14 }}>
+            {view !== "form" && (
+              <button onClick={() => setView("form")} style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 6, cursor: "pointer" }}>
+                ← Back to form
+              </button>
+            )}
+            {view === "form" && (
+              <button onClick={() => { generateOutputs(); }} disabled={loading} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+                {loading ? "Generating…" : "Generate Email & Report"}
+              </button>
+            )}
+            {view === "email" && (
+              <button onClick={() => setView("report")} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+                View Report →
+              </button>
+            )}
           </div>
         </div>
-        {(view==="form"||view==="review")&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8,marginTop:12}}>
-            {[["location","Location"],["city","City / State"],["managerEmail","Manager Email"],["specialist","Specialist"],["date","Visit Date"]].map(([k,label])=>(
-              <div key={k}>
-                <div style={{fontSize:9,opacity:0.55,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>{label}</div>
-                <input value={meta[k]} onChange={e=>setMeta(p=>({...p,[k]:e.target.value}))} placeholder={label}
-                  className="form-control form-control-sm"
-                  style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff"}} />
-              </div>
-            ))}
+        {/* Meta fields */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 16 }}>
+          {[["location", "Location / Lawson #"], ["city", "City / State"], ["specialist", "Accreditation Specialist"], ["date", "Visit Date"]].map(([k, label]) => (
+            <div key={k}>
+              <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>{label}</div>
+              <input
+                value={meta[k]}
+                onChange={e => setMeta(p => ({ ...p, [k]: e.target.value }))}
+                placeholder={label}
+                style={{ width: "100%", padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+          ))}
+          {/* Follow-up call: date + time side by side */}
+          <div style={{ gridColumn: "span 2" }}>
+            <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>Follow-Up Teams Call Scheduled</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <input
+                type="date"
+                value={meta.followUpDate}
+                onChange={e => setMeta(p => ({ ...p, followUpDate: e.target.value }))}
+                style={{ flex: 1, padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box", colorScheme: "dark" }}
+              />
+              <input
+                type="time"
+                value={meta.followUpTime}
+                onChange={e => setMeta(p => ({ ...p, followUpTime: e.target.value }))}
+                style={{ flex: 1, padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box", colorScheme: "dark" }}
+              />
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Draft banner */}
-      {hasDraft && view==="form" && (
-        <div className="alert alert-warning mb-0 py-2 px-3 d-flex justify-content-between align-items-center" style={{borderRadius:0}}>
-          <span style={{fontSize:13}}>Draft restored from your last session.</span>
-          <button onClick={startFresh} className="btn btn-sm btn-outline-warning" style={{fontSize:12}}>Clear and start fresh</button>
-        </div>
-      )}
-
       {/* FORM VIEW */}
-      {view==="form"&&(
-        <>
-          <div className="progress" style={{height:4,borderRadius:0}}>
-            <div className={`progress-bar ${allStats.no>0?"bg-danger":"bg-success"}`} style={{width:`${pct}%`,transition:"width 0.3s"}} />
-          </div>
-
-          <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"center",padding:"8px 16px",background:"#fff",borderBottom:"1px solid #dee2e6"}}>
-            {[
-              ["Compliant", allStats.yes,     "text-bg-success"],
-              ["Issues",    allStats.no,      "text-bg-danger"],
-              ["Pending",   allStats.pending, "text-bg-primary"]
-            ].map(([label,n,variant])=>(
-              <div key={label} style={{display:"flex",alignItems:"center",gap:6}}>
-                <span className={`badge ${variant}`} style={{fontSize:13}}>{n}</span>
-                <span style={{fontSize:13,color:"#616161"}}>{label}</span>
+      {view === "form" && (
+        <div>
+          {/* Summary bar */}
+          <div style={{ display: "flex", background: "#f8f9fa", borderBottom: "1px solid #e0e0e0", padding: "10px 24px", flexWrap: "wrap", gap: 16 }}>
+            {[["✓ Compliant", allStats.yes, "#2e7d32"], ["✗ Issues", allStats.no, "#c62828"], ["Pending", allStats.pending, "#616161"]].map(([l, n, c]) => (
+              <div key={l} style={{ fontSize: 13 }}>
+                <span style={{ color: c, fontWeight: 600 }}>{n}</span>
+                <span style={{ color: "#757575", marginLeft: 5 }}>{l}</span>
               </div>
             ))}
-            <div style={{marginLeft:"auto",fontSize:12,color:"#9e9e9e"}}>{pct}% reviewed ({totalItems-allStats.pending}/{totalItems})</div>
           </div>
 
-          <div className="bg-white border-bottom d-flex" style={{overflowX:"auto"}}>
-            {SECTIONS.map((s,i)=>{
-              const st=getStats(i);
-              return(
-                <button key={i} onClick={()=>setActiveTab(i)}
-                  className="d-flex align-items-center gap-1 border-0 bg-transparent"
-                  style={{fontSize:12,whiteSpace:"nowrap",padding:"10px 14px",color:i===activeTab?BRAND:"#616161",fontWeight:i===activeTab?600:400,borderBottom:i===activeTab?`2px solid ${BRAND}`:"2px solid transparent",cursor:"pointer"}}>
-                  {s.short}
-                  {st.no>0&&<span className="badge bg-danger rounded-pill" style={{fontSize:9}}>{st.no}</span>}
-                  {st.no===0&&st.pending===0&&<span className="badge bg-success rounded-pill" style={{fontSize:9}}>✓</span>}
+          {/* Tabs */}
+          <div style={{ display: "flex", overflowX: "auto", borderBottom: "1px solid #e0e0e0", background: "#fafafa" }}>
+            {SECTIONS.map((s, i) => {
+              const st = getSectionStats(i);
+              return (
+                <button key={i} onClick={() => setActiveTab(i)} style={{
+                  padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
+                  border: "none", borderBottom: i === activeTab ? `2px solid ${BRAND}` : "2px solid transparent",
+                  color: i === activeTab ? BRAND : "#616161", cursor: "pointer", fontWeight: i === activeTab ? 600 : 400,
+                  display: "flex", alignItems: "center", gap: 6
+                }}>
+                  {s.label}
+                  {st.no > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{st.no}</span>}
+                  {st.no === 0 && st.pending === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
                 </button>
               );
             })}
           </div>
 
-          <div className="p-3">
-            <div className="text-muted mb-2" style={{fontSize:11}}>{sec.ref}</div>
-            <div className="d-flex gap-2 mb-3 flex-wrap">
-              {[["yes","Mark all compliant","#198754"],["no","Mark all issues","#dc3545"],["na","Mark all N/A","#6c757d"]].map(([v,l,c])=>(
-                <button key={v} onClick={()=>sec.items.forEach((_,ii)=>setState(`${activeTab}-${ii}`,v))}
-                  className="btn btn-sm" style={{fontSize:11,borderColor:c,color:c,border:`1px solid ${c}`,background:"#fff"}}>{l}</button>
+          {/* Section content */}
+          <div style={{ padding: "16px 24px" }}>
+            <div style={{ fontSize: 11, color: "#9e9e9e", marginBottom: 12 }}>{sec.ref}</div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+              {[["yes", "Compliant"], ["no", "Issue found"], ["na", "N/A"]].map(([v, l]) => (
+                <button key={v} onClick={() => sec.items.forEach((_, ii) => setState(`${activeTab}-${ii}`, v))}
+                  style={{ fontSize: 11, padding: "4px 12px", border: `1px solid ${STATUS_COLORS[v].border}`, background: STATUS_COLORS[v].bg, color: STATUS_COLORS[v].text, borderRadius: 5, cursor: "pointer" }}>
+                  Mark all {l}
+                </button>
               ))}
             </div>
 
-            <div className="d-flex flex-column gap-2">
-              {sec.items.map((item,ii)=>{
-                const key=`${activeTab}-${ii}`, state=states[key];
-                return(
-                  <div key={ii} className="card shadow-sm"
-                    style={{border:`1px solid ${state==="no"?"#f5c6cb":state==="yes"?"#c3e6cb":"#e0e0e0"}`,background:state==="no"?"#fff8f8":state==="yes"?"#f9fff9":"#fff"}}>
-                    <div className="card-body py-2 px-3 d-flex gap-3 align-items-start">
-                      <div className="flex-grow-1">
-                        <div style={{fontSize:13,lineHeight:1.5,color:"#212121"}}>{item.text}</div>
-                        {item.note&&<div className="text-muted mt-1" style={{fontSize:11}}>{item.note}</div>}
-                        {state==="no"&&<textarea placeholder="Describe the issue...Hold Shift then hit Enter before typing" value={comments[key]} onChange={e=>setComment(key,e.target.value)} rows={2}
-                          className="form-control form-control-sm mt-2" style={{fontSize:12}} />}
+            {sec.items.map((item, ii) => {
+              const key = `${activeTab}-${ii}`;
+              const state = states[key];
+              return (
+                <div key={ii} style={{
+                  display: "flex", gap: 12, padding: "10px 12px", marginBottom: 6,
+                  borderRadius: 6, border: `1px solid ${state === "no" ? "#ef9a9a" : state === "yes" ? "#a5d6a7" : "#e0e0e0"}`,
+                  background: state === "no" ? "#fff8f8" : state === "yes" ? "#f9fff9" : "#fff",
+                  alignItems: "flex-start"
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, lineHeight: 1.5, color: "#212121" }}>{item.text}</div>
+                        {item.note && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3, lineHeight: 1.4 }}>{item.note}</div>}
                       </div>
-                      <div className="d-flex gap-1 flex-shrink-0 mt-1">
-                        {["yes","no","na"].map(v=>{
-                          const sel=state===v;
-                          const clr=v==="yes"?{bg:"#198754",border:"#198754"}:v==="no"?{bg:"#dc3545",border:"#dc3545"}:{bg:"#6c757d",border:"#6c757d"};
-                          const lbl=v==="yes"?"Y":v==="no"?"N":"N/A";
-                          return(
-                            <button key={v} onClick={()=>setState(key,v)}
-                              style={{width:v==="na"?40:32,height:30,fontSize:10,fontWeight:600,padding:0,cursor:"pointer",borderRadius:4,background:sel?clr.bg:"#fff",color:sel?"#fff":clr.bg,border:`1px solid ${clr.border}`}}>
-                              {lbl}
-                            </button>
-                          );
-                        })}
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                        {["yes", "no", "na"].map(v => (
+                          <button key={v} onClick={() => setState(key, v)} style={{
+                            width: 38, height: 32, fontSize: 11, fontWeight: 600,
+                            border: `1px solid ${state === v ? STATUS_COLORS[v].border : "#e0e0e0"}`,
+                            background: state === v ? STATUS_COLORS[v].bg : "#fafafa",
+                            color: state === v ? STATUS_COLORS[v].text : "#9e9e9e",
+                            borderRadius: 5, cursor: "pointer"
+                          }}>{STATUS_COLORS[v].label}</button>
+                        ))}
                       </div>
                     </div>
+                    {(state === "yes" || state === "no") && (
+                      <textarea
+                        placeholder={state === "no" ? "Describe the issue and required corrective action…" : "Add observation or note (optional)…"}
+                        value={comments[key]}
+                        onChange={e => setComment(key, e.target.value)}
+                        rows={3}
+                        style={{
+                          marginTop: 8, width: "50%", fontSize: 12, padding: "7px 9px",
+                          border: `1px solid ${state === "no" ? "#ef9a9a" : "#a5d6a7"}`,
+                          borderRadius: 5, resize: "vertical", color: "#212121", background: "#fff",
+                          boxSizing: "border-box", display: "block"
+                        }}
+                      />
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* REVIEW VIEW */}
-      {view==="review"&&(
-        <div style={{padding:16}}>
-
-          {/* Action buttons */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-            <div style={{fontSize:17,fontWeight:700,color:BRAND}}>Accreditation Survey Prep Report</div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={downloadPDF} style={{padding:"7px 16px",fontSize:13,background:BRAND,color:"#fff",border:"none",borderRadius:5,cursor:"pointer",fontWeight:600}}>Download PDF Report</button>
-              <button onClick={startFresh} style={{padding:"7px 16px",fontSize:13,background:"#fff",color:"#198754",border:"1px solid #198754",borderRadius:5,cursor:"pointer",fontWeight:600}}>Mark Complete and Clear</button>
-            </div>
-          </div>
-
-          {/* Visit info bar */}
-          <div style={{background:"#f0f4f8",border:"1px solid #d0dae6",borderRadius:6,padding:"10px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8}}>
-            {[["Location",meta.location||"—"],["City / State",meta.city||"—"],["Specialist",meta.specialist||"—"],["Visit Date",meta.date]].map(([label,val])=>(
-              <div key={label}>
-                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",color:"#6c757d",marginBottom:2}}>{label}</div>
-                <div style={{fontSize:13,fontWeight:600,color:"#212121"}}>{val}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Summary stat boxes */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16}}>
-            {[
-              ["Compliant",summary.reduce((a,s)=>a+s.yes,0),"text-bg-success"],
-              ["Issues",   summary.reduce((a,s)=>a+s.no,0), "text-bg-danger"],
-              ["N/A",      summary.reduce((a,s)=>a+s.na,0), "text-bg-secondary"],
-              ["Pending",  summary.reduce((a,s)=>a+s.pending,0),"text-bg-primary"]
-            ].map(([l,n,variant])=>(
-              <div key={l} style={{textAlign:"center",padding:"8px 4px"}}>
-                <div><span className={`badge ${variant}`} style={{fontSize:22,padding:"8px 14px"}}>{n}</span></div>
-                <div style={{fontSize:12,marginTop:6,color:"#616161",fontWeight:600}}>{l}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Section summaries */}
-          {summary.map((s,i)=>{
-            const hdrBg=s.no>0?"#ffebee":s.pending>0?"#fff8e1":"#e8f5e9";
-            const borderClr=s.no>0?"#ef9a9a":s.pending>0?"#ffe082":"#a5d6a7";
-            return(
-              <div key={i} style={{border:`1px solid ${borderClr}`,borderRadius:6,marginBottom:8,overflow:"hidden"}}>
-                <div style={{background:hdrBg,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontWeight:700,fontSize:13,color:"#212121"}}>{s.label}</span>
-                  <span style={{fontSize:11,color:"#616161"}}>
-                    <span style={{color:"#2e7d32",fontWeight:600}}>Y:{s.yes}</span>{"  "}
-                    <span style={{color:"#c62828",fontWeight:600}}>N:{s.no}</span>{"  "}
-                    <span style={{color:"#616161"}}>NA:{s.na}</span>{"  "}
-                    <span style={{color:"#e65100"}}>?:{s.pending}</span>
-                  </span>
                 </div>
-                {s.issues.length>0?(
-                  <div style={{padding:"8px 14px"}}>
-                    {s.issues.map((iss,j)=>(
-                      <div key={j} style={{fontSize:12,padding:"6px 10px",marginBottom:4,background:"#fff8f8",border:"1px solid #ef9a9a",borderRadius:4}}>
-                        <div style={{color:"#212121"}}>— {iss.text}</div>
-                        {iss.comment&&<div style={{color:"#c62828",marginTop:3,fontWeight:600}}>Note: {iss.comment}</div>}
-                      </div>
-                    ))}
-                  </div>
-                ):(
-                  <div style={{padding:"6px 14px",fontSize:12,color:"#2e7d32",fontStyle:"italic"}}>All items compliant — no corrective action required.</div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Email card */}
-          <div style={{border:"1px solid #dee2e6",borderRadius:6,overflow:"hidden",marginTop:16}}>
-            <div style={{background:"#f8f9fa",borderBottom:"1px solid #dee2e6",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontSize:14,fontWeight:600,color:"#212121"}}>
-                Follow-up email draft
-                {meta.managerEmail&&<span style={{fontSize:11,fontWeight:400,color:"#9e9e9e",marginLeft:8}}>To: {meta.managerEmail}</span>}
-              </div>
-              <button onClick={copyEmail} style={{padding:"4px 14px",fontSize:12,background:copied?"#198754":"#fff",color:copied?"#fff":"#424242",border:"1px solid #dee2e6",borderRadius:4,cursor:"pointer",fontWeight:copied?600:400}}>
-                {copied?"Copied!":"Copy to clipboard"}
-              </button>
-            </div>
-            <textarea value={emailText} onChange={e=>setEmailText(e.target.value)} rows={14}
-              style={{width:"100%",fontSize:12,lineHeight:1.7,padding:"12px 16px",border:"none",resize:"vertical",color:"#212121",background:"#fff",boxSizing:"border-box",outline:"none"}} />
-            <div style={{background:"#f8f9fa",borderTop:"1px solid #dee2e6",padding:"8px 16px",fontSize:11,color:"#9e9e9e"}}>
-              Edit above if needed, then copy and paste into Outlook. The PDF report downloads separately via the button above.
-            </div>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* EMAIL VIEW */}
+      {view === "email" && (
+        <div style={{ padding: "24px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "#212121" }}>Manager Follow-Up Email</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => copyText(emailText)} style={{ padding: "7px 14px", fontSize: 13, background: copied ? "#e8f5e9" : "#fff", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", color: copied ? "#2e7d32" : "#424242" }}>
+                {copied ? "✓ Copied" : "Copy email"}
+              </button>
+            </div>
+          </div>
+          <textarea
+            value={emailText}
+            onChange={e => setEmailText(e.target.value)}
+            style={{ width: "100%", minHeight: 420, fontSize: 13, lineHeight: 1.7, padding: "14px", border: "1px solid #e0e0e0", borderRadius: 8, resize: "vertical", color: "#212121", boxSizing: "border-box" }}
+          />
+          <div style={{ marginTop: 12, fontSize: 12, color: "#9e9e9e" }}>You can edit this email before copying. Click "View Report →" for the full PDF-style report.</div>
+        </div>
+      )}
+
+      {/* REPORT VIEW */}
+      {view === "report" && (
+        <div style={{ padding: "24px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "#212121" }}>Survey Prep Report</div>
+            <button onClick={() => window.print()} style={{ padding: "7px 14px", fontSize: 13, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+              Print / Save as PDF
+            </button>
+          </div>
+
+          {/* Report header box */}
+          <div style={{ border: `2px solid ${BRAND}`, borderRadius: 8, padding: "16px 20px", marginBottom: 20, background: "#f0f4f8" }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: BRAND, marginBottom: 10 }}>Accreditation Survey Prep Report</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px", fontSize: 13, color: "#424242" }}>
+              <div><strong>Location / Lawson #:</strong> {meta.location || "—"}</div>
+              <div><strong>City / State:</strong> {meta.city || "—"}</div>
+              <div><strong>Accreditation Specialist:</strong> {meta.specialist || "—"}</div>
+              <div><strong>Visit Date:</strong> {meta.date}</div>
+            </div>
+          </div>
+
+          {/* Follow-up call banner */}
+          {(meta.followUpDate || meta.followUpTime) && (
+            <div style={{ background: "#fff8c5", border: "2px solid #f0c000", borderRadius: 8, padding: "12px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 18 }}>📅</span>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#7a5c00", marginBottom: 2 }}>Follow-Up Teams Call Scheduled</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#3d2e00" }}>
+                  {meta.followUpDate ? new Date(meta.followUpDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—"}
+                  {meta.followUpTime ? ` · ${meta.followUpTime}` : ""}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Overall summary */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 20 }}>
+            {[
+              ["Total Compliant", reportLines.reduce((a, s) => a + s.yes, 0), "#2e7d32", "#e8f5e9"],
+              ["Total Issues", reportLines.reduce((a, s) => a + s.no, 0), "#c62828", "#ffebee"],
+              ["Total N/A", reportLines.reduce((a, s) => a + s.na, 0), "#616161", "#f5f5f5"],
+              ["Not Reviewed", reportLines.reduce((a, s) => a + s.pending, 0), "#e65100", "#fff3e0"],
+            ].map(([l, n, tc, bg]) => (
+              <div key={l} style={{ background: bg, border: `1px solid ${tc}30`, borderRadius: 8, padding: "12px", textAlign: "center" }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: tc }}>{n}</div>
+                <div style={{ fontSize: 12, color: tc, marginTop: 2 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Section-by-section */}
+          {reportLines.map((sec, i) => (
+            <div key={i} style={{ marginBottom: 16, border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ background: sec.no > 0 ? "#ffebee" : sec.pending > 0 ? "#fff8e1" : "#e8f5e9", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: "#212121" }}>{sec.label}</div>
+                <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
+                  <span style={{ color: "#2e7d32" }}>✓ {sec.yes}</span>
+                  <span style={{ color: "#c62828" }}>✗ {sec.no}</span>
+                  {sec.na > 0 && <span style={{ color: "#616161" }}>N/A {sec.na}</span>}
+                  {sec.pending > 0 && <span style={{ color: "#e65100" }}>? {sec.pending}</span>}
+                </div>
+              </div>
+              {sec.issues.length > 0 && (
+                <div style={{ padding: "12px 16px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#c62828", marginBottom: 8 }}>ITEMS REQUIRING CORRECTIVE ACTION:</div>
+                  {sec.issues.map((iss, j) => (
+                    <div key={j} style={{ padding: "10px 12px", marginBottom: 6, background: "#fff8f8", border: "1px solid #ef9a9a", borderRadius: 5, fontSize: 13 }}>
+                      <div style={{ color: "#212121", lineHeight: 1.5 }}>• {iss.text}</div>
+                      {iss.comment && (
+                        <div style={{ fontSize: 12, color: "#c62828", marginTop: 6, paddingTop: 6, borderTop: "1px solid #f5c6c6", lineHeight: 1.4 }}>
+                          <strong>Note:</strong> {iss.comment}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sec.observations && sec.observations.length > 0 && (
+                <div style={{ padding: "10px 16px", borderTop: sec.issues.length > 0 ? "1px solid #e0e0e0" : "none" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#2e7d32", marginBottom: 6 }}>OBSERVATIONS:</div>
+                  {sec.observations.map((obs, j) => (
+                    <div key={j} style={{ padding: "8px 10px", marginBottom: 4, background: "#f9fff9", border: "1px solid #a5d6a7", borderRadius: 5, fontSize: 13 }}>
+                      <div style={{ color: "#212121", lineHeight: 1.5 }}>• {obs.text}</div>
+                      {obs.comment && (
+                        <div style={{ fontSize: 12, color: "#2e7d32", marginTop: 5, paddingTop: 5, borderTop: "1px solid #c8e6c9", lineHeight: 1.4 }}>
+                          <strong>Note:</strong> {obs.comment}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sec.issues.length === 0 && sec.no === 0 && (
+                <div style={{ padding: "8px 16px", fontSize: 13, color: "#2e7d32" }}>All items compliant — no corrective action required.</div>
+              )}
+            </div>
+          ))}
+
+          {/* Additional comments area */}
+          <div style={{ border: "1px solid #e0e0e0", borderRadius: 8, padding: "14px 16px", marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#212121", marginBottom: 6 }}>Additional Comments</div>
+            <textarea placeholder="Add any additional notes or observations here…" rows={3}
+              style={{ width: "100%", fontSize: 13, padding: "8px", border: "1px solid #e0e0e0", borderRadius: 5, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
+          </div>
+        </div>
+      )}
+
+      <style>{`@media print {
+        button { display: none !important; }
+        textarea { border: 1px solid #ccc !important; }
+        body { margin: 0; }
+      }`}</style>
     </div>
   );
 }

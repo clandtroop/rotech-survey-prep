@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import * as XLSX from "xlsx";
 
 const BRAND = "#1a3a5c";
 const ACCENT = "#2e6da4";
@@ -159,11 +160,17 @@ export default function App() {
   const [meta, setMeta] = useState({ location: "", city: "", specialist: "", date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
   const [activeTab, setActiveTab] = useState(0);
   const [{ states, comments }, setForm] = useState(initStates);
-  const [view, setView] = useState("form"); // form | email | report
+  const [view, setView] = useState("form");
   const [emailText, setEmailText] = useState("");
   const [reportLines, setReportLines] = useState([]);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // OP 541 state
+  const [op541Sections, setOp541Sections] = useState([]);
+  const [op541States, setOp541States] = useState({});
+  const [op541Comments, setOp541Comments] = useState({});
+  const [op541FileName, setOp541FileName] = useState("");
 
   const setState = useCallback((key, val) => {
     setForm(prev => ({ ...prev, states: { ...prev.states, [key]: prev.states[key] === val ? null : val } }));
@@ -182,18 +189,36 @@ export default function App() {
     return { yes, no, na, pending, total: SECTIONS[si].items.length };
   }
 
+  function getOp541Stats() {
+    let yes = 0, no = 0, na = 0, pending = 0, mismatch = 0;
+    op541Sections.forEach(sec => sec.items.forEach(item => {
+      const s = op541States[item.key];
+      if (s === "yes") yes++; else if (s === "no") no++; else if (s === "na") na++; else pending++;
+      if (s && item.locAns && ((item.locAns === "Y" && s === "no") || (item.locAns === "N" && s === "yes"))) mismatch++;
+    }));
+    return { yes, no, na, pending, mismatch };
+  }
+
   function getAllIssues() {
-    return SECTIONS.flatMap((sec, si) =>
+    const existing = SECTIONS.flatMap((sec, si) =>
       sec.items.flatMap((item, ii) => {
         const key = `${si}-${ii}`;
         if (states[key] === "no") return [{ section: sec.label, text: item.text, comment: comments[key] }];
         return [];
       })
     );
+    const op541 = op541Sections.flatMap(sec =>
+      sec.items.flatMap(item => {
+        if (op541States[item.key] === "no")
+          return [{ section: `OP 541 — ${sec.label}`, text: item.text, comment: op541Comments[item.key] }];
+        return [];
+      })
+    );
+    return [...existing, ...op541];
   }
 
   function buildSummaryData() {
-    return SECTIONS.map((sec, si) => {
+    const data = SECTIONS.map((sec, si) => {
       const stats = getSectionStats(si);
       const issues = sec.items.flatMap((item, ii) => {
         const key = `${si}-${ii}`;
@@ -207,20 +232,120 @@ export default function App() {
       });
       return { label: sec.label, ref: sec.ref, ...stats, issues, observations };
     });
+
+    op541Sections.forEach(sec => {
+      const issues = sec.items
+        .filter(item => op541States[item.key] === "no")
+        .map(item => ({
+          text: item.text,
+          comment: op541Comments[item.key],
+          type: "no",
+          mismatch: item.locAns === "Y",
+        }));
+      const yes = sec.items.filter(item => op541States[item.key] === "yes").length;
+      const no  = sec.items.filter(item => op541States[item.key] === "no").length;
+      const na  = sec.items.filter(item => op541States[item.key] === "na").length;
+      const pending = sec.items.filter(item => !op541States[item.key]).length;
+      const observations = sec.items
+        .filter(item => op541States[item.key] === "yes" && op541Comments[item.key])
+        .map(item => ({ text: item.text, comment: op541Comments[item.key] }));
+      data.push({
+        label: `OP 541 — ${sec.label}`,
+        ref: "OP 541 Location Readiness Tool",
+        yes, no, na, pending,
+        total: sec.items.length,
+        issues, observations,
+      });
+    });
+
+    return data;
+  }
+
+  async function handleOp541Upload(file) {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const allSections = [];
+      let globalIdx = 0;
+
+      for (const sheetName of wb.SheetNames) {
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+        // Find header row by locating the "LOCATION" column header
+        let hRow = -1, cPolicy = 0, cDesc = 1, cLoc = 2, cComments = 4;
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
+          const upper = rows[i].map(c => String(c).toUpperCase().trim());
+          const li = upper.findIndex(c => c === "LOCATION");
+          if (li >= 0) {
+            hRow = i;
+            cLoc = li;
+            cDesc = Math.max(0, li - 1);
+            const ci = upper.findIndex(c => c.includes("COMMENT"));
+            if (ci >= 0) cComments = ci;
+            break;
+          }
+        }
+        if (hRow < 0) continue;
+
+        let curSection = null;
+        for (let i = hRow + 1; i < rows.length; i++) {
+          const row = rows[i];
+          const policy   = String(row[cPolicy]   || "").trim();
+          const desc     = String(row[cDesc]     || "").trim();
+          const locAns   = String(row[cLoc]      || "").trim().toUpperCase();
+          const locComment = String(row[cComments] || "").trim();
+
+          if (!desc && !policy) continue;
+          if (desc.toUpperCase() === "TOTAL") continue;
+
+          const hasPolicyNum = /^\d+\.\d+/.test(policy);
+          // Section headers: no policy number, text is ALL CAPS, not purely numeric
+          const isHeader = !hasPolicyNum && desc && desc === desc.toUpperCase() && desc.length > 3 && !/^\d/.test(desc);
+
+          if (isHeader) {
+            curSection = { label: desc, items: [] };
+            allSections.push(curSection);
+          } else if (desc) {
+            if (!curSection) {
+              curSection = { label: sheetName, items: [] };
+              allSections.push(curSection);
+            }
+            curSection.items.push({
+              key: `op-${globalIdx++}`,
+              policy,
+              text: desc,
+              locAns,
+              locComment,
+            });
+          }
+        }
+      }
+
+      const ns = {}, nc = {};
+      allSections.forEach(sec => sec.items.forEach(item => { ns[item.key] = null; nc[item.key] = ""; }));
+
+      setOp541Sections(allSections);
+      setOp541States(ns);
+      setOp541Comments(nc);
+      setOp541FileName(file.name);
+    } catch {
+      alert("Could not read the file. Make sure it is a valid .xlsx file.");
+    }
   }
 
   async function generateOutputs() {
     setLoading(true);
     const issues = getAllIssues();
     const summaryData = buildSummaryData();
-    const loc = meta.location || "[Location]";
-    const city = meta.city || "[City, ST]";
+    const loc  = meta.location  || "[Location]";
+    const city = meta.city      || "[City, ST]";
     const spec = meta.specialist || "[Specialist]";
-    const date = meta.date || new Date().toLocaleDateString("en-US");
+    const date = meta.date      || new Date().toLocaleDateString("en-US");
 
-    const totalYes = summaryData.reduce((a, s) => a + s.yes, 0);
-    const totalNo = summaryData.reduce((a, s) => a + s.no, 0);
-    const totalNa = summaryData.reduce((a, s) => a + s.na, 0);
+    const totalYes     = summaryData.reduce((a, s) => a + s.yes, 0);
+    const totalNo      = summaryData.reduce((a, s) => a + s.no, 0);
+    const totalNa      = summaryData.reduce((a, s) => a + s.na, 0);
     const totalPending = summaryData.reduce((a, s) => a + s.pending, 0);
 
     const issueBlock = issues.length === 0
@@ -265,15 +390,24 @@ Write a professional but direct email. If there are issues, list them clearly wi
     navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
-  const sec = SECTIONS[activeTab];
-  const stats = getSectionStats(activeTab);
-  const allStats = SECTIONS.reduce((a, _, si) => {
+  const isOp541Tab = activeTab === SECTIONS.length;
+  const sec = isOp541Tab ? null : SECTIONS[activeTab];
+  const op541Stats = getOp541Stats();
+
+  const sectionTotals = SECTIONS.reduce((a, _, si) => {
     const s = getSectionStats(si);
     return { yes: a.yes + s.yes, no: a.no + s.no, pending: a.pending + s.pending };
   }, { yes: 0, no: 0, pending: 0 });
 
+  const allStats = {
+    yes:     sectionTotals.yes     + op541Stats.yes,
+    no:      sectionTotals.no      + op541Stats.no,
+    pending: sectionTotals.pending + (op541Sections.length ? op541Stats.pending : 0),
+  };
+
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", maxWidth: 900, margin: "0 auto", background: "#fff", minHeight: "100vh" }}>
+    <div style={{ fontFamily: "system-ui, sans-serif", margin: "0 auto", background: "#fff", minHeight: "100vh" }}>
+
       {/* Header */}
       <div style={{ background: BRAND, color: "#fff", padding: "16px 24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
@@ -288,7 +422,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
               </button>
             )}
             {view === "form" && (
-              <button onClick={() => { generateOutputs(); }} disabled={loading} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+              <button onClick={generateOutputs} disabled={loading} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
                 {loading ? "Generating…" : "Generate Email & Report"}
               </button>
             )}
@@ -299,35 +433,23 @@ Write a professional but direct email. If there are issues, list them clearly wi
             )}
           </div>
         </div>
+
         {/* Meta fields */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 16 }}>
           {[["location", "Location / Lawson #"], ["city", "City / State"], ["specialist", "Accreditation Specialist"], ["date", "Visit Date"]].map(([k, label]) => (
             <div key={k}>
               <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>{label}</div>
-              <input
-                value={meta[k]}
-                onChange={e => setMeta(p => ({ ...p, [k]: e.target.value }))}
-                placeholder={label}
-                style={{ width: "100%", padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box" }}
-              />
+              <input value={meta[k]} onChange={e => setMeta(p => ({ ...p, [k]: e.target.value }))} placeholder={label}
+                style={{ width: "100%", padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box" }} />
             </div>
           ))}
-          {/* Follow-up call: date + time side by side */}
           <div style={{ gridColumn: "span 2" }}>
             <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>Follow-Up Teams Call Scheduled</div>
             <div style={{ display: "flex", gap: 10 }}>
-              <input
-                type="date"
-                value={meta.followUpDate}
-                onChange={e => setMeta(p => ({ ...p, followUpDate: e.target.value }))}
-                style={{ flex: 1, padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box", colorScheme: "dark" }}
-              />
-              <input
-                type="time"
-                value={meta.followUpTime}
-                onChange={e => setMeta(p => ({ ...p, followUpTime: e.target.value }))}
-                style={{ flex: 1, padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box", colorScheme: "dark" }}
-              />
+              <input type="date" value={meta.followUpDate} onChange={e => setMeta(p => ({ ...p, followUpDate: e.target.value }))}
+                style={{ flex: 1, padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box", colorScheme: "dark" }} />
+              <input type="time" value={meta.followUpTime} onChange={e => setMeta(p => ({ ...p, followUpTime: e.target.value }))}
+                style={{ flex: 1, padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box", colorScheme: "dark" }} />
             </div>
           </div>
         </div>
@@ -344,6 +466,12 @@ Write a professional but direct email. If there are issues, list them clearly wi
                 <span style={{ color: "#757575", marginLeft: 5 }}>{l}</span>
               </div>
             ))}
+            {op541Stats.mismatch > 0 && (
+              <div style={{ fontSize: 13 }}>
+                <span style={{ color: "#e65100", fontWeight: 600 }}>{op541Stats.mismatch}</span>
+                <span style={{ color: "#757575", marginLeft: 5 }}>⚠ OP 541 Mismatches</span>
+              </div>
+            )}
           </div>
 
           {/* Tabs */}
@@ -363,67 +491,176 @@ Write a professional but direct email. If there are issues, list them clearly wi
                 </button>
               );
             })}
+
+            {/* OP 541 tab */}
+            <button onClick={() => setActiveTab(SECTIONS.length)} style={{
+              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
+              border: "none", borderBottom: isOp541Tab ? `2px solid ${BRAND}` : "2px solid transparent",
+              color: isOp541Tab ? BRAND : "#616161", cursor: "pointer", fontWeight: isOp541Tab ? 600 : 400,
+              display: "flex", alignItems: "center", gap: 6
+            }}>
+              OP 541 Readiness
+              {!op541FileName && <span style={{ fontSize: 11, color: "#9e9e9e" }}>+ Upload</span>}
+              {op541FileName && op541Stats.no > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{op541Stats.no}</span>}
+              {op541FileName && op541Stats.mismatch > 0 && <span style={{ background: "#fff3e0", color: "#e65100", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⚠ {op541Stats.mismatch}</span>}
+              {op541FileName && op541Stats.no === 0 && op541Stats.pending === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
+            </button>
           </div>
 
-          {/* Section content */}
-          <div style={{ padding: "16px 24px" }}>
-            <div style={{ fontSize: 11, color: "#9e9e9e", marginBottom: 12 }}>{sec.ref}</div>
-            <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-              {[["yes", "Compliant"], ["no", "Issue found"], ["na", "N/A"]].map(([v, l]) => (
-                <button key={v} onClick={() => sec.items.forEach((_, ii) => setState(`${activeTab}-${ii}`, v))}
-                  style={{ fontSize: 11, padding: "4px 12px", border: `1px solid ${STATUS_COLORS[v].border}`, background: STATUS_COLORS[v].bg, color: STATUS_COLORS[v].text, borderRadius: 5, cursor: "pointer" }}>
-                  Mark all {l}
-                </button>
-              ))}
-            </div>
+          {/* Regular section content */}
+          {!isOp541Tab && (
+            <div style={{ padding: "16px 24px" }}>
+              <div style={{ fontSize: 11, color: "#9e9e9e", marginBottom: 12 }}>{sec.ref}</div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                {[["yes", "Compliant"], ["no", "Issue found"], ["na", "N/A"]].map(([v, l]) => (
+                  <button key={v} onClick={() => sec.items.forEach((_, ii) => setState(`${activeTab}-${ii}`, v))}
+                    style={{ fontSize: 11, padding: "4px 12px", border: `1px solid ${STATUS_COLORS[v].border}`, background: STATUS_COLORS[v].bg, color: STATUS_COLORS[v].text, borderRadius: 5, cursor: "pointer" }}>
+                    Mark all {l}
+                  </button>
+                ))}
+              </div>
 
-            {sec.items.map((item, ii) => {
-              const key = `${activeTab}-${ii}`;
-              const state = states[key];
-              return (
-                <div key={ii} style={{
-                  display: "flex", gap: 12, padding: "10px 12px", marginBottom: 6,
-                  borderRadius: 6, border: `1px solid ${state === "no" ? "#ef9a9a" : state === "yes" ? "#a5d6a7" : "#e0e0e0"}`,
-                  background: state === "no" ? "#fff8f8" : state === "yes" ? "#f9fff9" : "#fff",
-                  alignItems: "flex-start"
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, lineHeight: 1.5, color: "#212121" }}>{item.text}</div>
-                        {item.note && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3, lineHeight: 1.4 }}>{item.note}</div>}
+              {sec.items.map((item, ii) => {
+                const key = `${activeTab}-${ii}`;
+                const state = states[key];
+                return (
+                  <div key={ii} style={{
+                    display: "flex", gap: 12, padding: "10px 12px", marginBottom: 6, borderRadius: 6,
+                    border: `1px solid ${state === "no" ? "#ef9a9a" : state === "yes" ? "#a5d6a7" : "#e0e0e0"}`,
+                    background: state === "no" ? "#fff8f8" : state === "yes" ? "#f9fff9" : "#fff",
+                    alignItems: "flex-start"
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, lineHeight: 1.5, color: "#212121" }}>{item.text}</div>
+                          {item.note && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3, lineHeight: 1.4 }}>{item.note}</div>}
+                        </div>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                          {["yes", "no", "na"].map(v => (
+                            <button key={v} onClick={() => setState(key, v)} style={{
+                              width: 38, height: 32, fontSize: 11, fontWeight: 600,
+                              border: `1px solid ${state === v ? STATUS_COLORS[v].border : "#e0e0e0"}`,
+                              background: state === v ? STATUS_COLORS[v].bg : "#fafafa",
+                              color: state === v ? STATUS_COLORS[v].text : "#9e9e9e",
+                              borderRadius: 5, cursor: "pointer"
+                            }}>{STATUS_COLORS[v].label}</button>
+                          ))}
+                        </div>
                       </div>
-                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                        {["yes", "no", "na"].map(v => (
-                          <button key={v} onClick={() => setState(key, v)} style={{
-                            width: 38, height: 32, fontSize: 11, fontWeight: 600,
-                            border: `1px solid ${state === v ? STATUS_COLORS[v].border : "#e0e0e0"}`,
-                            background: state === v ? STATUS_COLORS[v].bg : "#fafafa",
-                            color: state === v ? STATUS_COLORS[v].text : "#9e9e9e",
-                            borderRadius: 5, cursor: "pointer"
-                          }}>{STATUS_COLORS[v].label}</button>
-                        ))}
-                      </div>
+                      {(state === "yes" || state === "no") && (
+                        <textarea
+                          placeholder={state === "no" ? "Describe the issue and required corrective action…" : "Add observation or note (optional)…"}
+                          value={comments[key]} onChange={e => setComment(key, e.target.value)} rows={3}
+                          style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "7px 9px", border: `1px solid ${state === "no" ? "#ef9a9a" : "#a5d6a7"}`, borderRadius: 5, resize: "vertical", color: "#212121", background: "#fff", boxSizing: "border-box", display: "block" }} />
+                      )}
                     </div>
-                    {(state === "yes" || state === "no") && (
-                      <textarea
-                        placeholder={state === "no" ? "Describe the issue and required corrective action…" : "Add observation or note (optional)…"}
-                        value={comments[key]}
-                        onChange={e => setComment(key, e.target.value)}
-                        rows={3}
-                        style={{
-                          marginTop: 8, width: "50%", fontSize: 12, padding: "7px 9px",
-                          border: `1px solid ${state === "no" ? "#ef9a9a" : "#a5d6a7"}`,
-                          borderRadius: 5, resize: "vertical", color: "#212121", background: "#fff",
-                          boxSizing: "border-box", display: "block"
-                        }}
-                      />
-                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* OP 541 tab content */}
+          {isOp541Tab && (
+            <div>
+              {!op541FileName ? (
+                <div style={{ padding: "64px 24px", textAlign: "center", color: "#616161" }}>
+                  <div style={{ fontSize: 38, marginBottom: 12 }}>📂</div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: "#212121", marginBottom: 8 }}>Upload the OP 541 Spreadsheet</div>
+                  <div style={{ fontSize: 13, color: "#757575", marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
+                    Upload the .xlsx file filled out by the location. Their self-audit answers will appear alongside your on-site Y/N/NA assessment, with mismatches flagged automatically.
+                  </div>
+                  <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+                    Choose .xlsx File
+                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
+                  </label>
+                </div>
+              ) : (
+                <div>
+                  {/* Info bar */}
+                  <div style={{ padding: "10px 24px", background: "#f8f9fa", borderBottom: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}>
+                      <span style={{ color: "#424242" }}>📄 {op541FileName}</span>
+                      <span style={{ color: "#9e9e9e" }}>Loc: = location self-audit &nbsp;|&nbsp; Y / N / N/A = your on-site assessment</span>
+                      {op541Stats.mismatch > 0 && (
+                        <span style={{ color: "#e65100", fontWeight: 600 }}>⚠ {op541Stats.mismatch} mismatch{op541Stats.mismatch !== 1 ? "es" : ""} with location self-audit</span>
+                      )}
+                    </div>
+                    <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
+                      Change file
+                      <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
+                    </label>
+                  </div>
+
+                  <div style={{ padding: "16px 24px" }}>
+                    {op541Sections.map((section, si) => (
+                      <div key={si} style={{ marginBottom: 20 }}>
+                        {section.label && (
+                          <div style={{ background: "#e8eef4", padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 12, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            {section.label}
+                          </div>
+                        )}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {section.items.map(item => {
+                            const s = op541States[item.key];
+                            const mismatch = s && item.locAns && ((item.locAns === "Y" && s === "no") || (item.locAns === "N" && s === "yes"));
+                            return (
+                              <div key={item.key} style={{
+                                padding: "10px 12px", borderRadius: 6,
+                                border: `1px solid ${mismatch ? "#ffb300" : s === "no" ? "#ef9a9a" : s === "yes" ? "#a5d6a7" : "#e0e0e0"}`,
+                                background: mismatch ? "#fffde7" : s === "no" ? "#fff8f8" : s === "yes" ? "#f9fff9" : "#fff"
+                              }}>
+                                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    {item.policy && <span style={{ fontSize: 11, color: "#9e9e9e", marginRight: 8 }}>{item.policy}</span>}
+                                    <span style={{ fontSize: 13, color: "#212121", lineHeight: 1.5 }}>{item.text}</span>
+                                    {item.locComment && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3 }}>{item.locComment}</div>}
+                                  </div>
+                                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                                    {/* Location's self-audit answer */}
+                                    <span style={{
+                                      fontSize: 11, fontWeight: 700, padding: "4px 9px", borderRadius: 4, whiteSpace: "nowrap",
+                                      background: item.locAns === "Y" ? "#e8f5e9" : item.locAns === "N" ? "#ffebee" : item.locAns ? "#f5f5f5" : "#fafafa",
+                                      color: item.locAns === "Y" ? "#2e7d32" : item.locAns === "N" ? "#c62828" : "#9e9e9e",
+                                      border: `1px solid ${item.locAns === "Y" ? "#a5d6a7" : item.locAns === "N" ? "#ef9a9a" : "#e0e0e0"}`
+                                    }}>
+                                      Loc: {item.locAns || "—"}
+                                    </span>
+                                    {mismatch && <span title="Mismatch with location self-audit" style={{ color: "#e65100", fontSize: 15, fontWeight: 700 }}>⚠</span>}
+                                    {/* Specialist on-site buttons */}
+                                    <div style={{ display: "flex", gap: 4 }}>
+                                      {["yes", "no", "na"].map(v => (
+                                        <button key={v} onClick={() => setOp541States(p => ({ ...p, [item.key]: p[item.key] === v ? null : v }))} style={{
+                                          width: 38, height: 32, fontSize: 11, fontWeight: 600,
+                                          border: `1px solid ${s === v ? STATUS_COLORS[v].border : "#e0e0e0"}`,
+                                          background: s === v ? STATUS_COLORS[v].bg : "#fafafa",
+                                          color: s === v ? STATUS_COLORS[v].text : "#9e9e9e",
+                                          borderRadius: 5, cursor: "pointer"
+                                        }}>{STATUS_COLORS[v].label}</button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                                {s === "no" && (
+                                  <textarea
+                                    placeholder="Describe the issue…"
+                                    value={op541Comments[item.key]}
+                                    onChange={e => setOp541Comments(p => ({ ...p, [item.key]: e.target.value }))}
+                                    rows={2}
+                                    style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "6px 8px", border: "1px solid #ef9a9a", borderRadius: 5, resize: "vertical", color: "#212121", background: "#fff", boxSizing: "border-box", display: "block" }} />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -432,18 +669,13 @@ Write a professional but direct email. If there are issues, list them clearly wi
         <div style={{ padding: "24px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: "#212121" }}>Manager Follow-Up Email</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => copyText(emailText)} style={{ padding: "7px 14px", fontSize: 13, background: copied ? "#e8f5e9" : "#fff", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", color: copied ? "#2e7d32" : "#424242" }}>
-                {copied ? "✓ Copied" : "Copy email"}
-              </button>
-            </div>
+            <button onClick={() => copyText(emailText)} style={{ padding: "7px 14px", fontSize: 13, background: copied ? "#e8f5e9" : "#fff", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", color: copied ? "#2e7d32" : "#424242" }}>
+              {copied ? "✓ Copied" : "Copy email"}
+            </button>
           </div>
-          <textarea
-            value={emailText}
-            onChange={e => setEmailText(e.target.value)}
-            style={{ width: "100%", minHeight: 420, fontSize: 13, lineHeight: 1.7, padding: "14px", border: "1px solid #e0e0e0", borderRadius: 8, resize: "vertical", color: "#212121", boxSizing: "border-box" }}
-          />
-          <div style={{ marginTop: 12, fontSize: 12, color: "#9e9e9e" }}>You can edit this email before copying. Click "View Report →" for the full PDF-style report.</div>
+          <textarea value={emailText} onChange={e => setEmailText(e.target.value)}
+            style={{ width: "100%", minHeight: 420, fontSize: 13, lineHeight: 1.7, padding: "14px", border: "1px solid #e0e0e0", borderRadius: 8, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
+          <div style={{ marginTop: 12, fontSize: 12, color: "#9e9e9e" }}>You can edit this email before copying. Click "View Report →" for the full report.</div>
         </div>
       )}
 
@@ -457,7 +689,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
             </button>
           </div>
 
-          {/* Report header box */}
+          {/* Report header */}
           <div style={{ border: `2px solid ${BRAND}`, borderRadius: 8, padding: "16px 20px", marginBottom: 20, background: "#f0f4f8" }}>
             <div style={{ fontSize: 17, fontWeight: 700, color: BRAND, marginBottom: 10 }}>Accreditation Survey Prep Report</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px", fontSize: 13, color: "#424242" }}>
@@ -482,13 +714,13 @@ Write a professional but direct email. If there are issues, list them clearly wi
             </div>
           )}
 
-          {/* Overall summary */}
+          {/* Summary stat boxes */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 20 }}>
             {[
               ["Total Compliant", reportLines.reduce((a, s) => a + s.yes, 0), "#2e7d32", "#e8f5e9"],
-              ["Total Issues", reportLines.reduce((a, s) => a + s.no, 0), "#c62828", "#ffebee"],
-              ["Total N/A", reportLines.reduce((a, s) => a + s.na, 0), "#616161", "#f5f5f5"],
-              ["Not Reviewed", reportLines.reduce((a, s) => a + s.pending, 0), "#e65100", "#fff3e0"],
+              ["Total Issues",    reportLines.reduce((a, s) => a + s.no, 0),  "#c62828", "#ffebee"],
+              ["Total N/A",       reportLines.reduce((a, s) => a + s.na, 0),  "#616161", "#f5f5f5"],
+              ["Not Reviewed",    reportLines.reduce((a, s) => a + s.pending, 0), "#e65100", "#fff3e0"],
             ].map(([l, n, tc, bg]) => (
               <div key={l} style={{ background: bg, border: `1px solid ${tc}30`, borderRadius: 8, padding: "12px", textAlign: "center" }}>
                 <div style={{ fontSize: 24, fontWeight: 700, color: tc }}>{n}</div>
@@ -498,25 +730,26 @@ Write a professional but direct email. If there are issues, list them clearly wi
           </div>
 
           {/* Section-by-section */}
-          {reportLines.map((sec, i) => (
+          {reportLines.map((s, i) => (
             <div key={i} style={{ marginBottom: 16, border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden" }}>
-              <div style={{ background: sec.no > 0 ? "#ffebee" : sec.pending > 0 ? "#fff8e1" : "#e8f5e9", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: "#212121" }}>{sec.label}</div>
+              <div style={{ background: s.no > 0 ? "#ffebee" : s.pending > 0 ? "#fff8e1" : "#e8f5e9", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: "#212121" }}>{s.label}</div>
                 <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
-                  <span style={{ color: "#2e7d32" }}>✓ {sec.yes}</span>
-                  <span style={{ color: "#c62828" }}>✗ {sec.no}</span>
-                  {sec.na > 0 && <span style={{ color: "#616161" }}>N/A {sec.na}</span>}
-                  {sec.pending > 0 && <span style={{ color: "#e65100" }}>? {sec.pending}</span>}
+                  <span style={{ color: "#2e7d32" }}>✓ {s.yes}</span>
+                  <span style={{ color: "#c62828" }}>✗ {s.no}</span>
+                  {s.na > 0 && <span style={{ color: "#616161" }}>N/A {s.na}</span>}
+                  {s.pending > 0 && <span style={{ color: "#e65100" }}>? {s.pending}</span>}
                 </div>
               </div>
-              {sec.issues.length > 0 && (
+              {s.issues.length > 0 && (
                 <div style={{ padding: "12px 16px" }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#c62828", marginBottom: 8 }}>ITEMS REQUIRING CORRECTIVE ACTION:</div>
-                  {sec.issues.map((iss, j) => (
-                    <div key={j} style={{ padding: "10px 12px", marginBottom: 6, background: "#fff8f8", border: "1px solid #ef9a9a", borderRadius: 5, fontSize: 13 }}>
+                  {s.issues.map((iss, j) => (
+                    <div key={j} style={{ padding: "10px 12px", marginBottom: 6, background: iss.mismatch ? "#fffde7" : "#fff8f8", border: `1px solid ${iss.mismatch ? "#ffb300" : "#ef9a9a"}`, borderRadius: 5, fontSize: 13 }}>
                       <div style={{ color: "#212121", lineHeight: 1.5 }}>• {iss.text}</div>
+                      {iss.mismatch && <div style={{ fontSize: 11, color: "#e65100", marginTop: 4, fontWeight: 600 }}>⚠ Mismatch — location self-audit marked compliant</div>}
                       {iss.comment && (
-                        <div style={{ fontSize: 12, color: "#c62828", marginTop: 6, paddingTop: 6, borderTop: "1px solid #f5c6c6", lineHeight: 1.4 }}>
+                        <div style={{ fontSize: 12, color: "#c62828", marginTop: 6, paddingTop: 6, borderTop: `1px solid ${iss.mismatch ? "#ffe082" : "#f5c6c6"}`, lineHeight: 1.4 }}>
                           <strong>Note:</strong> {iss.comment}
                         </div>
                       )}
@@ -524,10 +757,10 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   ))}
                 </div>
               )}
-              {sec.observations && sec.observations.length > 0 && (
-                <div style={{ padding: "10px 16px", borderTop: sec.issues.length > 0 ? "1px solid #e0e0e0" : "none" }}>
+              {s.observations && s.observations.length > 0 && (
+                <div style={{ padding: "10px 16px", borderTop: s.issues.length > 0 ? "1px solid #e0e0e0" : "none" }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#2e7d32", marginBottom: 6 }}>OBSERVATIONS:</div>
-                  {sec.observations.map((obs, j) => (
+                  {s.observations.map((obs, j) => (
                     <div key={j} style={{ padding: "8px 10px", marginBottom: 4, background: "#f9fff9", border: "1px solid #a5d6a7", borderRadius: 5, fontSize: 13 }}>
                       <div style={{ color: "#212121", lineHeight: 1.5 }}>• {obs.text}</div>
                       {obs.comment && (
@@ -539,13 +772,13 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   ))}
                 </div>
               )}
-              {sec.issues.length === 0 && sec.no === 0 && (
+              {s.issues.length === 0 && s.no === 0 && (
                 <div style={{ padding: "8px 16px", fontSize: 13, color: "#2e7d32" }}>All items compliant — no corrective action required.</div>
               )}
             </div>
           ))}
 
-          {/* Additional comments area */}
+          {/* Additional comments */}
           <div style={{ border: "1px solid #e0e0e0", borderRadius: 8, padding: "14px 16px", marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#212121", marginBottom: 6 }}>Additional Comments</div>
             <textarea placeholder="Add any additional notes or observations here…" rows={3}

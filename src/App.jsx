@@ -370,7 +370,7 @@ Compliant items: ${totalYes} | Issues found: ${totalNo} | N/A: ${totalNa} | Not 
 Issues found:
 ${issueBlock}
 
-Write a professional but direct email. If there are issues, list them clearly with requested corrective actions and a deadline of 5 business days to report back. Mention a follow-up teams call with LCM and Area/Region Manager will be scheduled. If no issues, write a brief congratulatory message. Do not use bullet symbols - use plain dashes. Sign off as ${spec}, Accreditation Specialist.`;
+Write a professional but direct email. If there are issues, list them clearly with requested corrective actions. Mention a follow-up teams call with LCM and Area/Region Manager will be scheduled. If no issues, write a brief congratulatory message. Do not use bullet symbols - use plain dashes. Sign off as ${spec}, Accreditation Specialist.`;
 
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -386,7 +386,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
       const text = data.content?.find(b => b.type === "text")?.text || "";
       setEmailText(text);
     } catch {
-      setEmailText(`Subject: Accreditation Survey Prep Follow-Up — ${loc}, ${city} — ${date}\n\nHello,\n\nThank you for your time during the accreditation survey prep visit on ${date} for ${loc}, ${city}.\n\n${issues.length === 0 ? "All reviewed areas were found to be in compliance. No corrective action is required at this time." : `The following items require corrective action within 5 business days:\n\n${issueBlock}\n\nPlease address each item and report back with your findings. A follow-up Teams call with the LCM and Area/Region Manager will be scheduled.`}\n\nBest regards,\n${spec}\nAccreditation Specialist`);
+      setEmailText(`Subject: Accreditation Survey Prep Follow-Up — ${loc}, ${city} — ${date}\n\nHello,\n\nThank you for your time during the accreditation survey prep visit on ${date} for ${loc}, ${city}.\n\n${issues.length === 0 ? "All reviewed areas were found to be in compliance. No corrective action is required at this time." : `The following items require corrective action:\n\n${issueBlock}\n\nPlease address each item and report back with your findings. A follow-up Teams call with the LCM and Area/Region Manager will be scheduled.`}\n\nBest regards,\n${spec}\nAccreditation Specialist`);
     }
 
     setReportLines(summaryData);

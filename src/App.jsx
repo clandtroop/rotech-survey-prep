@@ -900,14 +900,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
               );
             })}
 
-            {/* Policy Dates tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 2)} style={{
-              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
-              border: "none", borderBottom: isPolicyTab ? `2px solid ${BRAND}` : "2px solid transparent",
-              color: isPolicyTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isPolicyTab ? 600 : 400,
-            }}>
-              📋 Policy Dates
-            </button>
+            {/* OP 541 tab */}
             <button onClick={() => setActiveTab(SECTIONS.length)} style={{
               padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
               border: "none", borderBottom: isOp541Tab ? `2px solid ${BRAND}` : "2px solid transparent",
@@ -933,6 +926,15 @@ Write a professional but direct email. If there are issues, list them clearly wi
               {op541tFileName && op541tStats.no > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{op541tStats.no}</span>}
               {op541tFileName && op541tStats.mismatch > 0 && <span style={{ background: "#fff3e0", color: "#e65100", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⚠ {op541tStats.mismatch}</span>}
               {op541tFileName && op541tStats.no === 0 && op541tStats.pending === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
+            </button>
+
+            {/* Policy Dates tab */}
+            <button onClick={() => setActiveTab(SECTIONS.length + 2)} style={{
+              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
+              border: "none", borderBottom: isPolicyTab ? `2px solid ${BRAND}` : "2px solid transparent",
+              color: isPolicyTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isPolicyTab ? 600 : 400,
+            }}>
+              📋 Policy Dates
             </button>
           </div>
 

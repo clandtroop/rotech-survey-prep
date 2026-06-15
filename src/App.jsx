@@ -1,8 +1,38 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
 
 const BRAND = "#1a3a5c";
 const ACCENT = "#2e6da4";
+
+const DRAFT_KEY  = "rotech_survey_draft";
+const VISITS_KEY = "rotech_saved_visits";
+
+function saveDraft(meta, states, comments) {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ meta, states, comments, savedAt: new Date().toISOString() })); } catch {}
+}
+function loadDraft() {
+  try { const r = localStorage.getItem(DRAFT_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
+}
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch {}
+}
+function loadVisits() {
+  try { const r = localStorage.getItem(VISITS_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
+}
+function saveVisitToStorage(visit) {
+  try {
+    const visits = loadVisits();
+    const idx = visits.findIndex(v => v.id === visit.id);
+    if (idx >= 0) visits[idx] = visit; else visits.unshift(visit);
+    localStorage.setItem(VISITS_KEY, JSON.stringify(visits.slice(0, 20)));
+  } catch {}
+}
+function deleteVisitFromStorage(id) {
+  try {
+    const visits = loadVisits().filter(v => v.id !== id);
+    localStorage.setItem(VISITS_KEY, JSON.stringify(visits));
+  } catch {}
+}
 
 const SECTIONS = [
   {
@@ -186,14 +216,23 @@ const STATUS_COLORS = {
 };
 
 export default function App() {
-  const [meta, setMeta] = useState({ location: "", city: "", specialist: "", date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
+  const draft = loadDraft();
+
+  const [meta, setMeta] = useState(draft?.meta ?? { location: "", city: "", specialist: "", date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
   const [activeTab, setActiveTab] = useState(0);
-  const [{ states, comments }, setForm] = useState(initStates);
+  const [{ states, comments }, setForm] = useState(() => {
+    if (draft?.states) return { states: draft.states, comments: draft.comments ?? {} };
+    return initStates();
+  });
   const [view, setView] = useState("form");
   const [emailText, setEmailText] = useState("");
   const [reportLines, setReportLines] = useState([]);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [hasDraft, setHasDraft] = useState(!!draft);
+  const [savedAt, setSavedAt] = useState(draft?.savedAt ?? null);
+  const [savedVisits, setSavedVisits] = useState(loadVisits);
+  const [showVisits, setShowVisits] = useState(false);
 
   // OP 541 state
   const [op541Sections, setOp541Sections] = useState([]);
@@ -214,6 +253,12 @@ export default function App() {
   const setComment = useCallback((key, val) => {
     setForm(prev => ({ ...prev, comments: { ...prev.comments, [key]: val } }));
   }, []);
+
+  // Auto-save draft on any change
+  useEffect(() => {
+    saveDraft(meta, states, comments);
+    setSavedAt(new Date().toISOString());
+  }, [meta, states, comments]);
 
   function getSectionStats(si) {
     let yes = 0, no = 0, na = 0, pending = 0;
@@ -508,6 +553,52 @@ export default function App() {
     }
   }
 
+  function startFresh() {
+    if (!window.confirm("Clear all data and start a new visit? This cannot be undone.")) return;
+    clearDraft();
+    const b = initStates();
+    setMeta({ location: "", city: "", specialist: meta.specialist, date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
+    setForm(b);
+    setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName("");
+    setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName("");
+    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
+  }
+
+  function saveProgress() {
+    const id = `visit_${meta.location?.replace(/\s+/g,"_") || "unknown"}_${Date.now()}`;
+    const visit = {
+      id,
+      label: `${meta.location || "Unknown Location"} — ${meta.date}`,
+      savedAt: new Date().toISOString(),
+      meta, states, comments,
+      op541Sections, op541States, op541Comments, op541FileName,
+      op541tSections, op541tStates, op541tComments, op541tFileName,
+    };
+    saveVisitToStorage(visit);
+    setSavedVisits(loadVisits());
+    alert(`Visit saved: ${visit.label}`);
+  }
+
+  function loadVisit(visit) {
+    setMeta(visit.meta ?? {});
+    setForm({ states: visit.states ?? {}, comments: visit.comments ?? {} });
+    setOp541Sections(visit.op541Sections ?? []);
+    setOp541States(visit.op541States ?? {});
+    setOp541Comments(visit.op541Comments ?? {});
+    setOp541FileName(visit.op541FileName ?? "");
+    setOp541tSections(visit.op541tSections ?? []);
+    setOp541tStates(visit.op541tStates ?? {});
+    setOp541tComments(visit.op541tComments ?? {});
+    setOp541tFileName(visit.op541tFileName ?? "");
+    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]);
+    setShowVisits(false);
+  }
+
+  function deleteVisit(id) {
+    deleteVisitFromStorage(id);
+    setSavedVisits(loadVisits());
+  }
+
   async function generateOutputs() {
     setLoading(true);
     const issues = getAllIssues();
@@ -591,16 +682,32 @@ Write a professional but direct email. If there are issues, list them clearly wi
             <div style={{ fontSize: 13, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Rotech Healthcare</div>
             <div style={{ fontSize: 20, fontWeight: 600 }}>Accreditation Survey Prep Checklist</div>
           </div>
-          <div style={{ display: "flex", gap: 14 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            {savedAt && view === "form" && (
+              <span style={{ fontSize: 11, opacity: 0.5 }}>
+                Auto-saved {new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+              </span>
+            )}
             {view !== "form" && (
               <button onClick={() => setView("form")} style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 6, cursor: "pointer" }}>
                 ← Back to form
               </button>
             )}
             {view === "form" && (
-              <button onClick={generateOutputs} disabled={loading} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
-                {loading ? "Generating…" : "Generate Email & Report"}
-              </button>
+              <>
+                <button onClick={saveProgress} style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 6, cursor: "pointer" }}>
+                  💾 Save Progress
+                </button>
+                <button onClick={() => setShowVisits(v => !v)} style={{ padding: "7px 14px", fontSize: 13, background: showVisits ? "#fff" : "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: showVisits ? BRAND : "#fff", borderRadius: 6, cursor: "pointer", fontWeight: showVisits ? 600 : 400 }}>
+                  📋 Saved Visits {savedVisits.length > 0 && `(${savedVisits.length})`}
+                </button>
+                <button onClick={startFresh} style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,100,100,0.5)", color: "#ffcdd2", borderRadius: 6, cursor: "pointer" }}>
+                  ✕ Clear & Start Over
+                </button>
+                <button onClick={generateOutputs} disabled={loading} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+                  {loading ? "Generating…" : "Generate Email & Report"}
+                </button>
+              </>
             )}
             {view === "email" && (
               <button onClick={() => setView("report")} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
@@ -630,6 +737,31 @@ Write a professional but direct email. If there are issues, list them clearly wi
           </div>
         </div>
       </div>
+
+      {/* Saved Visits Panel */}
+      {showVisits && (
+        <div style={{ background: "#f8f9fa", borderBottom: "2px solid #e0e0e0", padding: "16px 24px" }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: BRAND, marginBottom: 12 }}>Saved Visits</div>
+          {savedVisits.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#9e9e9e" }}>No saved visits yet. Use "Save Progress" to save the current visit.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {savedVisits.map(v => (
+                <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 6, padding: "10px 14px" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>{v.label}</div>
+                    <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>Saved {new Date(v.savedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => loadVisit(v)} style={{ padding: "6px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>Load</button>
+                    <button onClick={() => { if (window.confirm("Delete this saved visit?")) deleteVisit(v.id); }} style={{ padding: "6px 10px", fontSize: 12, background: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", borderRadius: 5, cursor: "pointer" }}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* FORM VIEW */}
       {view === "form" && (

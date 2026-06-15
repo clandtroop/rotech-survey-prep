@@ -227,65 +227,23 @@ const STATUS_COLORS = {
 const POLICY_DATES = {
   // Binder 1 — Morning Meeting
   "Policy 1.1.25": { name: "Morning Meetings",                          rev: "01.01.2024" },
-  "OP 843":        { name: "Morning Meeting Checklist",                 rev: "01.01.2024" },
-  "OP 543":        { name: "Morning Meeting Attendance Sheet",          rev: "01.01.2024" },
-  "OP 519":        { name: "Targeted Surveillance Log",                 rev: "01.01.2024" },
-
+  
   // Binder 2 — In-Service
   "Policy 1.1.21": { name: "Educational In-Services",                   rev: "01.01.2024" },
-  "OP 520":        { name: "In-Service Attendance Record",              rev: "01.01.2024" },
 
   // Binder 3 — Site Inspection
   "Policy 1.1.14": { name: "Inspections, Audits & Investigations",      rev: "01.01.2024" },
   "Policy 2.1.29": { name: "Patient Complaints",                        rev: "01.01.2024" },
-  "OP 564":        { name: "Patient Complaint Report",                  rev: "01.01.2024" },
   "Policy 1.1.12": { name: "Medicare Supplier Standards",               rev: "01.01.2024" },
   "Policy 6.5.10": { name: "Notice of Privacy Practices",               rev: "01.01.2024" },
-  "OP 201":        { name: "Field Management Organizational Chart",     rev: "01.01.2024" },
 
   // Binder 4 — JC / Operations
   "Policy 1.1.22": { name: "Performance Improvement Program",           rev: "01.01.2024" },
-  "OP 541":        { name: "Location Readiness Tool",                   rev: "01.01.2024" },
-  "JC 427":        { name: "Personnel Records Review",                  rev: "01.01.2024" },
-  "OP 542":        { name: "Infectious Disease Trending Report",        rev: "01.01.2024" },
-  "OP 752":        { name: "Influenza Vaccination Data Collection",     rev: "01.01.2024" },
   "Policy 1.1.2":  { name: "Scope of Service",                         rev: "01.01.2024" },
   "Policy 2.2.2":  { name: "Emergency Preparedness",                   rev: "01.01.2024" },
-  "OP 525":        { name: "Emergency Preparedness Plan",               rev: "01.01.2024" },
-  "OP 857":        { name: "Emergency Documentation & Recovery",        rev: "01.01.2024" },
   "Policy 2.4.13": { name: "Fire Prevention",                           rev: "01.01.2024" },
-  "RM 1240":       { name: "Fire Prevention Form",                      rev: "01.01.2024" },
-  "FDA 001":       { name: "Equipment Maintenance Log",                 rev: "01.01.2024" },
   "Policy 2.4.1":  { name: "Incidents",                                 rev: "01.01.2024" },
-  "OP 518":        { name: "Incident Report",                           rev: "01.01.2024" },
-  "RM 1202":       { name: "Incident Form",                             rev: "01.01.2024" },
-  "OP 522":        { name: "Complaint Log",                             rev: "01.01.2024" },
-  "OP 566":        { name: "Complaint Resolution Letter",               rev: "01.01.2024" },
-  "OP 512":        { name: "Facility Safety Inspection",                rev: "01.01.2024" },
   "Policy 2.2.4":  { name: "Instrumentation Maintenance & Calibration", rev: "01.01.2024" },
-  "FDA 025":       { name: "Self-Calibrating Analyzer Form",            rev: "01.01.2024" },
-  "FDA 003":       { name: "O2 Analyzer Calibration Form",              rev: "01.01.2024" },
-
-  // Binder 5 — SDS / Hazmat
-  "RM 1232":       { name: "Hazardous Chemical Inventory List",         rev: "01.01.2024" },
-  "RM 1233":       { name: "Site Specific Information Sheet",           rev: "01.01.2024" },
-  "RM 1234":       { name: "Hazard Communication Program Training",     rev: "01.01.2024" },
-  "RM 1238":       { name: "PPE Hazard Assessment Form",                rev: "01.01.2024" },
-
-  // PST Home Visit
-  "OP 609":        { name: "Concentrator Run Time Requirements",        rev: "01.01.2024" },
-  "OP 511":        { name: "Equipment Maintenance Form",                rev: "01.01.2024" },
-  "BL 401":        { name: "Patient Paperwork / Delivery Ticket",       rev: "01.01.2024" },
-
-  // PAP Setup / Vent
-  "CL 307":        { name: "Initial Plan of Care",                      rev: "01.01.2024" },
-  "CL 303":        { name: "Clinical Visit Report",                     rev: "01.01.2024" },
-  "CL 309":        { name: "Ongoing Plan of Care",                      rev: "01.01.2024" },
-  "CL 317":        { name: "Ventilator Function Check",                 rev: "01.01.2024" },
-  "CL 337":        { name: "Ventilator Function Check (Alt)",           rev: "01.01.2024" },
-  "RHI 1000":      { name: "Patient Information Booklet",               rev: "01.01.2024" },
-  "RHI 1001":      { name: "PAP Cleaning & Replacement Schedule",       rev: "01.01.2024" },
-  "RHI 1080":      { name: "Rotech Paperless Contact Card",             rev: "01.01.2024" },
 };
 
 // Returns all POLICY_DATES keys found anywhere in the given text string

@@ -247,8 +247,15 @@ const POLICY_DATES = {
 };
 
 // Returns all POLICY_DATES keys found anywhere in the given text string
+// Uses word-boundary check so "Policy 1.1.2" won't match inside "Policy 1.1.22"
 function getPolicyMatches(text) {
-  return Object.keys(POLICY_DATES).filter(key => text.includes(key));
+  return Object.keys(POLICY_DATES).filter(key => {
+    const idx = text.indexOf(key);
+    if (idx === -1) return false;
+    const after = text[idx + key.length];
+    // Ensure the character after the match is not a digit or dot (prevents 1.1.2 matching 1.1.22)
+    return !after || !/[\d.]/.test(after);
+  });
 }
 
 function PolicyDateSearch() {

@@ -110,7 +110,7 @@ const SECTIONS = [
     ]
   },
   {
-    id: "clinician", label: "Clinician Visit", ref: "Form JC 423 / JC 424",
+    id: "clinician", label: "PAP Setup", ref: "Form JC 424",
     items: [
       { text: "Physician order verified (can be completed prior to setup)" },
       { text: "Correct patient confirmed using two identifiers (name, DOB, address, etc.)" },
@@ -137,6 +137,35 @@ const SECTIONS = [
       { text: "Patient internet access confirmed; Rotech website reviewed; RHI 1080 card provided" },
       { text: "Credentials used when signing (clinician only)" },
       { text: "Hand gel applied at end of visit; table wiped down" },
+    ]
+  },
+  {
+    id: "vent", label: "Ventilator Home Visit", ref: "Form JC 423",
+    items: [
+      { text: "Physician order verified by reviewing chart (EMR)", note: "Clinician must review the most current order before leaving the office." },
+      { text: "Verify current ventilator order listed on top of forms", note: "Dosing instructions must match most current order. If using All-In-Order, ranges must be listed. If oxygen or MPV settings are ordered, they must also be listed." },
+      { text: "Patient information is not visible in vehicle." },
+      { text: "Vehicle is locked and secured when unattended." },
+      { text: '"No Smoking" sign(s) posted at entrance to home if oxygen in use.', note: 'If oxygen is in the home, "No Smoking" sign is required. Signage alerts first responders that there is oxygen in the home.' },
+      { text: "Confirm correct patient utilizing two patient identifiers (name, DOB, address, etc.)", note: "Verify patient's name before entering the home." },
+      { text: "Hand gel applied at the start of the visit." },
+      { text: "Gloves used if equipment/supplies are visibly contaminated (PPE kit available if needed)." },
+      { text: "Hand gel used between clean and dirty (e.g., home and vehicle).", note: "Trips between the home and vehicle; between glove changes; remove all dirty items (filters and supplies) → hand gel → place new items." },
+      { text: "On setup or mask exchange, discuss the use of magnetic PAP masks by patients or bed partner who have medical devices (pacemaker, defibrillator, cochlear implant). Magnets must be kept at least 6 inches away from active medical device." },
+      { text: "Enter the clinical menu." },
+      { text: "Go to: Settings and alarms — verify all settings match current order; Options — verify menu access is on limited and document hours of use; Alarm log — document and address findings, clear log; Event Log — document and address findings; Complete Download (if one was not completed via the cloud system before leaving the office)." },
+      { text: "Test tidal volume by placing mask on NIV patient; invasive patients use test lung — visually verify tidal volumes set are being met on digital screen." },
+      { text: "Verify Respiratory rate." },
+      { text: "Circuit Test performed if new circuit and filter applied." },
+      { text: "Test battery — turn on unit, unplug power cord; verify change to internal battery; reattach power cord, verify batteries charging (lightning bolt icon).", note: "Ensure the patient knows how long their battery will last should the electricity go out." },
+      { text: "Test alarms by removing mask from patient or removing test lung. Verify circuit disconnect, low inspiratory pressure.", note: 'Must ask the patient "Can you hear that alarm?"' },
+      { text: "Complete all sections of Ventilator Function Check (CL 317 or CL 337), Initial Plan of Care (CL 307) or Clinical Visit Report (CL 303), OP 511 Equipment Maintenance Form, or Ongoing Plan of Care (CL 309) if applicable.", note: "All documents must be completed in their entirety. Ventilator Function Check: don't forget the alarms section and questions regarding filters, circuit test, and humidifier — these cannot be blank." },
+      { text: "If patient is on oxygen, identify cylinder storage for safety and security, address as necessary.", note: "Tanks may NOT be stored in closets, left freestanding, within 15 feet of a heat source/open flame, or stored in the trunk of the car. If issues are identified, correct issue, provide education to the patient and document." },
+      { text: "If patient is non-compliant, discuss reasons for non-usage and ways to assist patient to become compliant with device; document non-compliance on Ongoing Plan of Care (CL 309).", note: "Non-compliance must be addressed and documented." },
+      { text: "Supplies and serial/lot numbers documented on delivery ticket.", note: "Two tickets are required — one for the vent setup or maintenance and a second ticket for supplies. Supplies are listed as 'no charge - included with rental'." },
+      { text: "Patient internet access confirmed; instructed to visit www.rotech.com; reviewed what is available on website and provided Rotech Paperless Contact Card (RHI 1080) with all new setups.", note: "Verbally ask the patient 'Do you have access to the internet?' If no internet access, be prepared to give the patient printed copies of the RHI 1000 and RHI 1001." },
+      { text: "Testing equipment cleaned prior to placing back into bag or vehicle; gloves must be worn when using Madawipes.", note: "Gloves must be worn when using any Mada product. Clean analyzer, flow pen, circuit tester, stethoscope, pulse ox, and tablet before placing in bag or vehicle." },
+      { text: "Used hand gel upon completion of home visit." },
     ]
   }
 ];
@@ -172,6 +201,12 @@ export default function App() {
   const [op541Comments, setOp541Comments] = useState({});
   const [op541FileName, setOp541FileName] = useState("");
 
+  // OP 541T state
+  const [op541tSections, setOp541tSections] = useState([]);
+  const [op541tStates, setOp541tStates] = useState({});
+  const [op541tComments, setOp541tComments] = useState({});
+  const [op541tFileName, setOp541tFileName] = useState("");
+
   const setState = useCallback((key, val) => {
     setForm(prev => ({ ...prev, states: { ...prev.states, [key]: prev.states[key] === val ? null : val } }));
   }, []);
@@ -199,6 +234,16 @@ export default function App() {
     return { yes, no, na, pending, mismatch };
   }
 
+  function getOp541tStats() {
+    let yes = 0, no = 0, na = 0, pending = 0, mismatch = 0;
+    op541tSections.forEach(sec => sec.items.forEach(item => {
+      const s = op541tStates[item.key];
+      if (s === "yes") yes++; else if (s === "no") no++; else if (s === "na") na++; else pending++;
+      if (s && item.locAns && ((item.locAns === "Y" && s === "no") || (item.locAns === "N" && s === "yes"))) mismatch++;
+    }));
+    return { yes, no, na, pending, mismatch };
+  }
+
   function getAllIssues() {
     const existing = SECTIONS.flatMap((sec, si) =>
       sec.items.flatMap((item, ii) => {
@@ -214,7 +259,14 @@ export default function App() {
         return [];
       })
     );
-    return [...existing, ...op541];
+    const op541t = op541tSections.flatMap(sec =>
+      sec.items.flatMap(item => {
+        if (op541tStates[item.key] === "no")
+          return [{ section: `OP 541T — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`, text: item.text, comment: op541tComments[item.key] }];
+        return [];
+      })
+    );
+    return [...existing, ...op541, ...op541t];
   }
 
   function buildSummaryData() {
@@ -252,6 +304,31 @@ export default function App() {
       data.push({
         label: `OP 541 — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`,
         ref: "OP 541 Location Readiness Tool",
+        yes, no, na, pending,
+        total: sec.items.length,
+        issues, observations,
+      });
+    });
+
+    op541tSections.forEach(sec => {
+      const issues = sec.items
+        .filter(item => op541tStates[item.key] === "no")
+        .map(item => ({
+          text: item.text,
+          comment: op541tComments[item.key],
+          type: "no",
+          mismatch: item.locAns === "Y",
+        }));
+      const yes = sec.items.filter(item => op541tStates[item.key] === "yes").length;
+      const no  = sec.items.filter(item => op541tStates[item.key] === "no").length;
+      const na  = sec.items.filter(item => op541tStates[item.key] === "na").length;
+      const pending = sec.items.filter(item => !op541tStates[item.key]).length;
+      const observations = sec.items
+        .filter(item => op541tStates[item.key] === "yes" && op541tComments[item.key])
+        .map(item => ({ text: item.text, comment: op541tComments[item.key] }));
+      data.push({
+        label: `OP 541T — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`,
+        ref: "OP 541T Transfill Location Readiness Tool",
         yes, no, na, pending,
         total: sec.items.length,
         issues, observations,
@@ -342,6 +419,95 @@ export default function App() {
     }
   }
 
+  async function handleOp541tUpload(file) {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const allSections = [];
+      let globalIdx = 0;
+
+      for (const sheetName of wb.SheetNames) {
+        if (sheetName === "Formula" || sheetName.startsWith("Additional Personnel")) continue;
+
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+        const isVehicle = sheetName.startsWith("Vehicle");
+        const isPersonnel = sheetName === "Personnel Records";
+
+        let sheetLabel = sheetName.replace(/_/g, " ");
+
+        // For vehicle sheets, try to extract unit number from row 4 col C (index 3)
+        if (isVehicle && rows.length > 4) {
+          const unitNum = String(rows[4][3] || "").trim();
+          sheetLabel = unitNum ? `Unit # ${unitNum}` : sheetName;
+        }
+
+        let hRow = -1, cDesc = 1, cLoc = 2, cComments = 4;
+
+        if (isVehicle) {
+          // Vehicle sheets: desc=col A(0), loc=col B(1), on-site=col C(2), comments=col D(3)
+          hRow = 6; cDesc = 0; cLoc = 1; cComments = 3;
+        } else if (isPersonnel) {
+          // Personnel: desc=col A(0), loc answers across cols C-L, comments=col M(13)
+          hRow = 6; cDesc = 0; cLoc = -1; cComments = 13;
+        } else {
+          // Facility sheet: policy=col A(0), desc=col B(1), loc=col C(2), on-site=col D(3), comments=col E(4)
+          hRow = 5; cDesc = 1; cLoc = 2; cComments = 4;
+        }
+
+        if (hRow < 0 || hRow >= rows.length) continue;
+
+        let curSection = null;
+        for (let i = hRow + 1; i < rows.length; i++) {
+          const row = rows[i];
+          const desc     = String(row[cDesc]   || "").trim();
+          const locAns   = cLoc >= 0 ? String(row[cLoc] || "").trim().toUpperCase() : "";
+          const locComment = String(row[cComments] || "").trim();
+          const policy   = cDesc > 0 ? String(row[0] || "").trim() : "";
+
+          if (!desc) continue;
+          if (desc.toUpperCase() === "TOTAL" || desc.startsWith("=")) continue;
+
+          // Detect section headers: all-caps, no policy number
+          const hasPolicyNum = /^\d+\.\d+/.test(policy);
+          const isHeader = !hasPolicyNum && desc === desc.toUpperCase() && desc.length > 2 && !/^\d/.test(desc) && !["Y", "N", "NA", "N/A"].includes(desc);
+
+          if (isHeader) {
+            curSection = { sheetLabel, label: desc, items: [] };
+            allSections.push(curSection);
+          } else {
+            if (!curSection) {
+              curSection = { sheetLabel, label: "", items: [] };
+              allSections.push(curSection);
+            }
+            // Skip formula rows
+            if (locAns.startsWith("=")) continue;
+            curSection.items.push({
+              key: `op541t-${globalIdx++}`,
+              policy,
+              text: desc,
+              locAns: ["Y","N","NA","N/A"].includes(locAns) ? locAns : "",
+              locComment,
+            });
+          }
+        }
+      }
+
+      // Remove empty sections
+      const filtered = allSections.filter(s => s.items.length > 0);
+      const ns = {}, nc = {};
+      filtered.forEach(sec => sec.items.forEach(item => { ns[item.key] = null; nc[item.key] = ""; }));
+
+      setOp541tSections(filtered);
+      setOp541tStates(ns);
+      setOp541tComments(nc);
+      setOp541tFileName(file.name);
+    } catch {
+      alert("Could not read the OP 541T file. Make sure it is a valid .xlsx file.");
+    }
+  }
+
   async function generateOutputs() {
     setLoading(true);
     const issues = getAllIssues();
@@ -398,9 +564,11 @@ Write a professional but direct email. If there are issues, list them clearly wi
     navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
-  const isOp541Tab = activeTab === SECTIONS.length;
-  const sec = isOp541Tab ? null : SECTIONS[activeTab];
-  const op541Stats = getOp541Stats();
+  const isOp541Tab  = activeTab === SECTIONS.length;
+  const isOp541tTab = activeTab === SECTIONS.length + 1;
+  const sec = (isOp541Tab || isOp541tTab) ? null : SECTIONS[activeTab];
+  const op541Stats  = getOp541Stats();
+  const op541tStats = getOp541tStats();
 
   const sectionTotals = SECTIONS.reduce((a, _, si) => {
     const s = getSectionStats(si);
@@ -408,9 +576,9 @@ Write a professional but direct email. If there are issues, list them clearly wi
   }, { yes: 0, no: 0, pending: 0 });
 
   const allStats = {
-    yes:     sectionTotals.yes     + op541Stats.yes,
-    no:      sectionTotals.no      + op541Stats.no,
-    pending: sectionTotals.pending + (op541Sections.length ? op541Stats.pending : 0),
+    yes:     sectionTotals.yes     + op541Stats.yes     + op541tStats.yes,
+    no:      sectionTotals.no      + op541Stats.no      + op541tStats.no,
+    pending: sectionTotals.pending + (op541Sections.length ? op541Stats.pending : 0) + (op541tSections.length ? op541tStats.pending : 0),
   };
 
   return (
@@ -480,6 +648,12 @@ Write a professional but direct email. If there are issues, list them clearly wi
                 <span style={{ color: "#757575", marginLeft: 5 }}>⚠ OP 541 Mismatches</span>
               </div>
             )}
+            {op541tStats.mismatch > 0 && (
+              <div style={{ fontSize: 13 }}>
+                <span style={{ color: "#e65100", fontWeight: 600 }}>{op541tStats.mismatch}</span>
+                <span style={{ color: "#757575", marginLeft: 5 }}>⚠ OP 541T Mismatches</span>
+              </div>
+            )}
           </div>
 
           {/* Tabs */}
@@ -513,10 +687,24 @@ Write a professional but direct email. If there are issues, list them clearly wi
               {op541FileName && op541Stats.mismatch > 0 && <span style={{ background: "#fff3e0", color: "#e65100", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⚠ {op541Stats.mismatch}</span>}
               {op541FileName && op541Stats.no === 0 && op541Stats.pending === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
             </button>
+
+            {/* OP 541T tab */}
+            <button onClick={() => setActiveTab(SECTIONS.length + 1)} style={{
+              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
+              border: "none", borderBottom: isOp541tTab ? `2px solid ${BRAND}` : "2px solid transparent",
+              color: isOp541tTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isOp541tTab ? 600 : 400,
+              display: "flex", alignItems: "center", gap: 6
+            }}>
+              OP 541T Transfill
+              {!op541tFileName && <span style={{ fontSize: 11, color: "#9e9e9e" }}>+ Upload</span>}
+              {op541tFileName && op541tStats.no > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{op541tStats.no}</span>}
+              {op541tFileName && op541tStats.mismatch > 0 && <span style={{ background: "#fff3e0", color: "#e65100", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⚠ {op541tStats.mismatch}</span>}
+              {op541tFileName && op541tStats.no === 0 && op541tStats.pending === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
+            </button>
           </div>
 
           {/* Regular section content */}
-          {!isOp541Tab && (
+          {!isOp541Tab && !isOp541tTab && (
             <div style={{ padding: "16px 24px" }}>
               <div style={{ fontSize: 11, color: "#9e9e9e", marginBottom: 12 }}>{sec.ref}</div>
               <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
@@ -660,6 +848,111 @@ Write a professional but direct email. If there are issues, list them clearly wi
                                       placeholder={s === "no" ? "Describe the issue and required corrective action…" : "Add observation or note (optional)…"}
                                       value={op541Comments[item.key]}
                                       onChange={e => setOp541Comments(p => ({ ...p, [item.key]: e.target.value }))}
+                                      rows={2}
+                                      style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "6px 8px", border: `1px solid ${s === "no" ? "#ef9a9a" : "#a5d6a7"}`, borderRadius: 5, resize: "vertical", color: "#212121", background: "#fff", boxSizing: "border-box", display: "block" }} />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* OP 541T tab content */}
+          {isOp541tTab && (
+            <div>
+              {!op541tFileName ? (
+                <div style={{ padding: "64px 24px", textAlign: "center", color: "#616161" }}>
+                  <div style={{ fontSize: 38, marginBottom: 12 }}>📂</div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: "#212121", marginBottom: 8 }}>Upload the OP 541T Transfill Spreadsheet</div>
+                  <div style={{ fontSize: 13, color: "#757575", marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
+                    Upload the .xlsx file filled out by the transfill location. Their self-audit answers will appear alongside your on-site Y/N/NA assessment, with mismatches flagged automatically.
+                  </div>
+                  <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+                    Choose .xlsx File
+                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
+                  </label>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ padding: "10px 24px", background: "#f8f9fa", borderBottom: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}>
+                      <span style={{ color: "#424242" }}>📄 {op541tFileName}</span>
+                      <span style={{ color: "#9e9e9e" }}>Loc: = location self-audit &nbsp;|&nbsp; Y / N / N/A = your on-site assessment</span>
+                      {op541tStats.mismatch > 0 && (
+                        <span style={{ color: "#e65100", fontWeight: 600 }}>⚠ {op541tStats.mismatch} mismatch{op541tStats.mismatch !== 1 ? "es" : ""} with location self-audit</span>
+                      )}
+                    </div>
+                    <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
+                      Change file
+                      <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
+                    </label>
+                  </div>
+                  <div style={{ padding: "16px 24px" }}>
+                    {op541tSections.map((section, si) => {
+                      const showSheetHeader = si === 0 || op541tSections[si - 1].sheetLabel !== section.sheetLabel;
+                      return (
+                        <div key={si} style={{ marginBottom: 20 }}>
+                          {showSheetHeader && (
+                            <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em", marginTop: si > 0 ? 24 : 0 }}>
+                              {section.sheetLabel}
+                            </div>
+                          )}
+                          {section.label && (
+                            <div style={{ background: "#e8eef4", padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 12, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                              {section.label}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {section.items.map(item => {
+                              const s = op541tStates[item.key];
+                              const mismatch = s && item.locAns && ((item.locAns === "Y" && s === "no") || (item.locAns === "N" && s === "yes"));
+                              return (
+                                <div key={item.key} style={{
+                                  padding: "10px 12px", borderRadius: 6,
+                                  border: `1px solid ${mismatch ? "#ffb300" : s === "no" ? "#ef9a9a" : s === "yes" ? "#a5d6a7" : "#e0e0e0"}`,
+                                  background: mismatch ? "#fffde7" : s === "no" ? "#fff8f8" : s === "yes" ? "#f9fff9" : "#fff"
+                                }}>
+                                  <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      {item.policy && <span style={{ fontSize: 11, color: "#9e9e9e", marginRight: 8 }}>{item.policy}</span>}
+                                      <span style={{ fontSize: 13, color: "#212121", lineHeight: 1.5 }}>{item.text}</span>
+                                      {item.locComment && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3 }}>{item.locComment}</div>}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                                      <span style={{
+                                        fontSize: 11, fontWeight: 700, padding: "4px 9px", borderRadius: 4, whiteSpace: "nowrap",
+                                        background: item.locAns === "Y" ? "#e8f5e9" : item.locAns === "N" ? "#ffebee" : item.locAns ? "#f5f5f5" : "#fafafa",
+                                        color: item.locAns === "Y" ? "#2e7d32" : item.locAns === "N" ? "#c62828" : "#9e9e9e",
+                                        border: `1px solid ${item.locAns === "Y" ? "#a5d6a7" : item.locAns === "N" ? "#ef9a9a" : "#e0e0e0"}`
+                                      }}>
+                                        Loc: {item.locAns || "—"}
+                                      </span>
+                                      {mismatch && <span title="Mismatch with location self-audit" style={{ color: "#e65100", fontSize: 15, fontWeight: 700 }}>⚠</span>}
+                                      <div style={{ display: "flex", gap: 4 }}>
+                                        {["yes", "no", "na"].map(v => (
+                                          <button key={v} onClick={() => setOp541tStates(p => ({ ...p, [item.key]: p[item.key] === v ? null : v }))} style={{
+                                            width: 38, height: 32, fontSize: 11, fontWeight: 600,
+                                            border: `1px solid ${s === v ? STATUS_COLORS[v].border : "#e0e0e0"}`,
+                                            background: s === v ? STATUS_COLORS[v].bg : "#fafafa",
+                                            color: s === v ? STATUS_COLORS[v].text : "#9e9e9e",
+                                            borderRadius: 5, cursor: "pointer"
+                                          }}>{STATUS_COLORS[v].label}</button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {(s === "yes" || s === "no") && (
+                                    <textarea
+                                      placeholder={s === "no" ? "Describe the issue and required corrective action…" : "Add observation or note (optional)…"}
+                                      value={op541tComments[item.key]}
+                                      onChange={e => setOp541tComments(p => ({ ...p, [item.key]: e.target.value }))}
                                       rows={2}
                                       style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "6px 8px", border: `1px solid ${s === "no" ? "#ef9a9a" : "#a5d6a7"}`, borderRadius: 5, resize: "vertical", color: "#212121", background: "#fff", boxSizing: "border-box", display: "block" }} />
                                   )}

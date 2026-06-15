@@ -219,6 +219,130 @@ const STATUS_COLORS = {
   na:  { bg: "#f5f5f5", border: "#bdbdbd", text: "#616161", label: "N/A" },
 };
 
+// ─── POLICY REVISION DATES ────────────────────────────────────────────────────
+// Update the date strings below whenever a policy is revised.
+// Format: "MM.DD.YYYY" — appears as a tooltip badge on checklist items
+//         and in the Policy Dates reference tab.
+// ─────────────────────────────────────────────────────────────────────────────
+const POLICY_DATES = {
+  // Binder 1 — Morning Meeting
+  "Policy 1.1.25": { name: "Morning Meetings",                          rev: "01.01.2024" },
+  "OP 843":        { name: "Morning Meeting Checklist",                 rev: "01.01.2024" },
+  "OP 543":        { name: "Morning Meeting Attendance Sheet",          rev: "01.01.2024" },
+  "OP 519":        { name: "Targeted Surveillance Log",                 rev: "01.01.2024" },
+
+  // Binder 2 — In-Service
+  "Policy 1.1.21": { name: "Educational In-Services",                   rev: "01.01.2024" },
+  "OP 520":        { name: "In-Service Attendance Record",              rev: "01.01.2024" },
+
+  // Binder 3 — Site Inspection
+  "Policy 1.1.14": { name: "Inspections, Audits & Investigations",      rev: "01.01.2024" },
+  "Policy 2.1.29": { name: "Patient Complaints",                        rev: "01.01.2024" },
+  "OP 564":        { name: "Patient Complaint Report",                  rev: "01.01.2024" },
+  "Policy 1.1.12": { name: "Medicare Supplier Standards",               rev: "01.01.2024" },
+  "Policy 6.5.10": { name: "Notice of Privacy Practices",               rev: "01.01.2024" },
+  "OP 201":        { name: "Field Management Organizational Chart",     rev: "01.01.2024" },
+
+  // Binder 4 — JC / Operations
+  "Policy 1.1.22": { name: "Performance Improvement Program",           rev: "01.01.2024" },
+  "OP 541":        { name: "Location Readiness Tool",                   rev: "01.01.2024" },
+  "JC 427":        { name: "Personnel Records Review",                  rev: "01.01.2024" },
+  "OP 542":        { name: "Infectious Disease Trending Report",        rev: "01.01.2024" },
+  "OP 752":        { name: "Influenza Vaccination Data Collection",     rev: "01.01.2024" },
+  "Policy 1.1.2":  { name: "Scope of Service",                         rev: "01.01.2024" },
+  "Policy 2.2.2":  { name: "Emergency Preparedness",                   rev: "01.01.2024" },
+  "OP 525":        { name: "Emergency Preparedness Plan",               rev: "01.01.2024" },
+  "OP 857":        { name: "Emergency Documentation & Recovery",        rev: "01.01.2024" },
+  "Policy 2.4.13": { name: "Fire Prevention",                           rev: "01.01.2024" },
+  "RM 1240":       { name: "Fire Prevention Form",                      rev: "01.01.2024" },
+  "FDA 001":       { name: "Equipment Maintenance Log",                 rev: "01.01.2024" },
+  "Policy 2.4.1":  { name: "Incidents",                                 rev: "01.01.2024" },
+  "OP 518":        { name: "Incident Report",                           rev: "01.01.2024" },
+  "RM 1202":       { name: "Incident Form",                             rev: "01.01.2024" },
+  "OP 522":        { name: "Complaint Log",                             rev: "01.01.2024" },
+  "OP 566":        { name: "Complaint Resolution Letter",               rev: "01.01.2024" },
+  "OP 512":        { name: "Facility Safety Inspection",                rev: "01.01.2024" },
+  "Policy 2.2.4":  { name: "Instrumentation Maintenance & Calibration", rev: "01.01.2024" },
+  "FDA 025":       { name: "Self-Calibrating Analyzer Form",            rev: "01.01.2024" },
+  "FDA 003":       { name: "O2 Analyzer Calibration Form",              rev: "01.01.2024" },
+
+  // Binder 5 — SDS / Hazmat
+  "RM 1232":       { name: "Hazardous Chemical Inventory List",         rev: "01.01.2024" },
+  "RM 1233":       { name: "Site Specific Information Sheet",           rev: "01.01.2024" },
+  "RM 1234":       { name: "Hazard Communication Program Training",     rev: "01.01.2024" },
+  "RM 1238":       { name: "PPE Hazard Assessment Form",                rev: "01.01.2024" },
+
+  // PST Home Visit
+  "OP 609":        { name: "Concentrator Run Time Requirements",        rev: "01.01.2024" },
+  "OP 511":        { name: "Equipment Maintenance Form",                rev: "01.01.2024" },
+  "BL 401":        { name: "Patient Paperwork / Delivery Ticket",       rev: "01.01.2024" },
+
+  // PAP Setup / Vent
+  "CL 307":        { name: "Initial Plan of Care",                      rev: "01.01.2024" },
+  "CL 303":        { name: "Clinical Visit Report",                     rev: "01.01.2024" },
+  "CL 309":        { name: "Ongoing Plan of Care",                      rev: "01.01.2024" },
+  "CL 317":        { name: "Ventilator Function Check",                 rev: "01.01.2024" },
+  "CL 337":        { name: "Ventilator Function Check (Alt)",           rev: "01.01.2024" },
+  "RHI 1000":      { name: "Patient Information Booklet",               rev: "01.01.2024" },
+  "RHI 1001":      { name: "PAP Cleaning & Replacement Schedule",       rev: "01.01.2024" },
+  "RHI 1080":      { name: "Rotech Paperless Contact Card",             rev: "01.01.2024" },
+};
+
+// Returns all POLICY_DATES keys found anywhere in the given text string
+function getPolicyMatches(text) {
+  return Object.keys(POLICY_DATES).filter(key => text.includes(key));
+}
+
+function PolicyDateSearch() {
+  const [query, setQuery] = useState("");
+  const entries = Object.entries(POLICY_DATES);
+  const filtered = query.trim()
+    ? entries.filter(([key, val]) =>
+        key.toLowerCase().includes(query.toLowerCase()) ||
+        val.name.toLowerCase().includes(query.toLowerCase()) ||
+        val.rev.includes(query)
+      )
+    : entries;
+
+  return (
+    <div>
+      <input
+        value={query} onChange={e => setQuery(e.target.value)}
+        placeholder="Search by policy #, name, or date…"
+        style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 6, marginBottom: 14, boxSizing: "border-box", outline: "none", color: "#212121" }}
+      />
+      <div style={{ border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden" }}>
+        {/* Header row */}
+        <div style={{ display: "grid", gridTemplateColumns: "140px 1fr 130px", background: "#1a3a5c", color: "#fff", padding: "9px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          <div>Policy #</div>
+          <div>Name</div>
+          <div style={{ textAlign: "center" }}>Last Revised</div>
+        </div>
+        {filtered.length === 0 && (
+          <div style={{ padding: "24px", textAlign: "center", color: "#9e9e9e", fontSize: 13 }}>No policies match "{query}"</div>
+        )}
+        {filtered.map(([key, val], i) => (
+          <div key={key} style={{
+            display: "grid", gridTemplateColumns: "140px 1fr 130px",
+            padding: "9px 14px", fontSize: 13, alignItems: "center",
+            background: i % 2 === 0 ? "#fff" : "#f8f9fa",
+            borderTop: "1px solid #f0f0f0"
+          }}>
+            <div style={{ fontWeight: 600, color: "#1a3a5c", fontFamily: "monospace", fontSize: 12 }}>{key}</div>
+            <div style={{ color: "#424242" }}>{val.name}</div>
+            <div style={{ textAlign: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 10, background: "#e8eef4", color: "#1a3a5c", border: "1px solid #c5d5e8" }}>
+                {val.rev}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, fontSize: 11, color: "#bdbdbd", textAlign: "right" }}>{filtered.length} of {entries.length} policies shown</div>
+    </div>
+  );
+}
+
 export default function App() {
   const draft = loadDraft();
 
@@ -661,7 +785,8 @@ Write a professional but direct email. If there are issues, list them clearly wi
 
   const isOp541Tab  = activeTab === SECTIONS.length;
   const isOp541tTab = activeTab === SECTIONS.length + 1;
-  const sec = (isOp541Tab || isOp541tTab) ? null : SECTIONS[activeTab];
+  const isPolicyTab = activeTab === SECTIONS.length + 2;
+  const sec = (isOp541Tab || isOp541tTab || isPolicyTab) ? null : SECTIONS[activeTab];
   const op541Stats  = getOp541Stats();
   const op541tStats = getOp541tStats();
 
@@ -810,7 +935,14 @@ Write a professional but direct email. If there are issues, list them clearly wi
               );
             })}
 
-            {/* OP 541 tab */}
+            {/* Policy Dates tab */}
+            <button onClick={() => setActiveTab(SECTIONS.length + 2)} style={{
+              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
+              border: "none", borderBottom: isPolicyTab ? `2px solid ${BRAND}` : "2px solid transparent",
+              color: isPolicyTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isPolicyTab ? 600 : 400,
+            }}>
+              📋 Policy Dates
+            </button>
             <button onClick={() => setActiveTab(SECTIONS.length)} style={{
               padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
               border: "none", borderBottom: isOp541Tab ? `2px solid ${BRAND}` : "2px solid transparent",
@@ -840,7 +972,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
           </div>
 
           {/* Regular section content */}
-          {!isOp541Tab && !isOp541tTab && (
+          {!isOp541Tab && !isOp541tTab && !isPolicyTab && (
             <div style={{ padding: "16px 24px" }}>
               <div style={{ fontSize: 11, color: "#9e9e9e", marginBottom: 12 }}>{sec.ref}</div>
               <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
@@ -867,6 +999,23 @@ Write a professional but direct email. If there are issues, list them clearly wi
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, lineHeight: 1.5, color: "#212121" }}>{item.text}</div>
                           {item.note && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3, lineHeight: 1.4 }}>{item.note}</div>}
+                          {(() => {
+                            const matches = getPolicyMatches(item.text);
+                            if (!matches.length) return null;
+                            return (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                                {matches.map(key => (
+                                  <span key={key} title={`${POLICY_DATES[key].name} — Rev: ${POLICY_DATES[key].rev}`} style={{
+                                    fontSize: 10, padding: "2px 7px", borderRadius: 10,
+                                    background: "#e8eef4", color: BRAND, border: "1px solid #c5d5e8",
+                                    cursor: "default", fontWeight: 600, letterSpacing: "0.02em"
+                                  }}>
+                                    📋 {key} · Rev {POLICY_DATES[key].rev}
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                           {["yes", "no", "na"].map(v => (
@@ -1102,6 +1251,20 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          {/* Policy Dates tab content */}
+          {isPolicyTab && (
+            <div style={{ padding: "20px 24px" }}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: BRAND, marginBottom: 4 }}>Policy Revision Reference</div>
+                <div style={{ fontSize: 12, color: "#757575" }}>
+                  Dates are set in <code style={{ background: "#f5f5f5", padding: "1px 5px", borderRadius: 3 }}>POLICY_DATES</code> at the top of <code style={{ background: "#f5f5f5", padding: "1px 5px", borderRadius: 3 }}>App.jsx</code> — update the <code style={{ background: "#f5f5f5", padding: "1px 5px", borderRadius: 3 }}>rev:</code> value for any policy and it will reflect here and on the checklist badges automatically.
+                </div>
+              </div>
+
+              {/* Search */}
+              <PolicyDateSearch />
             </div>
           )}
         </div>

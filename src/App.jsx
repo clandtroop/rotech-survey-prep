@@ -89,9 +89,9 @@ const SECTIONS = [
       { text: "Tab 1 — OP 201 Organizational Chart"}, 
       { text:  "Policy 1.1.2 Scope of Service" },
       { text: "Tab 1 — Key contact person name documented for surveyor tracer selection" },
-      { text: "Tab 2 — Emergency Preparedness: Policy 2.2.2"
+      { text: "Tab 2 — Emergency Preparedness: Policy 2.2.2" },
       { text:  "OP 525 Emergency Preparedness Plan" },
-       { text: "OP 857- Emergency documentation & recovery (AS - APPLICABLE - IF PLAN ACTIVATED)" },
+      { text: "OP 857- Emergency documentation & recovery (AS - APPLICABLE - IF PLAN ACTIVATED)" },
       { text: "Tab 2 — Fire Prevention: Policy 2.4.13, RM 1240" },
       { text: "Tab 2 — FDA 001 Equipment Maintenance Log — smoke alarm checks (weekly)" },
       { text: "Tab 2 — FDA 001 — monthly emergency lighting / exit sign checks (as applicable)" },

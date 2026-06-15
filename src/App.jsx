@@ -76,7 +76,7 @@ const SECTIONS = [
     id: "jc", label: "JC / Operations Binder", ref: "Binder 4 · OP 541 & OP 840",
     items: [
       { text: "Tab 1 — Policy 1.1.22 Performance Improvement Program" },
-      { text: "Tab 1 — Location metrics and corrective action plan (as applicable)" },
+      { text: "Tab 1 — Location metrics pulled from Tableau and reviewed monthly" },
       { text: "Tab 1 — EMR reviews (20 semi-annually) and corrective actions" },
       { text: "Tab 1 — OP 541 Location Readiness Tool completed January and July" },
       { text: "Tab 1 — JC 427 Personnel Records Review completed January and July" },

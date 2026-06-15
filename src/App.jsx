@@ -678,8 +678,8 @@ Write a professional but direct email. If there are issues, list them clearly wi
       {/* Header */}
       <div style={{ background: BRAND, color: "#fff", padding: "16px 24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 13, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Rotech Healthcare</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <img src="/rotech-survey-prep/rotech-logo.jpg" alt="Rotech Healthcare" style={{ height: 52, width: "auto", background: "#fff", borderRadius: 6, padding: "4px 10px" }} />
             <div style={{ fontSize: 20, fontWeight: 600 }}>Accreditation Survey Prep Checklist</div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>

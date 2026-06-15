@@ -226,24 +226,24 @@ const STATUS_COLORS = {
 // ─────────────────────────────────────────────────────────────────────────────
 const POLICY_DATES = {
   // Binder 1 — Morning Meeting
-  "Policy 1.1.25": { name: "Morning Meetings",                          rev: "01.01.2024" },
+  "Policy 1.1.25": { name: "Morning Meetings",                          rev: "01.01.2026" },
   
   // Binder 2 — In-Service
-  "Policy 1.1.21": { name: "Educational In-Services",                   rev: "01.01.2024" },
+  "Policy 1.1.21": { name: "Educational In-Services",                   rev: "07.02.2024" },
 
   // Binder 3 — Site Inspection
-  "Policy 1.1.14": { name: "Inspections, Audits & Investigations",      rev: "01.01.2024" },
-  "Policy 2.1.29": { name: "Patient Complaints",                        rev: "01.01.2024" },
-  "Policy 1.1.12": { name: "Medicare Supplier Standards",               rev: "01.01.2024" },
-  "Policy 6.5.10": { name: "Notice of Privacy Practices",               rev: "01.01.2024" },
+  "Policy 1.1.14": { name: "Inspections, Audits & Investigations",      rev: "02.12.2025" },
+  "Policy 2.1.29": { name: "Patient Complaints",                        rev: "06.15.2021" },
+  "Policy 1.1.12": { name: "Medicare Supplier Standards",               rev: "01.01.2025" },
+  "Policy 6.5.10": { name: "Notice of Privacy Practices",               rev: "01.01.2017" },
 
   // Binder 4 — JC / Operations
-  "Policy 1.1.22": { name: "Performance Improvement Program",           rev: "01.01.2024" },
-  "Policy 1.1.2":  { name: "Scope of Service",                         rev: "01.01.2024" },
-  "Policy 2.2.2":  { name: "Emergency Preparedness",                   rev: "01.01.2024" },
-  "Policy 2.4.13": { name: "Fire Prevention",                           rev: "01.01.2024" },
-  "Policy 2.4.1":  { name: "Incidents",                                 rev: "01.01.2024" },
-  "Policy 2.2.4":  { name: "Instrumentation Maintenance & Calibration", rev: "01.01.2024" },
+  "Policy 1.1.22": { name: "Performance Improvement Program",           rev: "01.01.2025" },
+  "Policy 1.1.2":  { name: "Scope of Service",                         rev: "05.22.2026" },
+  "Policy 2.2.2":  { name: "Emergency Preparedness",                   rev: "11.17.2025" },
+  "Policy 2.4.13": { name: "Fire Prevention",                           rev: "01.01.2026" },
+  "Policy 2.4.1":  { name: "Incidents",                                 rev: "01.01.2026" },
+  "Policy 2.2.4":  { name: "Instrumentation Maintenance & Calibration", rev: "03.17.2026" },
 };
 
 // Returns all POLICY_DATES keys found anywhere in the given text string

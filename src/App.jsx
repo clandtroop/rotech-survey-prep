@@ -1117,6 +1117,8 @@ Write a professional but direct email. If there are issues, list them clearly wi
     const date = (meta.date     || "").replace(/\//g, "-");
     XLSX.writeFile(wb, `FollowUp_${loc}_${date}.xlsx`);
   }
+
+  function copyText(txt) {
     navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 

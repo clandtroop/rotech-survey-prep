@@ -429,6 +429,7 @@ export default function App() {
     });
 
     op541Sections.forEach(sec => {
+      const vInfo = op541VehicleInfo[sec.sheetLabel] || {};
       const issues = sec.items
         .filter(item => op541States[item.key] === "no")
         .map(item => ({
@@ -447,6 +448,8 @@ export default function App() {
       data.push({
         label: `OP 541 — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`,
         ref: "OP 541 Location Readiness Tool",
+        pstName: vInfo.pstName || "",
+        vehicleNum: vInfo.vehicleNum || "",
         yes, no, na, pending,
         total: sec.items.length,
         issues, observations,
@@ -1355,7 +1358,15 @@ Write a professional but direct email. If there are issues, list them clearly wi
           {reportLines.map((s, i) => (
             <div key={i} style={{ marginBottom: 16, border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden" }}>
               <div style={{ background: s.no > 0 ? "#ffebee" : s.pending > 0 ? "#fff8e1" : "#e8f5e9", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: "#212121" }}>{s.label}</div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: "#212121" }}>{s.label}</div>
+                  {(s.pstName || s.vehicleNum) && (
+                    <div style={{ display: "flex", gap: 16, marginTop: 3, fontSize: 12, color: "#555" }}>
+                      {s.pstName  && <span>👤 PST: <strong>{s.pstName}</strong></span>}
+                      {s.vehicleNum && <span>🚗 Vehicle #: <strong>{s.vehicleNum}</strong></span>}
+                    </div>
+                  )}
+                </div>
                 <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
                   <span style={{ color: "#2e7d32" }}>✓ {s.yes}</span>
                   <span style={{ color: "#c62828" }}>✗ {s.no}</span>

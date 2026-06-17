@@ -6,6 +6,7 @@ const ACCENT = "#2e6da4";
 
 const DRAFT_KEY  = "rotech_survey_draft";
 const VISITS_KEY = "rotech_saved_visits";
+const TREND_KEY  = "rotech_trend_data";
 
 function saveDraft(meta, states, comments) {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ meta, states, comments, savedAt: new Date().toISOString() })); } catch {}
@@ -31,6 +32,71 @@ function deleteVisitFromStorage(id) {
   try {
     const visits = loadVisits().filter(v => v.id !== id);
     localStorage.setItem(VISITS_KEY, JSON.stringify(visits));
+  } catch {}
+}
+
+function loadTrendData() {
+  try { const r = localStorage.getItem(TREND_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
+}
+
+function writeTrendData(visitId, meta, sections, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments) {
+  try {
+    // Remove any prior records for this visitId so re-saves don't duplicate
+    const existing = loadTrendData().filter(r => r.visitId !== visitId);
+    const records = [];
+    const base = {
+      visitId,
+      location: meta.location || "Unknown",
+      city: meta.city || "",
+      date: meta.date || "",
+      specialist: meta.specialist || "",
+    };
+
+    // Regular checklist sections
+    SECTIONS.forEach((sec, si) => {
+      sec.items.forEach((item, ii) => {
+        const key = `${si}-${ii}`;
+        const s = states[key];
+        if (s === "no") {
+          records.push({ ...base, section: sec.label, formRef: sec.ref, itemText: item.text, comment: comments[key] || "", visitType: "checklist" });
+        }
+      });
+      // Tab-level comments for PST / PAP / Vent
+      if (["pst", "clinician", "vent"].includes(sec.id) && tabComments[sec.id]) {
+        records.push({ ...base, section: sec.label, formRef: sec.ref, itemText: "Visit Notes", comment: tabComments[sec.id], visitType: "note" });
+      }
+    });
+
+    // OP 541
+    op541Sections.forEach(sec => {
+      sec.items.forEach(item => {
+        if (op541States[item.key] === "no") {
+          records.push({ ...base, section: `OP 541 — ${sec.sheetLabel}`, formRef: "OP 541", itemText: item.text, comment: op541Comments[item.key] || "", visitType: "op541" });
+        }
+      });
+    });
+
+    // OP 541T
+    op541tSections.forEach(sec => {
+      sec.items.forEach(item => {
+        if (op541tStates[item.key] === "no") {
+          records.push({ ...base, section: `OP 541T — ${sec.sheetLabel}`, formRef: "OP 541T", itemText: item.text, comment: op541tComments[item.key] || "", visitType: "op541t" });
+        }
+      });
+    });
+
+    // Write a summary record even if no issues (for clean visit tracking)
+    if (records.length === 0) {
+      records.push({ ...base, section: "_summary", formRef: "", itemText: "_clean", comment: "", visitType: "summary" });
+    }
+
+    localStorage.setItem(TREND_KEY, JSON.stringify([...existing, ...records].slice(-2000)));
+  } catch {}
+}
+
+function deleteTrendVisit(visitId) {
+  try {
+    localStorage.setItem(TREND_KEY, JSON.stringify(loadTrendData().filter(r => r.visitId !== visitId)));
   } catch {}
 }
 
@@ -304,6 +370,241 @@ function PolicyDateSearch() {
         ))}
       </div>
       <div style={{ marginTop: 10, fontSize: 11, color: "#bdbdbd", textAlign: "right" }}>{filtered.length} of {entries.length} policies shown</div>
+    </div>
+  );
+}
+
+function TrendTracker() {
+  const [data] = useState(loadTrendData);
+  const [filterLoc, setFilterLoc] = useState("");
+  const [filterSection, setFilterSection] = useState("");
+  const [filterSpec, setFilterSpec] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const issues = data.filter(r => r.itemText !== "_clean" && r.section !== "_summary" && r.visitType !== "note");
+
+  const filtered = issues.filter(r => {
+    if (filterLoc     && !r.location.toLowerCase().includes(filterLoc.toLowerCase())) return false;
+    if (filterSection && r.section !== filterSection) return false;
+    if (filterSpec    && r.specialist !== filterSpec) return false;
+    if (dateFrom && r.date < dateFrom) return false;
+    if (dateTo   && r.date > dateTo)   return false;
+    return true;
+  });
+
+  // Unique visits in filtered set
+  const visitIds = [...new Set(filtered.map(r => r.visitId))];
+  const totalVisits = [...new Set(data.map(r => r.visitId))].length;
+
+  // Top failing items
+  const itemFreq = {};
+  filtered.forEach(r => { itemFreq[r.itemText] = (itemFreq[r.itemText] || 0) + 1; });
+  const topItems = Object.entries(itemFreq).sort((a,b) => b[1]-a[1]).slice(0, 15);
+
+  // Top failing locations
+  const locFreq = {};
+  filtered.forEach(r => { locFreq[r.location] = (locFreq[r.location] || 0) + 1; });
+  const topLocs = Object.entries(locFreq).sort((a,b) => b[1]-a[1]).slice(0, 10);
+
+  // Recurring — same item + same location, 2+ times
+  const recurring = {};
+  filtered.forEach(r => {
+    const k = `${r.location}||${r.itemText}`;
+    recurring[k] = (recurring[k] || 0) + 1;
+  });
+  const recurringItems = Object.entries(recurring)
+    .filter(([,count]) => count >= 2)
+    .sort((a,b) => b[1]-a[1])
+    .map(([k, count]) => { const [loc, item] = k.split("||"); return { loc, item, count }; });
+
+  // Sections breakdown
+  const secFreq = {};
+  filtered.forEach(r => { secFreq[r.section] = (secFreq[r.section] || 0) + 1; });
+  const topSections = Object.entries(secFreq).sort((a,b) => b[1]-a[1]);
+
+  const allLocations  = [...new Set(data.map(r => r.location))].sort();
+  const allSections   = [...new Set(data.map(r => r.section).filter(s => s !== "_summary"))].sort();
+  const allSpecialists = [...new Set(data.map(r => r.specialist).filter(Boolean))].sort();
+
+  function exportXLSX() {
+    const rows = [["Visit ID","Location","City","Date","Specialist","Section","Form Ref","Item","Comment"]];
+    filtered.forEach(r => rows.push([r.visitId, r.location, r.city, r.date, r.specialist, r.section, r.formRef, r.itemText, r.comment]));
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Issue Trends");
+    XLSX.writeFile(wb, `Rotech_IssueTrends_${new Date().toLocaleDateString("en-US").replace(/\//g,"-")}.xlsx`);
+  }
+
+  function exportPDF() { window.print(); }
+
+  const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%" };
+  const cardStyle  = { background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden", marginBottom: 16 };
+  const headStyle  = { background: BRAND, color: "#fff", padding: "10px 16px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" };
+
+  if (totalVisits === 0) return (
+    <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
+      <div style={{ fontSize: 38, marginBottom: 12 }}>📊</div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: "#424242", marginBottom: 8 }}>No trend data yet</div>
+      <div style={{ fontSize: 13 }}>Complete a visit and click "💾 Save Progress" to start tracking issue trends.</div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "16px 24px" }}>
+      {/* Header + export */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: BRAND }}>Issue Trend Analysis</div>
+          <div style={{ fontSize: 12, color: "#9e9e9e", marginTop: 2 }}>{totalVisits} visit{totalVisits !== 1 ? "s" : ""} tracked · {issues.length} total issues recorded</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={exportXLSX} style={{ padding: "7px 14px", fontSize: 12, background: "#1a6e35", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>⬇ Export XLSX</button>
+          <button onClick={exportPDF}  style={{ padding: "7px 14px", fontSize: 12, background: BRAND,     color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>🖨 Print / PDF</button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div style={{ background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Filter</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Location</div>
+            <input list="locs" value={filterLoc} onChange={e => setFilterLoc(e.target.value)} placeholder="All locations" style={inputStyle} />
+            <datalist id="locs">{allLocations.map(l => <option key={l} value={l} />)}</datalist>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Section</div>
+            <select value={filterSection} onChange={e => setFilterSection(e.target.value)} style={inputStyle}>
+              <option value="">All sections</option>
+              {allSections.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Specialist</div>
+            <select value={filterSpec} onChange={e => setFilterSpec(e.target.value)} style={inputStyle}>
+              <option value="">All specialists</option>
+              {allSpecialists.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Date From</div>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Date To</div>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={inputStyle} />
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <button onClick={() => { setFilterLoc(""); setFilterSection(""); setFilterSpec(""); setDateFrom(""); setDateTo(""); }}
+              style={{ width: "100%", padding: "5px 8px", fontSize: 12, background: "#fff", border: "1px solid #e0e0e0", borderRadius: 5, cursor: "pointer", color: "#616161" }}>
+              Clear Filters
+            </button>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 8 }}>Showing {filtered.length} issue{filtered.length !== 1 ? "s" : ""} across {visitIds.length} visit{visitIds.length !== 1 ? "s" : ""}</div>
+      </div>
+
+      {/* Recurring Issues — most important, show first */}
+      {recurringItems.length > 0 && (
+        <div style={cardStyle}>
+          <div style={{ ...headStyle, background: "#b71c1c" }}>🔁 Recurring Issues — Same Item Failing at Same Location ({recurringItems.length})</div>
+          <div style={{ padding: "12px 16px" }}>
+            {recurringItems.map((r, i) => (
+              <div key={i} style={{ padding: "8px 12px", marginBottom: 6, background: "#fff8f8", border: "1px solid #ef9a9a", borderRadius: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#c62828", marginBottom: 2 }}>{r.loc}</div>
+                    <div style={{ fontSize: 13, color: "#212121", lineHeight: 1.4 }}>{r.item}</div>
+                  </div>
+                  <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "2px 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{r.count}× failed</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+        {/* Top failing items */}
+        <div style={cardStyle}>
+          <div style={headStyle}>Top Failing Items</div>
+          <div style={{ padding: "12px 16px" }}>
+            {topItems.length === 0 && <div style={{ fontSize: 13, color: "#9e9e9e" }}>No issues in selected range.</div>}
+            {topItems.map(([text, count], i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < topItems.length - 1 ? "1px solid #f5f5f5" : "none", gap: 8 }}>
+                <div style={{ fontSize: 12, color: "#212121", lineHeight: 1.4, flex: 1 }}>{text}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <div style={{ width: Math.max(4, (count / (topItems[0]?.[1] || 1)) * 60), height: 6, background: "#ef5350", borderRadius: 3 }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#c62828", minWidth: 20, textAlign: "right" }}>{count}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Top locations */}
+        <div style={cardStyle}>
+          <div style={headStyle}>Locations by Issue Count</div>
+          <div style={{ padding: "12px 16px" }}>
+            {topLocs.length === 0 && <div style={{ fontSize: 13, color: "#9e9e9e" }}>No issues in selected range.</div>}
+            {topLocs.map(([loc, count], i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < topLocs.length - 1 ? "1px solid #f5f5f5" : "none", gap: 8 }}>
+                <div style={{ fontSize: 12, color: "#212121", flex: 1 }}>{loc}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <div style={{ width: Math.max(4, (count / (topLocs[0]?.[1] || 1)) * 60), height: 6, background: BRAND, borderRadius: 3 }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, minWidth: 20, textAlign: "right" }}>{count}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Issues by section */}
+      <div style={cardStyle}>
+        <div style={headStyle}>Issues by Checklist Section</div>
+        <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
+          {topSections.length === 0 && <div style={{ fontSize: 13, color: "#9e9e9e" }}>No issues in selected range.</div>}
+          {topSections.map(([sec, count], i) => (
+            <div key={i} style={{ padding: "8px 12px", background: "#f8f9fa", borderRadius: 6, border: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: "#424242" }}>{sec}</div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, background: "#e8eef4", borderRadius: 10, padding: "1px 8px" }}>{count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Full issue log */}
+      <div style={cardStyle}>
+        <div style={headStyle}>Full Issue Log ({filtered.length} items)</div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: "#f8f9fa" }}>
+                {["Date","Location","Section","Item","Comment","Specialist"].map(h => (
+                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#424242", borderBottom: "1px solid #e0e0e0", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} style={{ padding: "20px", textAlign: "center", color: "#9e9e9e" }}>No issues match the current filters.</td></tr>
+              )}
+              {filtered.map((r, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  <td style={{ padding: "7px 12px", whiteSpace: "nowrap", color: "#616161" }}>{r.date}</td>
+                  <td style={{ padding: "7px 12px", fontWeight: 600, color: BRAND }}>{r.location}</td>
+                  <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.section}</td>
+                  <td style={{ padding: "7px 12px", color: "#212121", lineHeight: 1.4 }}>{r.itemText}</td>
+                  <td style={{ padding: "7px 12px", color: "#757575", fontStyle: r.comment ? "normal" : "italic" }}>{r.comment || "—"}</td>
+                  <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.specialist}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -678,6 +979,7 @@ export default function App() {
       tabComments,
     };
     saveVisitToStorage(visit);
+    writeTrendData(id, meta, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments);
     setSavedVisits(loadVisits());
     alert(`Visit saved: ${visit.label}`);
   }
@@ -701,6 +1003,7 @@ export default function App() {
 
   function deleteVisit(id) {
     deleteVisitFromStorage(id);
+    deleteTrendVisit(id);
     setSavedVisits(loadVisits());
   }
 
@@ -763,7 +1066,8 @@ Write a professional but direct email. If there are issues, list them clearly wi
   const isOp541Tab  = activeTab === SECTIONS.length;
   const isOp541tTab = activeTab === SECTIONS.length + 1;
   const isPolicyTab = activeTab === SECTIONS.length + 2;
-  const sec = (isOp541Tab || isOp541tTab || isPolicyTab) ? null : SECTIONS[activeTab];
+  const isTrendsTab = activeTab === SECTIONS.length + 3;
+  const sec = (isOp541Tab || isOp541tTab || isPolicyTab || isTrendsTab) ? null : SECTIONS[activeTab];
   const op541Stats  = getOp541Stats();
   const op541tStats = getOp541tStats();
 
@@ -948,10 +1252,19 @@ Write a professional but direct email. If there are issues, list them clearly wi
             }}>
               📋 Policy Dates
             </button>
+
+            {/* Trends tab */}
+            <button onClick={() => setActiveTab(SECTIONS.length + 3)} style={{
+              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
+              border: "none", borderBottom: isTrendsTab ? `2px solid ${BRAND}` : "2px solid transparent",
+              color: isTrendsTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isTrendsTab ? 600 : 400,
+            }}>
+              📊 Issue Trends
+            </button>
           </div>
 
           {/* Regular section content */}
-          {!isOp541Tab && !isOp541tTab && !isPolicyTab && (
+          {!isOp541Tab && !isOp541tTab && !isPolicyTab && !isTrendsTab && (
             <div style={{ padding: "16px 24px" }}>
               <div style={{ fontSize: 11, color: "#9e9e9e", marginBottom: 12 }}>{sec.ref}</div>
               <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
@@ -1290,6 +1603,8 @@ Write a professional but direct email. If there are issues, list them clearly wi
               <PolicyDateSearch />
             </div>
           )}
+          {/* Issue Trends tab content */}
+          {isTrendsTab && <TrendTracker />}
         </div>
       )}
 

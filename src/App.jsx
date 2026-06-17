@@ -1059,7 +1059,64 @@ Write a professional but direct email. If there are issues, list them clearly wi
     setView("email");
   }
 
-  function copyText(txt) {
+  function exportFollowUpXLSX() {
+    const issues = getAllIssues();
+    if (issues.length === 0) { alert("No issues found to export."); return; }
+
+    const wb = XLSX.utils.book_new();
+
+    // Build rows
+    const headerRow = ["Issue Found", "Notes from Visit", "Issue Corrected", "Follow-Up Notes"];
+    const dataRows = issues.map(issue => [
+      issue.text,
+      issue.comment || "",
+      "", // Issue Corrected — blank for staff to fill in
+      "", // Follow-Up Notes — blank for staff to fill in
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+
+    // Column widths
+    ws["!cols"] = [{ wch: 55 }, { wch: 40 }, { wch: 18 }, { wch: 40 }];
+
+    // Style header row
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: 0, c: C })];
+      if (cell) cell.s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1A3A5C" } }, alignment: { wrapText: true } };
+    }
+
+    // Style data rows — green/red for Issue Corrected column (col index 2)
+    for (let R = 1; R <= dataRows.length; R++) {
+      // Issue Corrected cell — add data validation hint via comment
+      const corrCell = XLSX.utils.encode_cell({ r: R, c: 2 });
+      if (!ws[corrCell]) ws[corrCell] = { t: "s", v: "" };
+      ws[corrCell].s = { fill: { fgColor: { rgb: "FFF9C4" } }, alignment: { horizontal: "center" } };
+
+      // Wrap text on Issue Found and Notes columns
+      [0, 1, 3].forEach(C => {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+        if (ws[addr]) ws[addr].s = { alignment: { wrapText: true, vertical: "top" } };
+      });
+    }
+
+    // Add meta sheet with visit info
+    const metaWs = XLSX.utils.aoa_to_sheet([
+      ["Location / Lawson #", meta.location || ""],
+      ["City / State",        meta.city     || ""],
+      ["Specialist",          meta.specialist || ""],
+      ["Visit Date",          meta.date     || ""],
+      ["Export Date",         new Date().toLocaleDateString("en-US")],
+    ]);
+    metaWs["!cols"] = [{ wch: 22 }, { wch: 30 }];
+
+    XLSX.utils.book_append_sheet(wb, ws,     "Follow-Up Tracker");
+    XLSX.utils.book_append_sheet(wb, metaWs, "Visit Info");
+
+    const loc  = (meta.location || "Location").replace(/\s+/g, "_");
+    const date = (meta.date     || "").replace(/\//g, "-");
+    XLSX.writeFile(wb, `FollowUp_${loc}_${date}.xlsx`);
+  }
     navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
@@ -1628,9 +1685,14 @@ Write a professional but direct email. If there are issues, list them clearly wi
         <div style={{ padding: "24px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: "#212121" }}>Survey Prep Report</div>
-            <button onClick={() => window.print()} style={{ padding: "7px 14px", fontSize: 13, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
-              Print / Save as PDF
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={exportFollowUpXLSX} style={{ padding: "7px 14px", fontSize: 13, background: "#1a6e35", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+                ⬇ Export Follow-Up XLSX
+              </button>
+              <button onClick={() => window.print()} style={{ padding: "7px 14px", fontSize: 13, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+                Print / Save as PDF
+              </button>
+            </div>
           </div>
 
           <div style={{ border: `2px solid ${BRAND}`, borderRadius: 8, padding: "16px 20px", marginBottom: 20, background: "#f0f4f8" }}>

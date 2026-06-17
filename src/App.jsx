@@ -332,12 +332,17 @@ export default function App() {
   const [op541States, setOp541States] = useState({});
   const [op541Comments, setOp541Comments] = useState({});
   const [op541FileName, setOp541FileName] = useState("");
+  const [op541VehicleInfo, setOp541VehicleInfo] = useState({}); // { sheetLabel: { pstName, vehicleNum } }
 
   // OP 541T state
   const [op541tSections, setOp541tSections] = useState([]);
   const [op541tStates, setOp541tStates] = useState({});
   const [op541tComments, setOp541tComments] = useState({});
   const [op541tFileName, setOp541tFileName] = useState("");
+
+  // Tab-level comments for PST Home Visit, PAP Setup, Ventilator Home Visit
+  const [tabComments, setTabComments] = useState({ pst: "", clinician: "", vent: "" });
+  const setTabComment = (id, val) => setTabComments(prev => ({ ...prev, [id]: val }));
 
   const setState = useCallback((key, val) => {
     setForm(prev => ({ ...prev, states: { ...prev.states, [key]: prev.states[key] === val ? null : val } }));
@@ -351,7 +356,7 @@ export default function App() {
   useEffect(() => {
     saveDraft(meta, states, comments);
     setSavedAt(new Date().toISOString());
-  }, [meta, states, comments]);
+  }, [meta, states, comments, tabComments, op541VehicleInfo]);
 
   function getSectionStats(si) {
     let yes = 0, no = 0, na = 0, pending = 0;
@@ -652,8 +657,9 @@ export default function App() {
     const b = initStates();
     setMeta({ location: "", city: "", specialist: meta.specialist, date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
     setForm(b);
-    setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName("");
+    setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({});
     setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName("");
+    setTabComments({ pst: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
   }
 
@@ -664,8 +670,9 @@ export default function App() {
       label: `${meta.location || "Unknown Location"} — ${meta.date}`,
       savedAt: new Date().toISOString(),
       meta, states, comments,
-      op541Sections, op541States, op541Comments, op541FileName,
+      op541Sections, op541States, op541Comments, op541FileName, op541VehicleInfo,
       op541tSections, op541tStates, op541tComments, op541tFileName,
+      tabComments,
     };
     saveVisitToStorage(visit);
     setSavedVisits(loadVisits());
@@ -679,10 +686,12 @@ export default function App() {
     setOp541States(visit.op541States ?? {});
     setOp541Comments(visit.op541Comments ?? {});
     setOp541FileName(visit.op541FileName ?? "");
+    setOp541VehicleInfo(visit.op541VehicleInfo ?? {});
     setOp541tSections(visit.op541tSections ?? []);
     setOp541tStates(visit.op541tStates ?? {});
     setOp541tComments(visit.op541tComments ?? {});
     setOp541tFileName(visit.op541tFileName ?? "");
+    setTabComments(visit.tabComments ?? { pst: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]);
     setShowVisits(false);
   }
@@ -1006,6 +1015,22 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   </div>
                 );
               })}
+
+              {/* Tab-level comments for PST, PAP Setup, Vent */}
+              {["pst", "clinician", "vent"].includes(sec.id) && (
+                <div style={{ marginTop: 12, padding: "14px 16px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    📝 Visit Notes / Unable to Complete Reason
+                  </div>
+                  <textarea
+                    value={tabComments[sec.id]}
+                    onChange={e => setTabComment(sec.id, e.target.value)}
+                    placeholder="Note any reason this visit could not be completed (e.g. patient not available, location closed, PST unavailable) or general visit observations…"
+                    rows={3}
+                    style={{ width: "100%", fontSize: 13, padding: "8px 10px", border: "1px solid #e0e0e0", borderRadius: 6, resize: "vertical", color: "#212121", background: "#fafafa", boxSizing: "border-box" }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -1044,11 +1069,39 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   <div style={{ padding: "16px 24px" }}>
                     {op541Sections.map((section, si) => {
                       const showSheetHeader = si === 0 || op541Sections[si - 1].sheetLabel !== section.sheetLabel;
+                      const isVehicleSheet = section.sheetLabel.startsWith("Vehicle") || section.sheetLabel.startsWith("Unit");
+                      const vInfo = op541VehicleInfo[section.sheetLabel] || { pstName: "", vehicleNum: "" };
+                      const setVInfo = (field, val) => setOp541VehicleInfo(prev => ({
+                        ...prev,
+                        [section.sheetLabel]: { ...prev[section.sheetLabel], pstName: prev[section.sheetLabel]?.pstName || "", vehicleNum: prev[section.sheetLabel]?.vehicleNum || "", [field]: val }
+                      }));
                       return (
                         <div key={si} style={{ marginBottom: 20 }}>
                           {showSheetHeader && (
-                            <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em", marginTop: si > 0 ? 24 : 0 }}>
-                              {section.sheetLabel}
+                            <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em", marginTop: si > 0 ? 24 : 0, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                              <span>{section.sheetLabel}</span>
+                              {isVehicleSheet && (
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                    <label style={{ fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" }}>PST Name:</label>
+                                    <input
+                                      value={vInfo.pstName}
+                                      onChange={e => setVInfo("pstName", e.target.value)}
+                                      placeholder="Enter name"
+                                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 130 }}
+                                    />
+                                  </div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                    <label style={{ fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" }}>Vehicle #:</label>
+                                    <input
+                                      value={vInfo.vehicleNum}
+                                      onChange={e => setVInfo("vehicleNum", e.target.value)}
+                                      placeholder="Enter #"
+                                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 80 }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                           {section.label && (

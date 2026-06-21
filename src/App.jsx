@@ -1060,98 +1060,213 @@ Write a professional but direct email. If there are issues, list them clearly wi
   }
 
   async function exportFollowUpXLSX() {
-    const issues = getAllIssues();
-    if (issues.length === 0) { alert("No issues found to export."); return; }
+    // ── Collect issues grouped by tab ──
+    // Each tab becomes one Excel sheet. Only tabs that have at least one "no" appear.
+    const tabGroups = [];
+
+    // Regular checklist sections
+    SECTIONS.forEach((sec, si) => {
+      const issues = sec.items.flatMap((item, ii) => {
+        const key = `${si}-${ii}`;
+        if (states[key] === "no") return [{ text: item.text, comment: comments[key] || "" }];
+        return [];
+      });
+      if (issues.length > 0) tabGroups.push({ label: sec.label, ref: sec.ref, issues });
+    });
+
+    // OP 541 sheets
+    op541Sections.forEach(sec => {
+      const issues = sec.items.flatMap(item => {
+        if (op541States[item.key] === "no")
+          return [{ text: item.text, comment: op541Comments[item.key] || "", mismatch: item.locAns === "Y" }];
+        return [];
+      });
+      if (issues.length > 0)
+        tabGroups.push({ label: `OP 541 — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`, ref: "OP 541 Location Readiness Tool", issues });
+    });
+
+    // OP 541T sheets
+    op541tSections.forEach(sec => {
+      const issues = sec.items.flatMap(item => {
+        if (op541tStates[item.key] === "no")
+          return [{ text: item.text, comment: op541tComments[item.key] || "", mismatch: item.locAns === "Y" }];
+        return [];
+      });
+      if (issues.length > 0)
+        tabGroups.push({ label: `OP 541T — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`, ref: "OP 541T Transfill", issues });
+    });
+
+    if (tabGroups.length === 0) { alert("No issues found to export."); return; }
 
     try {
-      // ── 1. Fetch template as raw bytes ──
-      const res = await fetch("/rotech-survey-prep/FollowUp_Template.xlsx");
-      if (!res.ok) throw new Error(`Template fetch failed: ${res.status}`);
-      const templateBuf = await res.arrayBuffer();
-
-      // ── 2. Load JSZip ──
       const JSZip = (await import("jszip")).default;
-      const zip   = await JSZip.loadAsync(templateBuf);
 
-      // ── 3. Edit sheet1 XML (Follow-Up Tracker) directly ──
-      let sheet1 = await zip.file("xl/worksheets/sheet1.xml").async("string");
+      // ── XML helpers ──
+      const esc = s => String(s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-      // Helper: escape XML special chars
-      const esc = (s) => String(s)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-
-      // Helper: build a <c> cell element (inline string)
-      const cell = (addr, val) =>
+      const strCell = (addr, val) =>
         `<c r="${addr}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
 
-      // Helper: replace or insert a cell value in existing <row> XML
-      // We rebuild only the rows we need to touch; the rest of sheetData stays intact.
+      // Build one worksheet XML for a given tab's issues
+      // Columns: A=Item Description  B=Corrective Action Status (dropdown)  C=Notes
+      const buildSheetXml = (tabLabel, tabRef, issues) => {
+        const maxRow = issues.length + 3; // header=1, meta=2, col-headers=3, data starts at 4
 
-      // --- Row 2: meta header (A2 = location, C2 = visit date) ---
-      const a2Val = `Location / Lawson #: ${meta.location || ""}`;
-      const c2Val = `Visit Date: ${meta.date || ""}`;
+        const headerRow = `<row r="1" spans="1:3">` +
+          strCell("A1", `${tabLabel}  |  ${tabRef}`) +
+          strCell("B1", `Location: ${meta.location || "—"}`) +
+          strCell("C1", `Visit Date: ${meta.date || "—"}`) +
+          `</row>`;
 
-      sheet1 = sheet1.replace(
-        /(<row[^>]*\br="2"[^>]*>)(.*?)(<\/row>)/s,
-        (_, open, inner, close) => {
-          inner = inner.replace(/<c r="A2"[^/]*\/>/g, "").replace(/<c r="A2".*?<\/c>/gs, "");
-          inner = inner.replace(/<c r="C2"[^/]*\/>/g, "").replace(/<c r="C2".*?<\/c>/gs, "");
-          return `${open}${cell("A2", a2Val)}${cell("C2", c2Val)}${inner}${close}`;
+        const metaRow = `<row r="2" spans="1:3">` +
+          strCell("A2", `Specialist: ${meta.specialist || "—"}`) +
+          strCell("B2", `City / State: ${meta.city || "—"}`) +
+          strCell("C2", `Export Date: ${new Date().toLocaleDateString("en-US")}`) +
+          `</row>`;
+
+        const colHeaderRow = `<row r="3" spans="1:3">` +
+          strCell("A3", "Item / Finding") +
+          strCell("B3", "Corrected? (Yes / No / Pending)") +
+          strCell("C3", "Notes / Comments") +
+          `</row>`;
+
+        const dataRows = issues.map((iss, idx) => {
+          const r = idx + 4;
+          const noteText = [iss.comment, iss.mismatch ? "⚠ Mismatch — location self-audit marked compliant" : ""]
+            .filter(Boolean).join(" | ");
+          return `<row r="${r}" spans="1:3">` +
+            strCell(`A${r}`, iss.text) +
+            `<c r="B${r}" t="inlineStr"><is><t></t></is></c>` +
+            strCell(`C${r}`, noteText) +
+            `</row>`;
+        }).join("");
+
+        // CF: green for Yes, red for No, yellow for Pending — applied to col B data rows
+        const cfSqref = `B4:B${Math.max(maxRow, 203)}`;
+        const cf = `<conditionalFormatting sqref="${cfSqref}">` +
+          `<cfRule type="containsText" priority="1" operator="containsText" dxfId="0" text="Yes"><formula>NOT(ISERROR(SEARCH("Yes",B4)))</formula></cfRule>` +
+          `<cfRule type="containsText" priority="2" operator="containsText" dxfId="1" text="No"><formula>NOT(ISERROR(SEARCH("No",B4)))</formula></cfRule>` +
+          `<cfRule type="containsText" priority="3" operator="containsText" dxfId="2" text="Pending"><formula>NOT(ISERROR(SEARCH("Pending",B4)))</formula></cfRule>` +
+          `</conditionalFormatting>`;
+
+        // Data validation: Yes/No/Pending dropdown on col B data rows
+        const dvSqref = `B4:B${Math.max(maxRow, 203)}`;
+        const dv = `<dataValidations count="1">` +
+          `<dataValidation sqref="${dvSqref}" showDropDown="0" showInputMessage="1" showErrorMessage="1" allowBlank="1" ` +
+          `errorTitle="Invalid Entry" error="Please select &quot;Yes&quot;, &quot;No&quot;, or &quot;Pending&quot;." ` +
+          `promptTitle="Item Corrected?" prompt="Select &quot;Yes&quot; if resolved, &quot;No&quot; if still open, &quot;Pending&quot; if in progress." ` +
+          `type="list"><formula1>"Yes,No,Pending"</formula1></dataValidation>` +
+          `</dataValidations>`;
+
+        // Col widths: A=60, B=28, C=40
+        const cols = `<cols><col min="1" max="1" width="60" bestFit="1" customWidth="1"/>` +
+          `<col min="2" max="2" width="28" customWidth="1"/>` +
+          `<col min="3" max="3" width="40" bestFit="1" customWidth="1"/></cols>`;
+
+        return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ` +
+          `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+          `<sheetViews><sheetView tabSelected="0" workbookViewId="0"><selection activeCell="A4" sqref="A4"/></sheetView></sheetViews>` +
+          cols +
+          `<sheetData>` +
+          headerRow + metaRow + colHeaderRow + dataRows +
+          `</sheetData>` +
+          cf + dv +
+          `</worksheet>`;
+      };
+
+      // ── Build styles.xml with the 3 dxf entries CF needs ──
+      const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+        `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+        `<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>` +
+        `<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>` +
+        `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
+        `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
+        `<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>` +
+        `<dxfs count="3">` +
+          `<dxf><font><b val="1"/><color rgb="001B5E20"/></font><fill><patternFill patternType="solid"><fgColor rgb="00C8E6C9"/><bgColor rgb="00C8E6C9"/></patternFill></fill></dxf>` +
+          `<dxf><font><b val="1"/><color rgb="00B71C1C"/></font><fill><patternFill patternType="solid"><fgColor rgb="00FFCDD2"/><bgColor rgb="00FFCDD2"/></patternFill></fill></dxf>` +
+          `<dxf><font><b val="1"/><color rgb="00F57F17"/></font><fill><patternFill patternType="solid"><fgColor rgb="00FFF9C4"/><bgColor rgb="00FFF9C4"/></patternFill></fill></dxf>` +
+        `</dxfs>` +
+        `</styleSheet>`;
+
+      // ── Truncate sheet names to 31 chars (Excel limit) and deduplicate ──
+      const usedNames = {};
+      const sheetMeta = tabGroups.map(tg => {
+        let name = tg.label.replace(/[\\/*?[\]]/g, "").slice(0, 31);
+        if (usedNames[name] !== undefined) {
+          usedNames[name]++;
+          name = name.slice(0, 28) + ` (${usedNames[name]})`;
+        } else {
+          usedNames[name] = 0;
         }
-      );
-
-      // --- Issue rows starting at row 4 (Excel row = data index + 4) ---
-      // Build the new row XML for each issue
-      const issueRowsXml = issues.map((issue, idx) => {
-        const excelRow = idx + 4; // rows 4, 5, 6, …
-        const colA = cell(`A${excelRow}`, issue.section  || "");
-        const colB = cell(`B${excelRow}`, issue.text     || "");
-        const colC = `<c r="C${excelRow}" t="inlineStr"><is><t></t></is></c>`; // dropdown — blank by default
-        const colD = cell(`D${excelRow}`, issue.comment  || "");
-        return `<row r="${excelRow}" spans="1:4">${colA}${colB}${colC}${colD}</row>`;
-      }).join("");
-
-      // Remove any pre-existing data rows from row 4 onward (keep header rows 1-3)
-      sheet1 = sheet1.replace(/<row r="([4-9]|[1-9]\d+)"[^>]*>.*?<\/row>/gs, "");
-
-      // Insert new issue rows before </sheetData>
-      sheet1 = sheet1.replace("</sheetData>", `${issueRowsXml}</sheetData>`);
-
-      // ── 4. Edit sheet2 XML (Visit Info) ──
-      let sheet2 = await zip.file("xl/worksheets/sheet2.xml").async("string");
-      const metaFields = [
-        ["B2", meta.location   || ""],
-        ["B3", meta.city       || ""],
-        ["B4", meta.specialist || ""],
-        ["B5", meta.date       || ""],
-        ["B6", new Date().toLocaleDateString("en-US")],
-      ];
-      metaFields.forEach(([addr, val]) => {
-        const re = new RegExp(`<c r="${addr}"[^/]*/>`  , "g");
-        const re2= new RegExp(`<c r="${addr}".*?<\\/c>`, "gs");
-        sheet2 = sheet2.replace(re, "").replace(re2, "");
-        sheet2 = sheet2.replace(
-          new RegExp(`(<row[^>]*\\br="${addr[1]}"[^>]*>)`),
-          `$1${cell(addr, val)}`
-        );
+        return { ...tg, sheetName: name };
       });
 
-      // ── 5. Write edited XML back into zip ──
-      zip.file("xl/worksheets/sheet1.xml", sheet1);
-      zip.file("xl/worksheets/sheet2.xml", sheet2);
+      // ── Build workbook.xml ──
+      const sheetsXml = sheetMeta.map((s, i) =>
+        `<sheet name="${esc(s.sheetName)}" sheetId="${i + 1}" r:id="rId${i + 2}"/>`
+      ).join("");
 
-      // ── 6. Generate and download ──
+      const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+        `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ` +
+        `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+        `<sheets>${sheetsXml}</sheets></workbook>`;
+
+      // ── Build workbook relationships ──
+      // rId1 = styles, rId2+ = sheets
+      const wbRelsEntries = [
+        `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`,
+        ...sheetMeta.map((_, i) =>
+          `<Relationship Id="rId${i + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`
+        )
+      ].join("");
+
+      const wbRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+        `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${wbRelsEntries}</Relationships>`;
+
+      // ── Content types ──
+      const sheetContentTypes = sheetMeta.map((_, i) =>
+        `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+      ).join("");
+
+      const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+        `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+        `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+        `<Default Extension="xml" ContentType="application/xml"/>` +
+        `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
+        `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
+        sheetContentTypes +
+        `</Types>`;
+
+      // ── Root .rels ──
+      const rootRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+        `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+        `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>` +
+        `</Relationships>`;
+
+      // ── Assemble zip ──
+      const zip = new JSZip();
+      zip.file("[Content_Types].xml", contentTypesXml);
+      zip.file("_rels/.rels", rootRelsXml);
+      zip.file("xl/workbook.xml", workbookXml);
+      zip.file("xl/_rels/workbook.xml.rels", wbRelsXml);
+      zip.file("xl/styles.xml", stylesXml);
+      sheetMeta.forEach((s, i) => {
+        zip.file(`xl/worksheets/sheet${i + 1}.xml`, buildSheetXml(s.label, s.ref, s.issues));
+      });
+
+      // ── Download ──
       const outBuf = await zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
       const blob   = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url    = URL.createObjectURL(blob);
       const a      = document.createElement("a");
       const loc    = (meta.location || "Location").replace(/\s+/g, "_");
       const date   = (meta.date     || "").replace(/\//g, "-");
-      a.href       = url;
-      a.download   = `FollowUp_${loc}_${date}.xlsx`;
+      a.href     = url;
+      a.download = `FollowUp_${loc}_${date}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
 

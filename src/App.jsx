@@ -1064,54 +1064,100 @@ Write a professional but direct email. If there are issues, list them clearly wi
     if (issues.length === 0) { alert("No issues found to export."); return; }
 
     try {
-      // Fetch the pre-built template from the repo
+      // ── 1. Fetch template as raw bytes ──
       const res = await fetch("/rotech-survey-prep/FollowUp_Template.xlsx");
-      const arrayBuf = await res.arrayBuffer();
-      const wb = XLSX.read(arrayBuf, { type: "array", cellStyles: true });
-      const ws = wb.Sheets["Follow-Up Tracker"];
-      const metaWs = wb.Sheets["Visit Info"];
+      if (!res.ok) throw new Error(`Template fetch failed: ${res.status}`);
+      const templateBuf = await res.arrayBuffer();
 
-      // Fill meta row 2 — Location (A2) and Visit Date (C2)
-      if (ws["A2"]) ws["A2"].v = `Location / Lawson #: ${meta.location || ""}`;
-      if (ws["C2"]) ws["C2"].v = `Visit Date: ${meta.date || ""}`;
+      // ── 2. Load JSZip ──
+      const JSZip = (await import("jszip")).default;
+      const zip   = await JSZip.loadAsync(templateBuf);
 
-      // Fill Visit Info sheet
-      const metaValues = [
-        meta.location   || "",
-        meta.city       || "",
-        meta.specialist || "",
-        meta.date       || "",
-        new Date().toLocaleDateString("en-US"),
+      // ── 3. Edit sheet1 XML (Follow-Up Tracker) directly ──
+      let sheet1 = await zip.file("xl/worksheets/sheet1.xml").async("string");
+
+      // Helper: escape XML special chars
+      const esc = (s) => String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+      // Helper: build a <c> cell element (inline string)
+      const cell = (addr, val) =>
+        `<c r="${addr}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
+
+      // Helper: replace or insert a cell value in existing <row> XML
+      // We rebuild only the rows we need to touch; the rest of sheetData stays intact.
+
+      // --- Row 2: meta header (A2 = location, C2 = visit date) ---
+      const a2Val = `Location / Lawson #: ${meta.location || ""}`;
+      const c2Val = `Visit Date: ${meta.date || ""}`;
+
+      sheet1 = sheet1.replace(
+        /(<row[^>]*\br="2"[^>]*>)(.*?)(<\/row>)/s,
+        (_, open, inner, close) => {
+          inner = inner.replace(/<c r="A2"[^/]*\/>/g, "").replace(/<c r="A2".*?<\/c>/gs, "");
+          inner = inner.replace(/<c r="C2"[^/]*\/>/g, "").replace(/<c r="C2".*?<\/c>/gs, "");
+          return `${open}${cell("A2", a2Val)}${cell("C2", c2Val)}${inner}${close}`;
+        }
+      );
+
+      // --- Issue rows starting at row 4 (Excel row = data index + 4) ---
+      // Build the new row XML for each issue
+      const issueRowsXml = issues.map((issue, idx) => {
+        const excelRow = idx + 4; // rows 4, 5, 6, …
+        const colA = cell(`A${excelRow}`, issue.section  || "");
+        const colB = cell(`B${excelRow}`, issue.text     || "");
+        const colC = `<c r="C${excelRow}" t="inlineStr"><is><t></t></is></c>`; // dropdown — blank by default
+        const colD = cell(`D${excelRow}`, issue.comment  || "");
+        return `<row r="${excelRow}" spans="1:4">${colA}${colB}${colC}${colD}</row>`;
+      }).join("");
+
+      // Remove any pre-existing data rows from row 4 onward (keep header rows 1-3)
+      sheet1 = sheet1.replace(/<row r="([4-9]|[1-9]\d+)"[^>]*>.*?<\/row>/gs, "");
+
+      // Insert new issue rows before </sheetData>
+      sheet1 = sheet1.replace("</sheetData>", `${issueRowsXml}</sheetData>`);
+
+      // ── 4. Edit sheet2 XML (Visit Info) ──
+      let sheet2 = await zip.file("xl/worksheets/sheet2.xml").async("string");
+      const metaFields = [
+        ["B2", meta.location   || ""],
+        ["B3", meta.city       || ""],
+        ["B4", meta.specialist || ""],
+        ["B5", meta.date       || ""],
+        ["B6", new Date().toLocaleDateString("en-US")],
       ];
-      metaValues.forEach((val, i) => {
-        const addr = XLSX.utils.encode_cell({ r: i + 1, c: 1 });
-        if (!metaWs[addr]) metaWs[addr] = { t: "s" };
-        metaWs[addr].v = val;
-        metaWs[addr].t = "s";
+      metaFields.forEach(([addr, val]) => {
+        const re = new RegExp(`<c r="${addr}"[^/]*/>`  , "g");
+        const re2= new RegExp(`<c r="${addr}".*?<\\/c>`, "gs");
+        sheet2 = sheet2.replace(re, "").replace(re2, "");
+        sheet2 = sheet2.replace(
+          new RegExp(`(<row[^>]*\\br="${addr[1]}"[^>]*>)`),
+          `$1${cell(addr, val)}`
+        );
       });
 
-      // Write issue rows starting at row 4 (index 3)
-      issues.forEach((issue, i) => {
-        const row = i + 3; // 0-indexed, row 4 in Excel = index 3
-        const cols = [issue.text, issue.comment || "", "", ""];
-        cols.forEach((val, c) => {
-          const addr = XLSX.utils.encode_cell({ r: row, c });
-          if (!ws[addr]) ws[addr] = {};
-          ws[addr].v = val;
-          ws[addr].t = "s";
-        });
-      });
+      // ── 5. Write edited XML back into zip ──
+      zip.file("xl/worksheets/sheet1.xml", sheet1);
+      zip.file("xl/worksheets/sheet2.xml", sheet2);
 
-      // Update sheet range to cover all written rows
-      const lastRow = issues.length + 3;
-      ws["!ref"] = `A1:D${Math.max(lastRow, 203)}`;
+      // ── 6. Generate and download ──
+      const outBuf = await zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
+      const blob   = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url    = URL.createObjectURL(blob);
+      const a      = document.createElement("a");
+      const loc    = (meta.location || "Location").replace(/\s+/g, "_");
+      const date   = (meta.date     || "").replace(/\//g, "-");
+      a.href       = url;
+      a.download   = `FollowUp_${loc}_${date}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
 
-      const loc  = (meta.location || "Location").replace(/\s+/g, "_");
-      const date = (meta.date     || "").replace(/\//g, "-");
-      XLSX.writeFile(wb, `FollowUp_${loc}_${date}.xlsx`);
     } catch (e) {
       console.error(e);
-      alert("Could not load template. Please check your connection and try again.");
+      alert("Could not generate Follow-Up XLSX. Check console for details.");
     }
   }
 

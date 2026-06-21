@@ -1682,7 +1682,9 @@ Write a professional but direct email. If there are issues, list them clearly wi
       {/* REPORT VIEW */}
       {view === "report" && (
         <div style={{ padding: "24px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+
+          {/* Screen-only toolbar */}
+          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: "#212121" }}>Survey Prep Report</div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={exportFollowUpXLSX} style={{ padding: "7px 14px", fontSize: 13, background: "#1a6e35", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
@@ -1694,112 +1696,161 @@ Write a professional but direct email. If there are issues, list them clearly wi
             </div>
           </div>
 
-          <div style={{ border: `2px solid ${BRAND}`, borderRadius: 8, padding: "16px 20px", marginBottom: 20, background: "#f0f4f8" }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: BRAND, marginBottom: 10 }}>Accreditation Survey Prep Report</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px", fontSize: 13, color: "#424242" }}>
-              <div><strong>Location / Lawson #:</strong> {meta.location || "—"}</div>
-              <div><strong>City / State:</strong> {meta.city || "—"}</div>
-              <div><strong>Accreditation Specialist:</strong> {meta.specialist || "—"}</div>
-              <div><strong>Visit Date:</strong> {meta.date}</div>
-            </div>
+          {/* ── HEADER BAND ── */}
+          <div style={{ background: BRAND, borderRadius: "6px 6px 0 0", padding: "12px 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+            <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, letterSpacing: "0.01em" }}>Accreditation Survey Prep Report</div>
+            <div style={{ color: "#b0c8e8", fontSize: 12, marginTop: 2 }}>Rotech Healthcare · Region 8</div>
           </div>
 
-          {(meta.followUpDate || meta.followUpTime) && (
-            <div style={{ background: "#fff8c5", border: "2px solid #f0c000", borderRadius: 8, padding: "12px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 18 }}>📅</span>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#7a5c00", marginBottom: 2 }}>Follow-Up Teams Call Scheduled</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#3d2e00" }}>
-                  {meta.followUpDate ? new Date(meta.followUpDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—"}
-                  {meta.followUpTime ? ` · ${meta.followUpTime}` : ""}
-                </div>
-              </div>
-            </div>
-          )}
+          {/* ── META TABLE ── */}
+          <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #c5cfe0", borderTop: "none", marginBottom: 0 }}>
+            <tbody>
+              <tr>
+                <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", borderRight: "1px solid #dde5ef", borderBottom: "1px solid #dde5ef", background: "#f5f8fb", width: "50%" }}>
+                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>Location / Lawson #</span>
+                  <strong style={{ color: "#1a3a5c" }}>{meta.location || "—"}</strong>
+                </td>
+                <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", borderBottom: "1px solid #dde5ef", background: "#f5f8fb" }}>
+                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>City / State</span>
+                  <strong style={{ color: "#1a3a5c" }}>{meta.city || "—"}</strong>
+                </td>
+              </tr>
+              <tr>
+                <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", borderRight: "1px solid #dde5ef", background: "#f5f8fb" }}>
+                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>Accreditation Specialist</span>
+                  <strong style={{ color: "#1a3a5c" }}>{meta.specialist || "—"}</strong>
+                </td>
+                <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", background: "#f5f8fb" }}>
+                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>Visit Date</span>
+                  <strong style={{ color: "#1a3a5c" }}>{meta.date || "—"}</strong>
+                </td>
+              </tr>
+              {(meta.followUpDate || meta.followUpTime) && (
+                <tr>
+                  <td colSpan={2} style={{ padding: "7px 14px", fontSize: 13, background: "#fffbea", borderTop: "1px solid #dde5ef" }}>
+                    <span style={{ color: "#7a5c00", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 1 }}>Follow-Up Teams Call Scheduled</span>
+                    <strong style={{ color: "#3d2e00", fontSize: 14 }}>
+                      {meta.followUpDate ? new Date(meta.followUpDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—"}
+                      {meta.followUpTime ? ` · ${meta.followUpTime}` : ""}
+                    </strong>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 20 }}>
+          {/* ── SUMMARY SCORES ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 0, marginBottom: 20, marginTop: 16 }}>
             {[
-              ["Total Compliant", reportLines.reduce((a, s) => a + s.yes, 0), "#2e7d32", "#e8f5e9"],
-              ["Total Issues",    reportLines.reduce((a, s) => a + s.no, 0),  "#c62828", "#ffebee"],
-              ["Total N/A",       reportLines.reduce((a, s) => a + s.na, 0),  "#616161", "#f5f5f5"],
-              ["Not Reviewed",    reportLines.reduce((a, s) => a + s.pending, 0), "#e65100", "#fff3e0"],
-            ].map(([l, n, tc, bg]) => (
-              <div key={l} style={{ background: bg, border: `1px solid ${tc}30`, borderRadius: 8, padding: "12px", textAlign: "center" }}>
-                <div style={{ fontSize: 24, fontWeight: 700, color: tc }}>{n}</div>
-                <div style={{ fontSize: 12, color: tc, marginTop: 2 }}>{l}</div>
+              ["Total Compliant", reportLines.reduce((a, s) => a + s.yes, 0), "#2e7d32", "#e8f5e9", "2px solid #2e7d32"],
+              ["Total Issues",    reportLines.reduce((a, s) => a + s.no, 0),  "#c62828", "#ffebee", "2px solid #c62828"],
+              ["Total N/A",       reportLines.reduce((a, s) => a + s.na, 0),  "#616161", "#f5f5f5", "2px solid #9e9e9e"],
+              ["Not Reviewed",    reportLines.reduce((a, s) => a + s.pending, 0), "#e65100", "#fff3e0", "2px solid #e65100"],
+            ].map(([l, n, tc, bg, border]) => (
+              <div key={l} style={{ background: bg, borderBottom: border, padding: "10px 12px", textAlign: "center", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+                <div style={{ fontSize: 26, fontWeight: 700, color: tc }}>{n}</div>
+                <div style={{ fontSize: 11, color: tc, marginTop: 1 }}>{l}</div>
               </div>
             ))}
           </div>
 
-          {reportLines.map((s, i) => (
-            <div key={i} style={{ marginBottom: 16, border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden" }}>
-              <div style={{ background: s.no > 0 ? "#ffebee" : s.pending > 0 ? "#fff8e1" : "#e8f5e9", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: "#212121" }}>{s.label}</div>
-                  {(s.pstName || s.vehicleNum) && (
-                    <div style={{ display: "flex", gap: 16, marginTop: 3, fontSize: 12, color: "#555" }}>
-                      {s.pstName  && <span>👤 PST: <strong>{s.pstName}</strong></span>}
-                      {s.vehicleNum && <span>🚗 Vehicle #: <strong>{s.vehicleNum}</strong></span>}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
-                  <span style={{ color: "#2e7d32" }}>✓ {s.yes}</span>
-                  <span style={{ color: "#c62828" }}>✗ {s.no}</span>
-                  {s.na > 0 && <span style={{ color: "#616161" }}>N/A {s.na}</span>}
-                  {s.pending > 0 && <span style={{ color: "#e65100" }}>? {s.pending}</span>}
-                </div>
-              </div>
-              {s.issues.length > 0 && (
-                <div style={{ padding: "12px 16px" }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#c62828", marginBottom: 8 }}>ITEMS REQUIRING CORRECTIVE ACTION:</div>
-                  {s.issues.map((iss, j) => (
-                    <div key={j} style={{ padding: "10px 12px", marginBottom: 6, background: iss.mismatch ? "#fffde7" : "#fff8f8", border: `1px solid ${iss.mismatch ? "#ffb300" : "#ef9a9a"}`, borderRadius: 5, fontSize: 13 }}>
-                      <div style={{ color: "#212121", lineHeight: 1.5 }}>• {iss.text}</div>
-                      {iss.mismatch && <div style={{ fontSize: 11, color: "#e65100", marginTop: 4, fontWeight: 600 }}>⚠ Mismatch — location self-audit marked compliant</div>}
-                      {iss.comment && (
-                        <div style={{ fontSize: 12, color: "#c62828", marginTop: 6, paddingTop: 6, borderTop: `1px solid ${iss.mismatch ? "#ffe082" : "#f5c6c6"}`, lineHeight: 1.4 }}>
-                          <strong>Note:</strong> {iss.comment}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {s.observations && s.observations.length > 0 && (
-                <div style={{ padding: "10px 16px", borderTop: s.issues.length > 0 ? "1px solid #e0e0e0" : "none" }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#2e7d32", marginBottom: 6 }}>OBSERVATIONS:</div>
-                  {s.observations.map((obs, j) => (
-                    <div key={j} style={{ padding: "8px 10px", marginBottom: 4, background: "#f9fff9", border: "1px solid #a5d6a7", borderRadius: 5, fontSize: 13 }}>
-                      <div style={{ color: "#212121", lineHeight: 1.5 }}>• {obs.text}</div>
-                      {obs.comment && (
-                        <div style={{ fontSize: 12, color: "#2e7d32", marginTop: 5, paddingTop: 5, borderTop: "1px solid #c8e6c9", lineHeight: 1.4 }}>
-                          <strong>Note:</strong> {obs.comment}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {s.issues.length === 0 && s.no === 0 && (
-                <div style={{ padding: "8px 16px", fontSize: 13, color: "#2e7d32" }}>All items compliant — no corrective action required.</div>
-              )}
-            </div>
-          ))}
-
-          <div style={{ border: "1px solid #e0e0e0", borderRadius: 8, padding: "14px 16px", marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#212121", marginBottom: 6 }}>Additional Comments</div>
-            <textarea placeholder="Add any additional notes or observations here…" rows={3}
-              style={{ width: "100%", fontSize: 13, padding: "8px", border: "1px solid #e0e0e0", borderRadius: 5, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
+          {/* ── SECTION DIVIDER ── */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: `2px solid ${BRAND}`, paddingBottom: 4, marginBottom: 10, WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+            Section Detail
           </div>
+
+          {/* ── SECTION CARDS ── */}
+          {reportLines.map((s, i) => {
+            const hasIssues = s.no > 0 || s.issues.length > 0;
+            const hasPending = s.pending > 0;
+            const accentColor = hasIssues ? "#c62828" : hasPending ? "#e65100" : "#2e7d32";
+            const isCompliant = !hasIssues && !hasPending;
+            return (
+              <div key={i} style={{ marginBottom: 10, borderLeft: `4px solid ${accentColor}`, borderRadius: "0 6px 6px 0", border: `1px solid #e0e0e0`, borderLeft: `4px solid ${accentColor}`, pageBreakInside: "avoid", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+                {/* Section header */}
+                <div style={{ padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", background: isCompliant ? "#f6fbf6" : hasIssues ? "#fdf4f4" : "#fffbf2", borderBottom: isCompliant ? "none" : "1px solid #ede0e0" }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "#212121" }}>{s.label}</div>
+                    {(s.pstName || s.vehicleNum) && (
+                      <div style={{ display: "flex", gap: 14, marginTop: 2, fontSize: 11, color: "#555" }}>
+                        {s.pstName   && <span>PST: <strong>{s.pstName}</strong></span>}
+                        {s.vehicleNum && <span>Vehicle #: <strong>{s.vehicleNum}</strong></span>}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 10, fontSize: 11, whiteSpace: "nowrap" }}>
+                    <span style={{ color: "#2e7d32" }}>✓ {s.yes}</span>
+                    <span style={{ color: "#c62828" }}>✗ {s.no}</span>
+                    {s.na > 0      && <span style={{ color: "#616161" }}>N/A {s.na}</span>}
+                    {s.pending > 0 && <span style={{ color: "#e65100" }}>? {s.pending}</span>}
+                  </div>
+                </div>
+
+                {/* Compliant — collapsed */}
+                {isCompliant && (
+                  <div style={{ padding: "6px 14px", fontSize: 12, color: "#2e7d32" }}>All items compliant — no corrective action required.</div>
+                )}
+
+                {/* Issues */}
+                {s.issues.length > 0 && (
+                  <div style={{ padding: "10px 14px 6px" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#c62828", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Items requiring corrective action</div>
+                    {s.issues.map((iss, j) => (
+                      <div key={j} style={{ padding: "8px 10px", marginBottom: 5, background: iss.mismatch ? "#fffde7" : "#fff8f8", borderLeft: `3px solid ${iss.mismatch ? "#f0a500" : "#e57373"}`, borderRadius: "0 4px 4px 0", fontSize: 13, pageBreakInside: "avoid" }}>
+                        <div style={{ color: "#212121", lineHeight: 1.5 }}>• {iss.text}</div>
+                        {iss.mismatch && (
+                          <div style={{ fontSize: 11, color: "#e65100", marginTop: 3, fontWeight: 600 }}>⚠ Mismatch — location self-audit marked compliant</div>
+                        )}
+                        {iss.comment && (
+                          <div style={{ fontSize: 12, color: "#7a3a3a", marginTop: 5, paddingTop: 5, borderTop: `1px solid ${iss.mismatch ? "#ffe082" : "#f5c6c6"}`, lineHeight: 1.4 }}>
+                            <strong>Note:</strong> {iss.comment}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Observations */}
+                {s.observations && s.observations.length > 0 && (
+                  <div style={{ padding: "8px 14px 8px", borderTop: s.issues.length > 0 ? "1px solid #ede8e8" : "none" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Observations</div>
+                    {s.observations.map((obs, j) => (
+                      <div key={j} style={{ padding: "7px 10px", marginBottom: 4, background: "#f9fff9", borderLeft: "3px solid #81c784", borderRadius: "0 4px 4px 0", fontSize: 13, pageBreakInside: "avoid" }}>
+                        <div style={{ color: "#212121", lineHeight: 1.5 }}>• {obs.text}</div>
+                        {obs.comment && (
+                          <div style={{ fontSize: 12, color: "#2e7d32", marginTop: 4, paddingTop: 4, borderTop: "1px solid #c8e6c9", lineHeight: 1.4 }}>
+                            <strong>Note:</strong> {obs.comment}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* ── ADDITIONAL COMMENTS ── */}
+          <div style={{ border: "1px solid #e0e0e0", borderRadius: 6, padding: "12px 14px", marginTop: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Additional Comments</div>
+            <textarea placeholder="Add any additional notes or observations here…" rows={3}
+              style={{ width: "100%", fontSize: 13, padding: "8px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
+          </div>
+
         </div>
       )}
 
-      <style>{`@media print {
-        button { display: none !important; }
-        textarea { border: 1px solid #ccc !important; }
-        body { margin: 0; }
-      }`}</style>
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          button { display: none !important; }
+          textarea { border: 1px solid #ccc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body { margin: 0; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          div[style*="pageBreakInside"] { page-break-inside: avoid; }
+        }
+      `}</style>
     </div>
   );
 }

@@ -1913,8 +1913,8 @@ Write a professional but direct email. If there are issues, list them clearly wi
       )}
 
       {/* REPORT VIEW */}
-      {/* REPORT VIEW — always in DOM so window.print() has content */}
-      <div style={{ display: view === "report" ? "block" : "none", padding: "24px" }}>
+      {view === "report" && (
+        <div style={{ padding: "24px" }}>
 
           {/* Screen-only toolbar */}
           <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -1930,7 +1930,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
           </div>
 
           {/* Printable report area */}
-          <div id="report-print-area" className="print-only">
+          <div id="report-print-area">
           <div style={{ background: BRAND, borderRadius: "6px 6px 0 0", padding: "12px 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
             <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, letterSpacing: "0.01em" }}>Accreditation Survey Prep Report</div>
           </div>
@@ -2070,14 +2070,13 @@ Write a professional but direct email. If there are issues, list them clearly wi
           </div>
 
           </div>{/* end report-print-area */}
-        </div>{/* end report view */}
+        </div>
+      )}
 
       <style>{`
         @media print {
-          body * { visibility: hidden !important; }
-          .print-only, .print-only * { visibility: visible !important; }
-          .print-only { position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; }
           .no-print { display: none !important; }
+          #report-print-area { display: block !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           textarea { border: 1px solid #ccc !important; }
         }

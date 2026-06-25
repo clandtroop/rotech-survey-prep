@@ -4,9 +4,27 @@ import * as XLSX from "xlsx";
 const BRAND = "#1a3a5c";
 const ACCENT = "#2e6da4";
 
-const DRAFT_KEY  = "rotech_survey_draft";
-const VISITS_KEY = "rotech_saved_visits";
-const TREND_KEY  = "rotech_trend_data";
+const DRAFT_KEY       = "rotech_survey_draft";
+const VISITS_KEY      = "rotech_saved_visits";
+const TREND_KEY       = "rotech_trend_data";
+const PDF_HISTORY_KEY = "rotech_pdf_history";
+
+function loadPdfHistory() {
+  try { const r = localStorage.getItem(PDF_HISTORY_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
+}
+function savePdfSnapshot(snapshot) {
+  try {
+    const history = loadPdfHistory();
+    history.unshift(snapshot);
+    localStorage.setItem(PDF_HISTORY_KEY, JSON.stringify(history.slice(0, 15)));
+  } catch {}
+}
+function deletePdfSnapshot(id) {
+  try {
+    const history = loadPdfHistory().filter(s => s.id !== id);
+    localStorage.setItem(PDF_HISTORY_KEY, JSON.stringify(history));
+  } catch {}
+}
 
 function saveDraft(meta, states, comments) {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ meta, states, comments, savedAt: new Date().toISOString() })); } catch {}
@@ -436,7 +454,58 @@ function TrendTracker() {
     XLSX.writeFile(wb, `Rotech_IssueTrends_${new Date().toLocaleDateString("en-US").replace(/\//g,"-")}.xlsx`);
   }
 
-  function exportPDF() { window.print(); }
+  async function exportPDF() {
+    // Save snapshot to localStorage before generating
+    const snapshot = {
+      id: `pdf_${Date.now()}`,
+      label: `${meta.location || "Unknown Location"} — ${meta.date || "No Date"}`,
+      location: meta.location || "",
+      city: meta.city || "",
+      specialist: meta.specialist || "",
+      date: meta.date || "",
+      generatedAt: new Date().toISOString(),
+      meta,
+      states,
+      comments,
+      tabComments,
+      op541VehicleInfo,
+    };
+    savePdfSnapshot(snapshot);
+    setPdfHistory(loadPdfHistory());
+
+    // Load html2pdf from CDN if not already loaded
+    if (!window.html2pdf) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    const element = document.getElementById("report-print-area");
+    if (!element) { window.print(); return; }
+
+    const loc  = (meta.location || "Location").replace(/\s+/g, "_");
+    const date = (meta.date || "").replace(/\//g, "-");
+    const filename = `SurveyPrep_${loc}_${date}.pdf`;
+
+    const opt = {
+      margin:      [0.5, 0.5, 0.5, 0.5],
+      filename,
+      image:       { type: "jpeg", quality: 0.97 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF:       { unit: "in", format: "letter", orientation: "portrait" },
+      pagebreak:   { mode: ["avoid-all", "css"] },
+    };
+
+    try {
+      await window.html2pdf().set(opt).from(element).save();
+    } catch {
+      window.print(); // fallback
+    }
+  }
 
   const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%" };
   const cardStyle  = { background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden", marginBottom: 16 };
@@ -626,6 +695,7 @@ export default function App() {
   const [hasDraft, setHasDraft] = useState(!!draft);
   const [savedAt, setSavedAt] = useState(draft?.savedAt ?? null);
   const [savedVisits, setSavedVisits] = useState(loadVisits);
+  const [pdfHistory, setPdfHistory]   = useState(loadPdfHistory);
   const [showVisits, setShowVisits] = useState(false);
 
   // OP 541 state
@@ -1387,6 +1457,41 @@ Write a professional but direct email. If there are issues, list them clearly wi
               ))}
             </div>
           )}
+
+          {/* PDF History */}
+          <div style={{ fontWeight: 700, fontSize: 14, color: BRAND, marginTop: 20, marginBottom: 10 }}>📄 PDF History <span style={{ fontSize: 11, fontWeight: 400, color: "#9e9e9e" }}>(last 15 generated)</span></div>
+          {pdfHistory.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#9e9e9e" }}>No PDFs generated yet. Click "⬇ Download PDF" in the Report view to generate and auto-save a snapshot.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {pdfHistory.map(s => (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: "1px solid #dde5ef", borderRadius: 6, padding: "10px 14px" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
+                      Generated {new Date(s.generatedAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                      {s.specialist ? ` · ${s.specialist}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => {
+                      // Load the snapshot data and navigate to report view
+                      setMeta(s.meta || {});
+                      if (s.states) setStates(s.states);
+                      if (s.comments) setComments(s.comments);
+                      if (s.tabComments) setTabComments(s.tabComments);
+                      if (s.op541VehicleInfo) setOp541VehicleInfo(s.op541VehicleInfo);
+                      setView("report");
+                      setShowVisits(false);
+                    }} style={{ padding: "6px 14px", fontSize: 12, background: "#1a3a5c", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                      Regenerate
+                    </button>
+                    <button onClick={() => { if (window.confirm("Remove this PDF record?")) { deletePdfSnapshot(s.id); setPdfHistory(loadPdfHistory()); }}} style={{ padding: "6px 10px", fontSize: 12, background: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", borderRadius: 5, cursor: "pointer" }}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1851,13 +1956,14 @@ Write a professional but direct email. If there are issues, list them clearly wi
               <button onClick={exportFollowUpXLSX} style={{ padding: "7px 14px", fontSize: 13, background: "#1a6e35", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
                 ⬇ Export Follow-Up XLSX
               </button>
-              <button onClick={() => window.print()} style={{ padding: "7px 14px", fontSize: 13, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
-                Print / Save as PDF
+              <button onClick={exportPDF} style={{ padding: "7px 14px", fontSize: 13, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+                ⬇ Download PDF
               </button>
             </div>
           </div>
 
-          {/* ── HEADER BAND ── */}
+          {/* Printable report area */}
+          <div id="report-print-area">
           <div style={{ background: BRAND, borderRadius: "6px 6px 0 0", padding: "12px 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
             <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, letterSpacing: "0.01em" }}>Accreditation Survey Prep Report</div>
             <div style={{ color: "#b0c8e8", fontSize: 12, marginTop: 2 }}>Rotech Healthcare · Region 8</div>
@@ -1999,6 +2105,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
               style={{ width: "100%", fontSize: 13, padding: "8px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
           </div>
 
+          </div>{/* end report-print-area */}
         </div>
       )}
 

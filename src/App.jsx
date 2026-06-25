@@ -1930,7 +1930,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
           </div>
 
           {/* Printable report area */}
-          <div id="report-print-area">
+          <div id="report-print-area" className="print-only">
           <div style={{ background: BRAND, borderRadius: "6px 6px 0 0", padding: "12px 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
             <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, letterSpacing: "0.01em" }}>Accreditation Survey Prep Report</div>
           </div>
@@ -2075,12 +2075,12 @@ Write a professional but direct email. If there are issues, list them clearly wi
 
       <style>{`
         @media print {
+          body * { visibility: hidden !important; }
+          .print-only, .print-only * { visibility: visible !important; }
+          .print-only { position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; }
           .no-print { display: none !important; }
-          button { display: none !important; }
-          textarea { border: 1px solid #ccc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          body { margin: 0; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          div[style*="pageBreakInside"] { page-break-inside: avoid; }
+          textarea { border: 1px solid #ccc !important; }
         }
       `}</style>
     </div>

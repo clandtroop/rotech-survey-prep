@@ -1913,8 +1913,8 @@ Write a professional but direct email. If there are issues, list them clearly wi
       )}
 
       {/* REPORT VIEW */}
-      {view === "report" && (
-        <div style={{ padding: "24px" }}>
+      {/* REPORT VIEW — always in DOM so window.print() has content */}
+      <div style={{ display: view === "report" ? "block" : "none", padding: "24px" }}>
 
           {/* Screen-only toolbar */}
           <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -2070,8 +2070,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
           </div>
 
           </div>{/* end report-print-area */}
-        </div>
-      )}
+        </div>{/* end report view */}
 
       <style>{`
         @media print {

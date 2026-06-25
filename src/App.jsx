@@ -1934,11 +1934,6 @@ Write a professional but direct email. If there are issues, list them clearly wi
       {view === "report" && (
         <div style={{ padding: "24px" }}>
 
-          {/* DEBUG BANNER — temporary */}
-          <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 6, padding: "10px 14px", marginBottom: 16, fontSize: 13 }}>
-            DEBUG: Report view loaded. reportLines.length = {reportLines.length} | meta.location = "{meta.location}"
-          </div>
-
           {/* Screen-only toolbar */}
           <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: "#212121" }}>Survey Prep Report</div>
@@ -1952,8 +1947,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
             </div>
           </div>
 
-          {/* Printable report area */}
-          <div id="report-print-area">
+          {/* ── HEADER BAND ── */}
           <div style={{ background: BRAND, borderRadius: "6px 6px 0 0", padding: "12px 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
             <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, letterSpacing: "0.01em" }}>Accreditation Survey Prep Report</div>
           </div>
@@ -2092,7 +2086,6 @@ Write a professional but direct email. If there are issues, list them clearly wi
               style={{ width: "100%", fontSize: 13, padding: "8px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
           </div>
 
-          </div>{/* end report-print-area */}
         </div>
       )}
 

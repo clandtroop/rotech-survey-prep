@@ -1966,7 +1966,6 @@ Write a professional but direct email. If there are issues, list them clearly wi
           <div id="report-print-area">
           <div style={{ background: BRAND, borderRadius: "6px 6px 0 0", padding: "12px 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
             <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, letterSpacing: "0.01em" }}>Accreditation Survey Prep Report</div>
-            <div style={{ color: "#b0c8e8", fontSize: 12, marginTop: 2 }}>Rotech Healthcare · Region 8</div>
           </div>
 
           {/* ── META TABLE ── */}
@@ -2007,12 +2006,10 @@ Write a professional but direct email. If there are issues, list them clearly wi
           </table>
 
           {/* ── SUMMARY SCORES ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 0, marginBottom: 20, marginTop: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 0, marginBottom: 20, marginTop: 16 }}>
             {[
               ["Total Compliant", reportLines.reduce((a, s) => a + s.yes, 0), "#2e7d32", "#e8f5e9", "2px solid #2e7d32"],
               ["Total Issues",    reportLines.reduce((a, s) => a + s.no, 0),  "#c62828", "#ffebee", "2px solid #c62828"],
-              ["Total N/A",       reportLines.reduce((a, s) => a + s.na, 0),  "#616161", "#f5f5f5", "2px solid #9e9e9e"],
-              ["Not Reviewed",    reportLines.reduce((a, s) => a + s.pending, 0), "#e65100", "#fff3e0", "2px solid #e65100"],
             ].map(([l, n, tc, bg, border]) => (
               <div key={l} style={{ background: bg, borderBottom: border, padding: "10px 12px", textAlign: "center", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
                 <div style={{ fontSize: 26, fontWeight: 700, color: tc }}>{n}</div>

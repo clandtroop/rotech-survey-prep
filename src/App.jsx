@@ -1934,6 +1934,11 @@ Write a professional but direct email. If there are issues, list them clearly wi
       {view === "report" && (
         <div style={{ padding: "24px" }}>
 
+          {/* DEBUG BANNER — temporary */}
+          <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 6, padding: "10px 14px", marginBottom: 16, fontSize: 13 }}>
+            DEBUG: Report view loaded. reportLines.length = {reportLines.length} | meta.location = "{meta.location}"
+          </div>
+
           {/* Screen-only toolbar */}
           <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: "#212121" }}>Survey Prep Report</div>

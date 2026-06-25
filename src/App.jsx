@@ -1313,6 +1313,22 @@ Write a professional but direct email. If there are issues, list them clearly wi
     }
   }
 
+  function exportPDF() {
+    const snapshot = {
+      id: `pdf_${Date.now()}`,
+      label: `${meta.location || "Unknown Location"} — ${meta.date || "No Date"}`,
+      location: meta.location || "",
+      city: meta.city || "",
+      specialist: meta.specialist || "",
+      date: meta.date || "",
+      generatedAt: new Date().toISOString(),
+      meta, states, comments, tabComments, op541VehicleInfo,
+    };
+    savePdfSnapshot(snapshot);
+    setPdfHistory(loadPdfHistory());
+    window.print();
+  }
+
   function copyText(txt) {
     navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }

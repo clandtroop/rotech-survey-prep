@@ -1079,7 +1079,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-sonnet-4-6",
           max_tokens: 1000,
           messages: [{ role: "user", content: prompt }]
         })
@@ -1089,11 +1089,11 @@ Write a professional but direct email. If there are issues, list them clearly wi
       setEmailText(text);
     } catch {
       setEmailText(`Subject: Accreditation Survey Prep Follow-Up — ${loc}, ${city} — ${date}\n\nHello,\n\nThank you for your time during the accreditation survey prep visit on ${date} for ${loc}, ${city}.\n\n${issues.length === 0 ? "All reviewed areas were found to be in compliance. No corrective action is required at this time." : `The following items require corrective action:\n\n${issueBlock}\n\nPlease address each item and report back with your findings. A follow-up Teams call with the LCM and Area/Region Manager will be scheduled.`}\n\nBest regards,\n${spec}\nAccreditation Specialist`);
+    } finally {
+      setReportLines(summaryData);
+      setLoading(false);
+      setView("email");
     }
-
-    setReportLines(summaryData);
-    setLoading(false);
-    setView("email");
   }
 
   async function exportFollowUpXLSX() {
@@ -1442,12 +1442,30 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => {
-                      // Load the snapshot data and navigate to report view
+                      // Load snapshot state
+                      const snapStates   = s.states   || {};
+                      const snapComments = s.comments  || {};
                       setMeta(s.meta || {});
-                      if (s.states) setStates(s.states);
-                      if (s.comments) setComments(s.comments);
-                      if (s.tabComments) setTabComments(s.tabComments);
+                      setStates(snapStates);
+                      setComments(snapComments);
+                      if (s.tabComments)     setTabComments(s.tabComments);
                       if (s.op541VehicleInfo) setOp541VehicleInfo(s.op541VehicleInfo);
+                      // Build reportLines directly from snapshot so report isn't blank
+                      const lines = SECTIONS.map((sec, si) => {
+                        const items = sec.items || [];
+                        const yes     = items.filter((_, ii) => snapStates[`${si}-${ii}`] === "yes").length;
+                        const no      = items.filter((_, ii) => snapStates[`${si}-${ii}`] === "no").length;
+                        const na      = items.filter((_, ii) => snapStates[`${si}-${ii}`] === "na").length;
+                        const pending = items.filter((_, ii) => !snapStates[`${si}-${ii}`]).length;
+                        const issues  = items.flatMap((item, ii) =>
+                          snapStates[`${si}-${ii}`] === "no"
+                            ? [{ text: item.text, comment: snapComments[`${si}-${ii}`], type: "no" }] : []);
+                        const observations = items.flatMap((item, ii) =>
+                          snapStates[`${si}-${ii}`] === "yes" && snapComments[`${si}-${ii}`]
+                            ? [{ text: item.text, comment: snapComments[`${si}-${ii}`] }] : []);
+                        return { label: sec.label, ref: sec.ref, yes, no, na, pending, total: items.length, issues, observations };
+                      });
+                      setReportLines(lines);
                       setView("report");
                       setShowVisits(false);
                     }} style={{ padding: "6px 14px", fontSize: 12, background: "#1a3a5c", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>

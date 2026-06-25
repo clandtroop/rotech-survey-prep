@@ -2014,7 +2014,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
             const accentColor = hasIssues ? "#c62828" : hasPending ? "#e65100" : "#2e7d32";
             const isCompliant = !hasIssues && !hasPending;
             return (
-              <div key={i} style={{ marginBottom: 10, borderLeft: `4px solid ${accentColor}`, borderRadius: "0 6px 6px 0", border: `1px solid #e0e0e0`, borderLeft: `4px solid ${accentColor}`, pageBreakInside: "avoid", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+              <div key={i} style={{ marginBottom: 10, borderRadius: "0 6px 6px 0", border: `1px solid #e0e0e0`, borderLeft: `4px solid ${accentColor}`, pageBreakInside: "avoid", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
                 {/* Section header */}
                 <div style={{ padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", background: isCompliant ? "#f6fbf6" : hasIssues ? "#fdf4f4" : "#fffbf2", borderBottom: isCompliant ? "none" : "1px solid #ede0e0" }}>
                   <div>

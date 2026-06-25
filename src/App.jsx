@@ -454,8 +454,8 @@ function TrendTracker() {
     XLSX.writeFile(wb, `Rotech_IssueTrends_${new Date().toLocaleDateString("en-US").replace(/\//g,"-")}.xlsx`);
   }
 
-  async function exportPDF() {
-    // Save snapshot to localStorage before generating
+  function exportPDF() {
+    // Save snapshot to localStorage before printing
     const snapshot = {
       id: `pdf_${Date.now()}`,
       label: `${meta.location || "Unknown Location"} — ${meta.date || "No Date"}`,
@@ -472,41 +472,8 @@ function TrendTracker() {
     };
     savePdfSnapshot(snapshot);
     setPdfHistory(loadPdfHistory());
-
-    // Load html2pdf from CDN if not already loaded
-    if (!window.html2pdf) {
-      await new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-      });
-    }
-
-    const element = document.getElementById("report-print-area");
-    if (!element) { window.print(); return; }
-
-    const loc  = (meta.location || "Location").replace(/\s+/g, "_");
-    const date = (meta.date || "").replace(/\//g, "-");
-    const filename = `SurveyPrep_${loc}_${date}.pdf`;
-
-    const opt = {
-      margin:      [0.5, 0.5, 0.5, 0.5],
-      filename,
-      image:       { type: "jpeg", quality: 0.97 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF:       { unit: "in", format: "letter", orientation: "portrait" },
-      pagebreak:   { mode: ["avoid-all", "css"] },
-    };
-
-    try {
-      await window.html2pdf().set(opt).from(element).save();
-    } catch {
-      window.print(); // fallback
-    }
+    window.print();
   }
-
   const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%" };
   const cardStyle  = { background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden", marginBottom: 16 };
   const headStyle  = { background: BRAND, color: "#fff", padding: "10px 16px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" };

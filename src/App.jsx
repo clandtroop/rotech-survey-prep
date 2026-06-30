@@ -1400,6 +1400,7 @@ export default function App() {
   const [op541Comments, setOp541Comments] = useState({});
   const [op541FileName, setOp541FileName] = useState("");
   const [op541VehicleInfo, setOp541VehicleInfo] = useState({}); // { sheetLabel: { pstName, vehicleNum } }
+  const [op541BufferBytes, setOp541BufferBytes] = useState(null); // original file bytes for write-back export
 
   // OP 541T state
   const [op541tSections, setOp541tSections] = useState([]);
@@ -1565,6 +1566,7 @@ export default function App() {
   async function handleOp541Upload(file) {
     try {
       const buf = await file.arrayBuffer();
+      setOp541BufferBytes(new Uint8Array(buf)); // store for write-back export
       const wb = XLSX.read(buf, { type: "array" });
       const allSections = [];
       let globalIdx = 0;
@@ -1583,7 +1585,7 @@ export default function App() {
         }
 
         // Find header row by locating the "LOCATION" column header
-        let hRow = -1, cPolicy = 0, cDesc = 1, cLoc = 2, cComments = 4;
+        let hRow = -1, cPolicy = 0, cDesc = 1, cLoc = 2, cOnSite = 3, cComments = 4;
         for (let i = 0; i < Math.min(rows.length, 20); i++) {
           const upper = rows[i].map(c => String(c).toUpperCase().trim());
           const li = upper.findIndex(c => c === "LOCATION");
@@ -1591,6 +1593,11 @@ export default function App() {
             hRow = i;
             cLoc = li;
             cDesc = Math.max(0, li - 1);
+            // On-Site Visit is the column immediately after Location
+            cOnSite = li + 1;
+            // Search explicitly for "ON-SITE" or "VISIT" header first
+            const osi = upper.findIndex(c => c.includes("ON-SITE") || c.includes("ON SITE") || (c.includes("VISIT") && c !== "LOCATION"));
+            if (osi >= 0) cOnSite = osi;
             const ci = upper.findIndex(c => c.includes("COMMENT"));
             if (ci >= 0) cComments = ci;
             break;
@@ -1626,6 +1633,10 @@ export default function App() {
               text: desc,
               locAns,
               locComment,
+              rowIdx: i,      // row index in the sheet (for write-back)
+              sheetName,      // actual Excel sheet name (for write-back)
+              cOnSite,        // On-Site Visit column index (for write-back)
+              cComments,      // Comments column index (for write-back)
             });
           }
         }
@@ -1640,6 +1651,63 @@ export default function App() {
       setOp541FileName(file.name);
     } catch {
       alert("Could not read the file. Make sure it is a valid .xlsx file.");
+    }
+  }
+
+  async function exportUpdatedOp541() {
+    if (!op541BufferBytes) {
+      alert("The original OP 541 file is not available in this session.\n\nPlease re-upload the file, fill in your responses, then use this export.");
+      return;
+    }
+    if (op541Sections.length === 0) {
+      alert("No OP 541 data to export.");
+      return;
+    }
+
+    try {
+      // Read original workbook from stored bytes
+      const wb = XLSX.read(op541BufferBytes, { type: "array" });
+
+      // Write each item's response back into the correct cell
+      op541Sections.forEach(sec => {
+        sec.items.forEach(item => {
+          const ws = wb.Sheets[item.sheetName];
+          if (!ws) return;
+
+          const state = op541States[item.key];
+          const comment = op541Comments[item.key] || "";
+
+          // Map app state to Excel value
+          const onSiteVal = state === "yes" ? "Y" : state === "no" ? "N" : state === "na" ? "N/A" : "";
+
+          // Write On-Site Visit column
+          if (onSiteVal) {
+            const cellAddr = XLSX.utils.encode_cell({ r: item.rowIdx, c: item.cOnSite });
+            wb.Sheets[item.sheetName][cellAddr] = { t: "s", v: onSiteVal, w: onSiteVal };
+          }
+
+          // Write Comments column
+          if (comment) {
+            const commentAddr = XLSX.utils.encode_cell({ r: item.rowIdx, c: item.cComments });
+            wb.Sheets[item.sheetName][commentAddr] = { t: "s", v: comment, w: comment };
+          }
+        });
+      });
+
+      // Download the updated workbook
+      const wbOut = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([wbOut], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const baseName = op541FileName.replace(/\.xlsx?$/i, "");
+      a.download = `${baseName}_OnSite_${meta.date ? meta.date.replace(/\//g, "-") : "completed"}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message);
     }
   }
 
@@ -1738,7 +1806,7 @@ export default function App() {
     const b = initStates();
     setMeta({ lawson: "", location: "", city: "", specialist: meta.specialist, date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
     setForm(b);
-    setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({});
+    setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({}); setOp541BufferBytes(null);
     setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName("");
     setTabComments({ pst: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
@@ -1787,7 +1855,7 @@ export default function App() {
     setOp541tComments(visit.op541tComments ?? {});
     setOp541tFileName(visit.op541tFileName ?? "");
     setTabComments(visit.tabComments ?? { pst: "", clinician: "", vent: "" });
-    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]);
+    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null);
     setShowVisits(false);
   }
 
@@ -2492,10 +2560,17 @@ Write a professional but direct email. If there are issues, list them clearly wi
                         <span style={{ color: "#e65100", fontWeight: 600 }}>⚠ {op541Stats.mismatch} mismatch{op541Stats.mismatch !== 1 ? "es" : ""} with location self-audit</span>
                       )}
                     </div>
-                    <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
-                      Change file
-                      <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
-                    </label>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      {op541BufferBytes && (
+                        <button onClick={exportUpdatedOp541} style={{ fontSize: 12, padding: "5px 12px", background: "#1a6e35", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                          ⬇ Export Updated OP 541
+                        </button>
+                      )}
+                      <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
+                        Change file
+                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
+                      </label>
+                    </div>
                   </div>
 
                   <div style={{ padding: "16px 24px" }}>

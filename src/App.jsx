@@ -15,16 +15,16 @@ const PDF_HISTORY_KEY = "rotech_pdf_history";
 // Firestore collection holding per-visit follow-up checklists (see firestore.rules).
 const CHECKLISTS_COLLECTION = "followUpChecklists";
 
-// Maps each SECTIONS id to one of the four follow-up checklist categories.
+// Maps each SECTIONS id to its follow-up checklist category.
 const SECTION_TO_CHECKLIST_CATEGORY = {
   morning: "Binders",
   inservice: "Binders",
   site: "Binders",
   jc: "Binders",
   sds: "Warehouse",
-  pst: "Vehicles",
-  clinician: "Vehicles",
-  vent: "Vehicles",
+  pst: "PST Visits",
+  clinician: "PST Visits",
+  vent: "PST Visits",
 };
 
 // Company-wide location roster — Lawson #, location name, city/state, region, and Area Manager.
@@ -430,38 +430,57 @@ function deleteVisitFromStorage(id) {
 }
 
 // Builds the flat list of checkable follow-up items from a saved visit's failed
-// findings, grouped into the four checklist categories (Warehouse / Vehicles /
-// Documentation / Binders), mirroring how getAllIssues() and writeTrendData()
-// already walk SECTIONS / op541Sections / op541tSections.
+// findings. Each item carries a category and subheader so ChecklistView can
+// group them under labelled sections (binder name, unit #, PST name, etc.).
 function buildChecklistItems(visit) {
   const items = [];
   let n = 0;
   const { states = {}, comments = {}, op541Sections = [], op541States = {}, op541Comments = {},
-          op541tSections = [], op541tStates = {}, op541tComments = {} } = visit;
+          op541tSections = [], op541tStates = {}, op541tComments = {},
+          op541VehicleInfo = {} } = visit;
 
   SECTIONS.forEach((sec, si) => {
     const category = SECTION_TO_CHECKLIST_CATEGORY[sec.id];
     if (!category) return;
+    const subheader = category === "Binders" ? sec.label : sec.label;
     sec.items.forEach((item, ii) => {
       const key = `${si}-${ii}`;
       if (states[key] === "no") {
-        items.push({ id: `i${n++}`, category, text: item.text, comment: comments[key] || "", done: false });
+        items.push({ id: `i${n++}`, category, subheader, text: item.text, comment: comments[key] || "", done: false });
       }
     });
   });
 
   op541Sections.forEach(sec => {
+    const vInfo = op541VehicleInfo[sec.sheetLabel] || {};
+    let category, subheader;
+    if (vInfo.vehicleNum) {
+      category = "Vehicles";
+      subheader = `Unit # ${vInfo.vehicleNum}${vInfo.pstName ? ` — ${vInfo.pstName}` : ""}`;
+    } else {
+      category = "PST Visits";
+      subheader = vInfo.pstName ? `${vInfo.pstName} — OP 541` : `OP 541 — ${sec.sheetLabel}`;
+    }
     sec.items.forEach(item => {
       if (op541States[item.key] === "no") {
-        items.push({ id: `i${n++}`, category: "Documentation", text: `[OP 541 — ${sec.sheetLabel}] ${item.text}`, comment: op541Comments[item.key] || "", done: false });
+        items.push({ id: `i${n++}`, category, subheader, text: item.text, comment: op541Comments[item.key] || "", done: false });
       }
     });
   });
 
   op541tSections.forEach(sec => {
+    const vInfo = op541VehicleInfo[sec.sheetLabel] || {};
+    let category, subheader;
+    if (vInfo.vehicleNum) {
+      category = "Vehicles";
+      subheader = `Unit # ${vInfo.vehicleNum}${vInfo.pstName ? ` — ${vInfo.pstName}` : ""} (OP 541T)`;
+    } else {
+      category = "PST Visits";
+      subheader = vInfo.pstName ? `${vInfo.pstName} — OP 541T` : `OP 541T — ${sec.sheetLabel}`;
+    }
     sec.items.forEach(item => {
       if (op541tStates[item.key] === "no") {
-        items.push({ id: `i${n++}`, category: "Documentation", text: `[OP 541T — ${sec.sheetLabel}] ${item.text}`, comment: op541tComments[item.key] || "", done: false });
+        items.push({ id: `i${n++}`, category, subheader, text: item.text, comment: op541tComments[item.key] || "", done: false });
       }
     });
   });
@@ -471,9 +490,15 @@ function buildChecklistItems(visit) {
 
 // Creates the Firestore checklist doc for a visit if it doesn't already exist,
 // then returns the shareable checklist URL (?checklist=<visitId>).
+// Creates or refreshes the Firestore checklist doc for a visit, then returns
+// the shareable checklist URL (?checklist=<visitId>). Regenerating the link
+// after updating findings always syncs the latest items, preserving any
+// checkmarks already recorded (done flags come from the existing doc if present).
 async function ensureChecklistDoc(visit, visitId) {
   const ref = doc(db, CHECKLISTS_COLLECTION, visitId);
   const existing = await getDoc(ref);
+  const newItems = buildChecklistItems(visit);
+
   if (!existing.exists()) {
     await setDoc(ref, {
       meta: {
@@ -482,11 +507,18 @@ async function ensureChecklistDoc(visit, visitId) {
         date: visit.meta?.date || "",
         specialist: visit.meta?.specialist || "",
       },
-      categories: buildChecklistItems(visit),
+      categories: newItems,
       notes: "",
       createdAt: Date.now(),
     });
+  } else {
+    // Merge: preserve done state for items that still exist by id
+    const prevById = {};
+    (existing.data().categories || []).forEach(it => { prevById[it.id] = it; });
+    const merged = newItems.map(it => ({ ...it, done: prevById[it.id]?.done || false }));
+    await updateDoc(ref, { categories: merged, updatedAt: Date.now() });
   }
+
   const url = new URL(window.location.href);
   url.search = `?checklist=${encodeURIComponent(visitId)}`;
   return url.toString();
@@ -799,7 +831,7 @@ function ChecklistQrCode({ value }) {
 // Standalone follow-up checklist page, opened via ?checklist=<visitId>. Used by
 // both the location manager (checking items off) and the accreditation
 // specialist (watching live progress) — no auth, the visit ID is the secret.
-const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Vehicles", "Documentation", "Binders"];
+const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Vehicles", "PST Visits", "Binders"];
 
 function ChecklistView({ visitId }) {
   const [doc_, setDoc_] = useState(undefined); // undefined = loading, null = not found
@@ -859,16 +891,29 @@ function ChecklistView({ visitId }) {
       {total === 0 ? null : CHECKLIST_CATEGORY_ORDER.map(cat => {
         const catItems = doc_.categories.filter(it => it.category === cat);
         if (catItems.length === 0) return null;
+        // Group items by subheader, preserving insertion order
+        const subheaders = [];
+        const bySubheader = {};
+        catItems.forEach(item => {
+          const sh = item.subheader || "";
+          if (!bySubheader[sh]) { subheaders.push(sh); bySubheader[sh] = []; }
+          bySubheader[sh].push(item);
+        });
         return (
-          <div key={cat} style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{cat}</div>
-            {catItems.map(item => (
-              <label key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
-                <input type="checkbox" checked={!!item.done} onChange={() => toggleItem(item.id)} style={{ marginTop: 3, width: 16, height: 16 }} />
-                <span style={{ fontSize: 14, color: item.done ? "#9e9e9e" : "#212121", textDecoration: item.done ? "line-through" : "none" }}>
-                  {item.text}{item.comment ? <span style={{ color: "#757575" }}> — {item.comment}</span> : null}
-                </span>
-              </label>
+          <div key={cat} style={{ marginBottom: 22 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{cat}</div>
+            {subheaders.map(sh => (
+              <div key={sh} style={{ marginBottom: 12 }}>
+                {sh && <div style={{ fontSize: 13, fontWeight: 600, color: "#424242", marginBottom: 4, paddingBottom: 3, borderBottom: `2px solid ${BRAND}` }}>{sh}</div>}
+                {bySubheader[sh].map(item => (
+                  <label key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
+                    <input type="checkbox" checked={!!item.done} onChange={() => toggleItem(item.id)} style={{ marginTop: 3, width: 16, height: 16 }} />
+                    <span style={{ fontSize: 14, color: item.done ? "#9e9e9e" : "#212121", textDecoration: item.done ? "line-through" : "none" }}>
+                      {item.text}{item.comment ? <span style={{ color: "#757575" }}> — {item.comment}</span> : null}
+                    </span>
+                  </label>
+                ))}
+              </div>
             ))}
           </div>
         );
@@ -1708,7 +1753,7 @@ export default function App() {
 
   function generateChecklistLink() {
     if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return; }
-    const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments };
+    const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo };
     setChecklistLinkLoading(true);
     ensureChecklistDoc(visit, currentVisitId)
       .then(url => setChecklistLink(url))

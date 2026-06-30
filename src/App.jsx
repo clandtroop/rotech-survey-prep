@@ -9,6 +9,72 @@ const VISITS_KEY      = "rotech_saved_visits";
 const TREND_KEY       = "rotech_trend_data";
 const PDF_HISTORY_KEY = "rotech_pdf_history";
 
+// Region 8 location roster — Lawson #, location name, city/state, and Area Manager.
+// Source: June 2026 Region 8 LCM roster + Lawson-AM crosswalk. LCM/contact info intentionally
+// excluded — those change too often to maintain in the app. Update this list as locations move,
+// open, or close.
+const R8_LOCATIONS = [
+  { lawson: "121510", name: "Rotech", city: "Beaverton", state: "OR", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "120310", name: "Rotech", city: "Eugene", state: "OR", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "72010", name: "Rotech", city: "Idaho Falls", state: "ID", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "120210", name: "Rotech", city: "Medford", state: "OR", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "74410", name: "Rotech", city: "Renton", state: "WA", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "619810", name: "Rotech", city: "Silverdale", state: "WA", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "72310", name: "Homecare Medical", city: "Soda Springs", state: "ID", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "619210", name: "Rotech", city: "Spokane", state: "WA", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "619110", name: "NCW Respiratory Care", city: "Wenatchee", state: "WA", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "628410", name: "Rotech", city: "(WHS) Hardin", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632210", name: "Rotech", city: "(WHS) Laramie", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627010", name: "Rotech", city: "Billings", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627130", name: "Rotech", city: "Bozeman", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627210", name: "Rotech", city: "Butte", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "631310", name: "Rotech", city: "Casper", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632810", name: "Rotech", city: "Cheyenne", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "631810", name: "Rotech", city: "Cody", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627510", name: "Rotech", city: "Great Falls", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627910", name: "Rotech", city: "Helena", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "628110", name: "Rotech", city: "Miles City", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632510", name: "Rotech", city: "Rock Springs", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632110", name: "Rotech", city: "Sheridan", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632010", name: "Rotech", city: "Wheatland", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "631010", name: "Rotech", city: "Flagstaff", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "10010", name: "Rotech", city: "Layton", state: "UT", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "690410", name: "Rotech", city: "Mesa", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "122310", name: "Rotech", city: "Orem", state: "UT", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "630410", name: "Rotech", city: "Payson", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "630610", name: "The Oxygen Store", city: "Peoria", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "690110", name: "Rotech", city: "Prescott", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "631110", name: "Sentry Home Health", city: "Show Low", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "630110", name: "Rotech", city: "Tucson", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "137510", name: "Rotech", city: "West Valley City", state: "UT", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "76910", name: "Summit Respiratory", city: "Colorado Springs (N)", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "651310", name: "Summit Respiratory", city: "Colorado Springs (S)", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "651010", name: "Summit Respiratory", city: "Denver", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "91510", name: "Aloha Respiratory", city: "Honolulu", state: "HI", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "76810", name: "Summit Respiratory", city: "Lakewood", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "651110", name: "Roth Medical", city: "Westminster", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "652010", name: "Roth Medical", city: "(WHS) Lamar", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "650910", name: "Rotech", city: "Alamosa", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "651710", name: "A-Med Supply", city: "Cortez", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "608510", name: "G & G Medical", city: "Craig", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "662810", name: "Oxygen Plus", city: "Delta", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "650610", name: "A-Med Supply", city: "Durango", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "651210", name: "Roth Medical", city: "Ft. Collins", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "662910", name: "Don Paul Resp. Services", city: "Ft. Morgan", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "608310", name: "G & G Medical", city: "Grand Junction", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "651410", name: "Roth Medical", city: "Pueblo", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "662310", name: "Medco Professionals", city: "Trinidad", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "9310", name: "Valley Home Medical", city: "Vernal", state: "UT", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "662210", name: "Don Paul Resp. Services", city: "Windsor", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+];
+
+const R8_AREA_MANAGERS = [...new Set(R8_LOCATIONS.map(l => l.areaManager))];
+
+function findR8Location(lawson) {
+  return R8_LOCATIONS.find(l => l.lawson === lawson);
+}
+
+
 function loadPdfHistory() {
   try { const r = localStorage.getItem(PDF_HISTORY_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
 }
@@ -84,12 +150,16 @@ function writeTrendData(visitId, meta, sections, states, comments, op541Sections
     // Remove any prior records for this visitId so re-saves don't duplicate
     const existing = loadTrendData().filter(r => r.visitId !== visitId);
     const records = [];
+    const locInfo = findR8Location(meta.lawson || "");
     const base = {
       visitId,
+      lawson: meta.lawson || "",
       location: meta.location || "Unknown",
-      city: meta.city || "",
+      city: meta.city || locInfo?.city || "",
       date: meta.date || "",
       specialist: meta.specialist || "",
+      areaCode: locInfo?.areaCode || "",
+      areaManager: locInfo?.areaManager || "Unassigned",
     };
 
     // Regular checklist sections
@@ -419,6 +489,7 @@ function TrendTracker() {
   const [filterLoc, setFilterLoc] = useState("");
   const [filterSection, setFilterSection] = useState("");
   const [filterSpec, setFilterSpec] = useState("");
+  const [filterAM, setFilterAM] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -428,6 +499,7 @@ function TrendTracker() {
     if (filterLoc     && !r.location.toLowerCase().includes(filterLoc.toLowerCase())) return false;
     if (filterSection && r.section !== filterSection) return false;
     if (filterSpec    && r.specialist !== filterSpec) return false;
+    if (filterAM      && (r.areaManager || "Unassigned") !== filterAM) return false;
     if (dateFrom && r.date < dateFrom) return false;
     if (dateTo   && r.date > dateTo)   return false;
     return true;
@@ -463,13 +535,54 @@ function TrendTracker() {
   filtered.forEach(r => { secFreq[r.section] = (secFreq[r.section] || 0) + 1; });
   const topSections = Object.entries(secFreq).sort((a,b) => b[1]-a[1]);
 
+  // Area Manager rollup — issue counts + recurring issues, grouped by AM
+  const amFreq = {};
+  filtered.forEach(r => {
+    const am = r.areaManager || "Unassigned";
+    amFreq[am] = (amFreq[am] || 0) + 1;
+  });
+  const topAMs = Object.entries(amFreq).sort((a,b) => b[1]-a[1]);
+
+  const amLocFreq = {}; // am -> { location: count }
+  filtered.forEach(r => {
+    const am = r.areaManager || "Unassigned";
+    amLocFreq[am] = amLocFreq[am] || {};
+    amLocFreq[am][r.location] = (amLocFreq[am][r.location] || 0) + 1;
+  });
+
+  // Time trend — issues bucketed by month (YYYY-MM), oldest to newest
+  const monthFreq = {};
+  filtered.forEach(r => {
+    if (!r.date) return;
+    const d = new Date(r.date);
+    if (isNaN(d)) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    monthFreq[key] = (monthFreq[key] || 0) + 1;
+  });
+  const monthsSorted = Object.entries(monthFreq).sort((a,b) => a[0].localeCompare(b[0]));
+  const monthLabel = (key) => {
+    const [y,m] = key.split("-");
+    return new Date(Number(y), Number(m)-1, 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  };
+  const maxMonthCount = Math.max(1, ...monthsSorted.map(([,c]) => c));
+  const trendDirection = (() => {
+    if (monthsSorted.length < 2) return null;
+    const recent = monthsSorted.slice(-3).reduce((s,[,c]) => s+c, 0) / Math.min(3, monthsSorted.length);
+    const prior = monthsSorted.slice(-6,-3).reduce((s,[,c]) => s+c, 0) / Math.max(1, Math.min(3, monthsSorted.length-3));
+    if (monthsSorted.length < 4) return null;
+    if (recent > prior * 1.1) return "up";
+    if (recent < prior * 0.9) return "down";
+    return "flat";
+  })();
+
   const allLocations  = [...new Set(data.map(r => r.location))].sort();
   const allSections   = [...new Set(data.map(r => r.section).filter(s => s !== "_summary"))].sort();
   const allSpecialists = [...new Set(data.map(r => r.specialist).filter(Boolean))].sort();
+  const allAMs = [...new Set(data.map(r => r.areaManager || "Unassigned"))].sort();
 
   function exportXLSX() {
-    const rows = [["Visit ID","Location","City","Date","Specialist","Section","Form Ref","Item","Comment"]];
-    filtered.forEach(r => rows.push([r.visitId, r.location, r.city, r.date, r.specialist, r.section, r.formRef, r.itemText, r.comment]));
+    const rows = [["Visit ID","Lawson #","Location","City","Date","Specialist","Area Manager","Section","Form Ref","Item","Comment"]];
+    filtered.forEach(r => rows.push([r.visitId, r.lawson || "", r.location, r.city, r.date, r.specialist, r.areaManager || "Unassigned", r.section, r.formRef, r.itemText, r.comment]));
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Issue Trends");
@@ -548,6 +661,13 @@ function TrendTracker() {
             </select>
           </div>
           <div>
+            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Area Manager</div>
+            <select value={filterAM} onChange={e => setFilterAM(e.target.value)} style={inputStyle}>
+              <option value="">All area managers</option>
+              {allAMs.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div>
             <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Date From</div>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={inputStyle} />
           </div>
@@ -556,7 +676,7 @@ function TrendTracker() {
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={inputStyle} />
           </div>
           <div style={{ display: "flex", alignItems: "flex-end" }}>
-            <button onClick={() => { setFilterLoc(""); setFilterSection(""); setFilterSpec(""); setDateFrom(""); setDateTo(""); }}
+            <button onClick={() => { setFilterLoc(""); setFilterSection(""); setFilterSpec(""); setFilterAM(""); setDateFrom(""); setDateTo(""); }}
               style={{ width: "100%", padding: "5px 8px", fontSize: 12, background: "#fff", border: "1px solid #e0e0e0", borderRadius: 5, cursor: "pointer", color: "#616161" }}>
               Clear Filters
             </button>
@@ -564,6 +684,7 @@ function TrendTracker() {
         </div>
         <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 8 }}>Showing {filtered.length} issue{filtered.length !== 1 ? "s" : ""} across {visitIds.length} visit{visitIds.length !== 1 ? "s" : ""}</div>
       </div>
+
 
       {/* Recurring Issues — most important, show first */}
       {recurringItems.length > 0 && (
@@ -578,6 +699,58 @@ function TrendTracker() {
                     <div style={{ fontSize: 13, color: "#212121", lineHeight: 1.4 }}>{r.item}</div>
                   </div>
                   <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "2px 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{r.count}× failed</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Monthly issue trend */}
+      {monthsSorted.length > 0 && (
+        <div style={cardStyle}>
+          <div style={{ ...headStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>📈 Monthly Issue Trend</span>
+            {trendDirection && (
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 10,
+                background: trendDirection === "up" ? "#ffebee" : trendDirection === "down" ? "#e8f5e9" : "#f5f5f5",
+                color: trendDirection === "up" ? "#c62828" : trendDirection === "down" ? "#1a6e35" : "#757575" }}>
+                {trendDirection === "up" ? "▲ Trending up (last 3 mo)" : trendDirection === "down" ? "▼ Trending down (last 3 mo)" : "■ Flat (last 3 mo)"}
+              </span>
+            )}
+          </div>
+          <div style={{ padding: "16px", display: "flex", alignItems: "flex-end", gap: 6, overflowX: "auto" }}>
+            {monthsSorted.map(([key, count]) => (
+              <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 36 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: BRAND, marginBottom: 4 }}>{count}</div>
+                <div style={{ width: 22, height: Math.max(4, (count / maxMonthCount) * 90), background: ACCENT, borderRadius: "3px 3px 0 0" }} />
+                <div style={{ fontSize: 10, color: "#9e9e9e", marginTop: 4, whiteSpace: "nowrap" }}>{monthLabel(key)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Area Manager rollup */}
+      {topAMs.length > 0 && (
+        <div style={cardStyle}>
+          <div style={headStyle}>👤 Issues by Area Manager</div>
+          <div style={{ padding: "12px 16px" }}>
+            {topAMs.map(([am, count], i) => (
+              <div key={am} style={{ marginBottom: i < topAMs.length - 1 ? 12 : 0, paddingBottom: i < topAMs.length - 1 ? 12 : 0, borderBottom: i < topAMs.length - 1 ? "1px solid #f5f5f5" : "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: am === "Unassigned" ? "#9e9e9e" : BRAND }}>{am}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: Math.max(4, (count / (topAMs[0]?.[1] || 1)) * 80), height: 6, background: ACCENT, borderRadius: 3 }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, minWidth: 20, textAlign: "right" }}>{count}</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {Object.entries(amLocFreq[am] || {}).sort((a,b) => b[1]-a[1]).map(([loc, c]) => (
+                    <span key={loc} style={{ fontSize: 11, background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 10, padding: "2px 10px", color: "#616161" }}>
+                      {loc} <strong style={{ color: BRAND }}>{c}</strong>
+                    </span>
+                  ))}
                 </div>
               </div>
             ))}
@@ -642,19 +815,20 @@ function TrendTracker() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#f8f9fa" }}>
-                {["Date","Location","Section","Item","Comment","Specialist"].map(h => (
+                {["Date","Location","Area Manager","Section","Item","Comment","Specialist"].map(h => (
                   <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#424242", borderBottom: "1px solid #e0e0e0", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={6} style={{ padding: "20px", textAlign: "center", color: "#9e9e9e" }}>No issues match the current filters.</td></tr>
+                <tr><td colSpan={7} style={{ padding: "20px", textAlign: "center", color: "#9e9e9e" }}>No issues match the current filters.</td></tr>
               )}
               {filtered.map((r, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid #f5f5f5", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
                   <td style={{ padding: "7px 12px", whiteSpace: "nowrap", color: "#616161" }}>{r.date}</td>
                   <td style={{ padding: "7px 12px", fontWeight: 600, color: BRAND }}>{r.location}</td>
+                  <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.areaManager || "Unassigned"}</td>
                   <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.section}</td>
                   <td style={{ padding: "7px 12px", color: "#212121", lineHeight: 1.4 }}>{r.itemText}</td>
                   <td style={{ padding: "7px 12px", color: "#757575", fontStyle: r.comment ? "normal" : "italic" }}>{r.comment || "—"}</td>
@@ -672,7 +846,7 @@ function TrendTracker() {
 export default function App() {
   const draft = loadDraft();
 
-  const [meta, setMeta] = useState(draft?.meta ?? { location: "", city: "", specialist: "", date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
+  const [meta, setMeta] = useState(draft?.meta ?? { lawson: "", location: "", city: "", specialist: "", date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
   const [activeTab, setActiveTab] = useState(0);
   const [{ states, comments }, setForm] = useState(() => {
     if (draft?.states) return { states: draft.states, comments: draft.comments ?? {} };
@@ -1029,7 +1203,7 @@ export default function App() {
     if (!window.confirm("Clear all data and start a new visit? This cannot be undone.")) return;
     clearDraft();
     const b = initStates();
-    setMeta({ location: "", city: "", specialist: meta.specialist, date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
+    setMeta({ lawson: "", location: "", city: "", specialist: meta.specialist, date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
     setForm(b);
     setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({});
     setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName("");
@@ -1434,7 +1608,24 @@ Write a professional but direct email. If there are issues, list them clearly wi
 
         {/* Meta fields */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 16 }}>
-          {[["location", "Location / Lawson #"], ["city", "City / State"], ["specialist", "Accreditation Specialist"], ["date", "Visit Date"]].map(([k, label]) => (
+          <div>
+            <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>Lawson #</div>
+            <select value={meta.lawson} onChange={e => {
+                const lw = e.target.value;
+                const info = findR8Location(lw);
+                setMeta(p => ({ ...p, lawson: lw, location: info ? info.name : p.location, city: info ? `${info.city}, ${info.state}` : p.city }));
+              }}
+              style={{ width: "100%", padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box" }}>
+              <option value="" style={{ color: "#000" }}>— Select Lawson # —</option>
+              {R8_LOCATIONS.map(l => (
+                <option key={l.lawson} value={l.lawson} style={{ color: "#000" }}>
+                  {l.lawson} — {l.name}, {l.city} {l.state} ({l.areaCode})
+                </option>
+              ))}
+              <option value="other" style={{ color: "#000" }}>Other / Not Listed</option>
+            </select>
+          </div>
+          {[["location", "Location Name"], ["city", "City / State"], ["specialist", "Accreditation Specialist"], ["date", "Visit Date"]].map(([k, label]) => (
             <div key={k}>
               <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>{label}</div>
               <input value={meta[k]} onChange={e => setMeta(p => ({ ...p, [k]: e.target.value }))} placeholder={label}
@@ -2020,7 +2211,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
             <tbody>
               <tr>
                 <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", borderRight: "1px solid #dde5ef", borderBottom: "1px solid #dde5ef", background: "#f5f8fb", width: "50%" }}>
-                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>Location / Lawson #</span>
+                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>Location {meta.lawson ? `(Lawson # ${meta.lawson})` : ""}</span>
                   <strong style={{ color: "#1a3a5c" }}>{meta.location || "—"}</strong>
                 </td>
                 <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", borderBottom: "1px solid #dde5ef", background: "#f5f8fb" }}>

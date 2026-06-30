@@ -13,7 +13,7 @@ const TALLY_EDIT_LINKS_KEY = "rotech_tally_edit_links";
 
 // Tally.so form ID for the Follow-Up Checklist — replace with the real form ID
 // from tally.so/r/<FORM_ID> after completing the manual setup steps in the project README.
-const TALLY_FORM_ID = "REPLACE_WITH_TALLY_FORM_ID";
+const TALLY_FORM_ID = "5BQ5XM";
 
 // Maps each SECTIONS id to one of the four Tally checklist categories.
 const SECTION_TO_TALLY_CATEGORY = {

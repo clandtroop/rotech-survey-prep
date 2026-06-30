@@ -454,7 +454,7 @@ function getTallyChecklistCategories(visit) {
     sec.items.forEach((item, ii) => {
       const key = `${si}-${ii}`;
       if (states[key] === "no") {
-        categories[category].push(`- ${item.text}${comments[key] ? ` — ${comments[key]}` : ""}`);
+        categories[category].push(`☐ ${item.text}${comments[key] ? ` — ${comments[key]}` : ""}`);
       }
     });
   });
@@ -462,7 +462,7 @@ function getTallyChecklistCategories(visit) {
   op541Sections.forEach(sec => {
     sec.items.forEach(item => {
       if (op541States[item.key] === "no") {
-        categories.Documentation.push(`- [OP 541 — ${sec.sheetLabel}] ${item.text}${op541Comments[item.key] ? ` — ${op541Comments[item.key]}` : ""}`);
+        categories.Documentation.push(`☐ [OP 541 — ${sec.sheetLabel}] ${item.text}${op541Comments[item.key] ? ` — ${op541Comments[item.key]}` : ""}`);
       }
     });
   });
@@ -470,7 +470,7 @@ function getTallyChecklistCategories(visit) {
   op541tSections.forEach(sec => {
     sec.items.forEach(item => {
       if (op541tStates[item.key] === "no") {
-        categories.Documentation.push(`- [OP 541T — ${sec.sheetLabel}] ${item.text}${op541tComments[item.key] ? ` — ${op541tComments[item.key]}` : ""}`);
+        categories.Documentation.push(`☐ [OP 541T — ${sec.sheetLabel}] ${item.text}${op541tComments[item.key] ? ` — ${op541tComments[item.key]}` : ""}`);
       }
     });
   });

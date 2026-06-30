@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
+import QRCode from "qrcode";
 
 const BRAND = "#1a3a5c";
 const ACCENT = "#2e6da4";
@@ -8,6 +9,23 @@ const DRAFT_KEY       = "rotech_survey_draft";
 const VISITS_KEY      = "rotech_saved_visits";
 const TREND_KEY       = "rotech_trend_data";
 const PDF_HISTORY_KEY = "rotech_pdf_history";
+const TALLY_EDIT_LINKS_KEY = "rotech_tally_edit_links";
+
+// Tally.so form ID for the Follow-Up Checklist — replace with the real form ID
+// from tally.so/r/<FORM_ID> after completing the manual setup steps in the project README.
+const TALLY_FORM_ID = "REPLACE_WITH_TALLY_FORM_ID";
+
+// Maps each SECTIONS id to one of the four Tally checklist categories.
+const SECTION_TO_TALLY_CATEGORY = {
+  morning: "Binders",
+  inservice: "Binders",
+  site: "Binders",
+  jc: "Binders",
+  sds: "Warehouse",
+  pst: "Vehicles",
+  clinician: "Vehicles",
+  vent: "Vehicles",
+};
 
 // Company-wide location roster — Lawson #, location name, city/state, region, and Area Manager.
 // Source: June 2026 Region 2/3/5/6/7/8 LCM rosters. LCM/contact info intentionally excluded —
@@ -411,6 +429,72 @@ function deleteVisitFromStorage(id) {
   } catch {}
 }
 
+function loadTallyEditLinks() {
+  try { const r = localStorage.getItem(TALLY_EDIT_LINKS_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
+}
+function saveTallyEditLink(visitId, link) {
+  try {
+    const links = loadTallyEditLinks();
+    if (link) links[visitId] = link; else delete links[visitId];
+    localStorage.setItem(TALLY_EDIT_LINKS_KEY, JSON.stringify(links));
+  } catch {}
+}
+
+// Groups a saved visit's failed items into the four Tally checklist categories
+// (Warehouse / Vehicles / Documentation / Binders), mirroring how getAllIssues()
+// and writeTrendData() already walk SECTIONS / op541Sections / op541tSections.
+function getTallyChecklistCategories(visit) {
+  const categories = { Warehouse: [], Vehicles: [], Documentation: [], Binders: [] };
+  const { states = {}, comments = {}, op541Sections = [], op541States = {}, op541Comments = {},
+          op541tSections = [], op541tStates = {}, op541tComments = {} } = visit;
+
+  SECTIONS.forEach((sec, si) => {
+    const category = SECTION_TO_TALLY_CATEGORY[sec.id];
+    if (!category) return;
+    sec.items.forEach((item, ii) => {
+      const key = `${si}-${ii}`;
+      if (states[key] === "no") {
+        categories[category].push(`- ${item.text}${comments[key] ? ` — ${comments[key]}` : ""}`);
+      }
+    });
+  });
+
+  op541Sections.forEach(sec => {
+    sec.items.forEach(item => {
+      if (op541States[item.key] === "no") {
+        categories.Documentation.push(`- [OP 541 — ${sec.sheetLabel}] ${item.text}${op541Comments[item.key] ? ` — ${op541Comments[item.key]}` : ""}`);
+      }
+    });
+  });
+
+  op541tSections.forEach(sec => {
+    sec.items.forEach(item => {
+      if (op541tStates[item.key] === "no") {
+        categories.Documentation.push(`- [OP 541T — ${sec.sheetLabel}] ${item.text}${op541tComments[item.key] ? ` — ${op541tComments[item.key]}` : ""}`);
+      }
+    });
+  });
+
+  return categories;
+}
+
+function buildTallyChecklistUrl(visit, visitId) {
+  const categories = getTallyChecklistCategories(visit);
+  const fmt = list => list.length ? list.join("\n") : "No outstanding items.";
+  const params = new URLSearchParams({
+    location: visit.meta?.location || "",
+    lawson: visit.meta?.lawson || "",
+    visit_date: visit.meta?.date || "",
+    specialist: visit.meta?.specialist || "",
+    visit_id: visitId || "",
+    warehouse_findings: fmt(categories.Warehouse),
+    vehicles_findings: fmt(categories.Vehicles),
+    documentation_findings: fmt(categories.Documentation),
+    binders_findings: fmt(categories.Binders),
+  });
+  return `https://tally.so/r/${TALLY_FORM_ID}?${params.toString()}`;
+}
+
 function loadTrendData() {
   try { const r = localStorage.getItem(TREND_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
 }
@@ -703,6 +787,16 @@ function getPolicyMatches(text) {
     // Ensure the character after the match is not a digit or dot (prevents 1.1.2 matching 1.1.22)
     return !after || !/[\d.]/.test(after);
   });
+}
+
+function ChecklistQrCode({ value }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    if (!value || !canvasRef.current) return;
+    QRCode.toCanvas(canvasRef.current, value, { width: 160, margin: 1 }, () => {});
+  }, [value]);
+  if (!value) return null;
+  return <canvas ref={canvasRef} style={{ display: "block", marginTop: 12, border: "1px solid #e0e0e0", borderRadius: 6 }} />;
 }
 
 function PolicyDateSearch() {
@@ -1146,6 +1240,10 @@ export default function App() {
   const [pdfHistory, setPdfHistory]   = useState(loadPdfHistory);
   const [showVisits, setShowVisits] = useState(false);
   const [showPdfReminder, setShowPdfReminder] = useState(false);
+  const [checklistLink, setChecklistLink] = useState("");
+  const [checklistLinkCopied, setChecklistLinkCopied] = useState(false);
+  const [tallyEditLinks, setTallyEditLinks] = useState(loadTallyEditLinks);
+  const [currentVisitId, setCurrentVisitId] = useState(null);
 
   // Fail-safe: the browser print dialog never tells JS whether the user actually
   // saved a PDF or hit cancel, so once it closes, prompt them to double check.
@@ -1508,10 +1606,19 @@ export default function App() {
     saveVisitToStorage(visit);
     writeTrendData(id, meta, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments);
     setSavedVisits(loadVisits());
+    setCurrentVisitId(id);
     alert(`Visit saved: ${visit.label}`);
   }
 
+  function generateChecklistLink() {
+    if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return; }
+    const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments };
+    setChecklistLink(buildTallyChecklistUrl(visit, currentVisitId));
+  }
+
   function loadVisit(visit) {
+    setCurrentVisitId(visit.id ?? null);
+    setChecklistLink("");
     setMeta(visit.meta ?? {});
     setForm({ states: visit.states ?? {}, comments: visit.comments ?? {} });
     setOp541Sections(visit.op541Sections ?? []);
@@ -1952,14 +2059,28 @@ Write a professional but direct email. If there are issues, list them clearly wi
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {savedVisits.map(v => (
-                <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 6, padding: "10px 14px" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>{v.label}</div>
-                    <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>Saved {new Date(v.savedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                <div key={v.id} style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 6, padding: "10px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>{v.label}</div>
+                      <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>Saved {new Date(v.savedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => loadVisit(v)} style={{ padding: "6px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>Load</button>
+                      <button onClick={() => { if (window.confirm("Delete this saved visit?")) deleteVisit(v.id); }} style={{ padding: "6px 10px", fontSize: 12, background: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", borderRadius: 5, cursor: "pointer" }}>✕</button>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => loadVisit(v)} style={{ padding: "6px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>Load</button>
-                    <button onClick={() => { if (window.confirm("Delete this saved visit?")) deleteVisit(v.id); }} style={{ padding: "6px 10px", fontSize: 12, background: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", borderRadius: 5, cursor: "pointer" }}>✕</button>
+                  <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ fontSize: 11, color: "#9e9e9e", whiteSpace: "nowrap" }}>Tally edit link:</span>
+                    <input
+                      defaultValue={tallyEditLinks[v.id] || ""}
+                      placeholder="Paste edit link from Tally's Submissions dashboard"
+                      onBlur={e => { saveTallyEditLink(v.id, e.target.value.trim()); setTallyEditLinks(loadTallyEditLinks()); }}
+                      style={{ flex: 1, fontSize: 11, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#424242" }}
+                    />
+                    {tallyEditLinks[v.id] && (
+                      <a href={tallyEditLinks[v.id]} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: ACCENT, whiteSpace: "nowrap" }}>Open ↗</a>
+                    )}
                   </div>
                 </div>
               ))}
@@ -2485,8 +2606,26 @@ Write a professional but direct email. If there are issues, list them clearly wi
               <button onClick={exportPDF} style={{ padding: "7px 14px", fontSize: 13, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
                 ⬇ Download PDF
               </button>
+              <button onClick={generateChecklistLink} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: `1px solid ${BRAND}`, borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+                📋 Generate Follow-Up Checklist Link
+              </button>
             </div>
           </div>
+
+          {checklistLink && (
+            <div className="no-print" style={{ background: "#f5f8fb", border: "1px solid #c5cfe0", borderRadius: 8, padding: "14px 16px", marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: BRAND, marginBottom: 8 }}>Follow-Up Checklist Link (Tally)</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input readOnly value={checklistLink} onFocus={e => e.target.select()}
+                  style={{ flex: 1, fontSize: 12, padding: "8px 10px", border: "1px solid #e0e0e0", borderRadius: 6, color: "#212121", background: "#fff" }} />
+                <button onClick={() => { navigator.clipboard.writeText(checklistLink).then(() => { setChecklistLinkCopied(true); setTimeout(() => setChecklistLinkCopied(false), 2000); }); }}
+                  style={{ padding: "7px 14px", fontSize: 13, background: checklistLinkCopied ? "#e8f5e9" : "#fff", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", color: checklistLinkCopied ? "#2e7d32" : "#424242", whiteSpace: "nowrap" }}>
+                  {checklistLinkCopied ? "✓ Copied" : "Copy link"}
+                </button>
+              </div>
+              <ChecklistQrCode value={checklistLink} />
+            </div>
+          )}
 
           {/* ── HEADER BAND ── */}
           <div style={{ background: BRAND, borderRadius: "6px 6px 0 0", padding: "12px 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>

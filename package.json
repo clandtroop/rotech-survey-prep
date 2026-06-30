@@ -10,11 +10,12 @@
   },
   "dependencies": {
     "bootstrap": "^5.3.3",
+    "jszip": "^3.10.1",
+    "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-bootstrap": "^2.10.4",
     "react-dom": "^18.2.0",
-    "xlsx": "^0.18.5",
-    "jszip": "^3.10.1"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",

@@ -1492,7 +1492,12 @@ export default function App() {
         if (states[key] === "yes" && comments[key]) return [{ text: item.text, comment: comments[key] }];
         return [];
       });
-      return { label: sec.label, ref: sec.ref, ...stats, issues, observations };
+      const compliantItems = sec.items.flatMap((item, ii) => {
+        const key = `${si}-${ii}`;
+        if (states[key] === "yes" && !comments[key]) return [{ text: item.text }];
+        return [];
+      });
+      return { label: sec.label, ref: sec.ref, ...stats, issues, observations, compliantItems };
     });
 
     op541Sections.forEach(sec => {
@@ -1512,6 +1517,9 @@ export default function App() {
       const observations = sec.items
         .filter(item => op541States[item.key] === "yes" && op541Comments[item.key])
         .map(item => ({ text: item.text, comment: op541Comments[item.key] }));
+      const compliantItems = sec.items
+        .filter(item => op541States[item.key] === "yes" && !op541Comments[item.key])
+        .map(item => ({ text: item.text }));
       data.push({
         label: `OP 541 — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`,
         ref: "OP 541 Location Readiness Tool",
@@ -1519,7 +1527,7 @@ export default function App() {
         vehicleNum: vInfo.vehicleNum || "",
         yes, no, na, pending,
         total: sec.items.length,
-        issues, observations,
+        issues, observations, compliantItems,
       });
     });
 
@@ -1539,12 +1547,15 @@ export default function App() {
       const observations = sec.items
         .filter(item => op541tStates[item.key] === "yes" && op541tComments[item.key])
         .map(item => ({ text: item.text, comment: op541tComments[item.key] }));
+      const compliantItems = sec.items
+        .filter(item => op541tStates[item.key] === "yes" && !op541tComments[item.key])
+        .map(item => ({ text: item.text }));
       data.push({
         label: `OP 541T — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`,
         ref: "OP 541T Transfill Location Readiness Tool",
         yes, no, na, pending,
         total: sec.items.length,
-        issues, observations,
+        issues, observations, compliantItems,
       });
     });
 
@@ -2100,7 +2111,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
     <div style={{ fontFamily: "system-ui, sans-serif", margin: "0 auto", background: "#fff", minHeight: "100vh" }}>
 
       {/* Header */}
-      <div style={{ background: BRAND, color: "#fff", padding: "16px 24px" }}>
+      <div className="no-print" style={{ background: BRAND, color: "#fff", padding: "16px 24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <img src="/rotech-survey-prep/rotech-logo.jpg" alt="Rotech Healthcare" style={{ height: 52, width: "auto", background: "#fff", borderRadius: 6, padding: "4px 10px" }} />
@@ -2258,7 +2269,10 @@ Write a professional but direct email. If there are issues, list them clearly wi
                         const observations = items.flatMap((item, ii) =>
                           snapStates[`${si}-${ii}`] === "yes" && snapComments[`${si}-${ii}`]
                             ? [{ text: item.text, comment: snapComments[`${si}-${ii}`] }] : []);
-                        return { label: sec.label, ref: sec.ref, yes, no, na, pending, total: items.length, issues, observations };
+                        const compliantItems = items.flatMap((item, ii) =>
+                          snapStates[`${si}-${ii}`] === "yes" && !snapComments[`${si}-${ii}`]
+                            ? [{ text: item.text }] : []);
+                        return { label: sec.label, ref: sec.ref, yes, no, na, pending, total: items.length, issues, observations, compliantItems };
                       });
                       setReportLines(lines);
                       setView("report");
@@ -2847,11 +2861,6 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   </div>
                 </div>
 
-                {/* Compliant — collapsed */}
-                {isCompliant && (
-                  <div style={{ padding: "6px 14px", fontSize: 12, color: "#2e7d32" }}>All items compliant — no corrective action required.</div>
-                )}
-
                 {/* Issues */}
                 {s.issues.length > 0 && (
                   <div style={{ padding: "10px 14px 6px" }}>
@@ -2872,21 +2881,43 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   </div>
                 )}
 
-                {/* Observations */}
+                {/* Observations — Y items with notable notes */}
                 {s.observations && s.observations.length > 0 && (
                   <div style={{ padding: "8px 14px 8px", borderTop: s.issues.length > 0 ? "1px solid #ede8e8" : "none" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Observations</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#1565c0", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Observations</div>
                     {s.observations.map((obs, j) => (
-                      <div key={j} style={{ padding: "7px 10px", marginBottom: 4, background: "#f9fff9", borderLeft: "3px solid #81c784", borderRadius: "0 4px 4px 0", fontSize: 13, pageBreakInside: "avoid" }}>
-                        <div style={{ color: "#212121", lineHeight: 1.5 }}>• {obs.text}</div>
+                      <div key={j} style={{ padding: "7px 10px", marginBottom: 4, background: "#f3f8ff", borderLeft: "3px solid #64b5f6", borderRadius: "0 4px 4px 0", fontSize: 13, pageBreakInside: "avoid" }}>
+                        <div style={{ color: "#212121", lineHeight: 1.5 }}>✓ {obs.text}</div>
                         {obs.comment && (
-                          <div style={{ fontSize: 12, color: "#2e7d32", marginTop: 4, paddingTop: 4, borderTop: "1px solid #c8e6c9", lineHeight: 1.4 }}>
+                          <div style={{ fontSize: 12, color: "#1565c0", marginTop: 4, paddingTop: 4, borderTop: "1px solid #bbdefb", lineHeight: 1.4 }}>
                             <strong>Note:</strong> {obs.comment}
                           </div>
                         )}
                       </div>
                     ))}
                   </div>
+                )}
+
+                {/* Compliant Items — compact two-column green list */}
+                {s.compliantItems && s.compliantItems.length > 0 && (
+                  <div style={{ padding: "8px 14px 10px", borderTop: (s.issues.length > 0 || (s.observations && s.observations.length > 0)) ? "1px solid #e8f0e8" : "none", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                      Compliant Items ({s.compliantItems.length})
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 20px" }}>
+                      {s.compliantItems.map((item, j) => (
+                        <div key={j} style={{ fontSize: 11, color: "#33691e", lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 4 }}>
+                          <span style={{ color: "#2e7d32", flexShrink: 0, marginTop: 1 }}>✓</span>
+                          <span>{item.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* All-compliant banner (no issues AND no pending) */}
+                {isCompliant && (!s.compliantItems || s.compliantItems.length === 0) && (
+                  <div style={{ padding: "6px 14px", fontSize: 12, color: "#2e7d32" }}>All items compliant — no corrective action required.</div>
                 )}
               </div>
             );

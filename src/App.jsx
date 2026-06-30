@@ -102,7 +102,7 @@ function writeTrendData(visitId, meta, sections, states, comments, op541Sections
         }
       });
       // Tab-level comments for PST / PAP / Vent
-      if (["pst", "clinician", "vent"].includes(sec.id) && tabComments[sec.id]) {
+      if (["pst_setup", "pst_maintenance", "clinician", "vent"].includes(sec.id) && tabComments[sec.id]) {
         records.push({ ...base, section: sec.label, formRef: sec.ref, itemText: "Visit Notes", comment: tabComments[sec.id], visitType: "note" });
       }
     });
@@ -218,35 +218,67 @@ const SECTIONS = [
     ]
   },
   {
-    id: "pst", label: "PST Home Visit", ref: "Form JC 426",
+    id: "pst_setup", label: "PST Home Visit — Setup", ref: "Form JC 426 (Setup)",
     items: [
-      { text: "All equipment, supplies, and tanks secured in vehicle" },
-      { text: "Testing equipment, gloves, Madawipes, hand gel, non-clear bags and red tags on vehicle" },
-      { text: "Complete dosing instructions printed on delivery ticket (liter flow, route, duration)", note: "e.g. 2lpm NC Continuous" },
-      { text: "Patient information not visible in vehicle" },
-      { text: "Vehicle locked and secured when unattended (windows up, all doors locked)" },
-      { text: "Hand gel applied prior to entering patient's home" },
-      { text: "Back-up tank assembled to take into home" },
-      { text: '"No Smoking" sign(s) posted at entrance to home', note: "Required if oxygen is in the home" },
-      { text: "Correct patient confirmed using two patient identifiers" },
-      { text: "Patient instructed on portable/back-up system per order; conserving device cycling verified" },
-      { text: "Hand gel used between clean and dirty tasks; gloves changed appropriately" },
-      { text: "Concentrator plugged in and minimum run times observed per OP 609" },
-      { text: "Portable liquid oxygen or gaseous systems checked" },
-      { text: "Back-up tanks verified and patient ability to operate confirmed (AMA on file if refused)", note: "Back-up tanks must have RHI 600 tag" },
-      { text: "Cylinder storage safe — not in closets, not freestanding, 15 ft from heat/flame" },
-      { text: "Concentrator oxygen percentage analyzed, minimum run time observed" },
-      { text: "Oxygen flow checked at end of longest tubing" },
-      { text: "Concentrator alarm checked; patient/caregiver can hear alarm" },
-      { text: "Concentrator setting verified against current order" },
-      { text: "Function, cleanliness, and location label checked on all Rotech equipment" },
-      { text: "Patient asked about changing disposable supplies and cleaning filters", note: "Cannula every 2 weeks, tubing every 90 days" },
-      { text: "OP 511 or CL 307 fully completed; open flames/heat sources addressed", note: "Concentrator % MUST be on these forms" },
-      { text: "Supplies and serial/lot numbers documented on delivery ticket", note: "Cylinder lot numbers must be included" },
-      { text: "Patient internet access confirmed; Rotech website reviewed; RHI 1080 card provided" },
-      { text: "All paperwork complete (BL 401, patient survey, COPD assessment)" },
-      { text: "Testing equipment cleaned before returning to bag or vehicle; gloves worn with Madawipes" },
-      { text: "Hand gel used at completion of home visit" },
+      { text: "ALL equipment, supplies, and tanks secured in vehicle." },
+      { text: "Testing equipment, gloves, Madawipes, hand gel, non-clear bags and red tags on the vehicle." },
+      { text: "Complete dosing instructions are printed on the delivery ticket.", note: "Must include liter flow, route of delivery, and duration (2lpm NC Continuous)." },
+      { text: "Patient information is not visible in the vehicle." },
+      { text: "Vehicle is locked and secured when unattended.", note: "Windows must be up and all doors locked." },
+      { text: "Hand gel applied prior to entering patient's home." },
+      { text: "Confirm correct patient utilizing two patient identifiers (name, DOB, address, etc.).", note: "Verify patient's name before entering the home." },
+      { text: "Back-up tank assembled to take in the home (cylinder, stand, regulator, supplies). Must obtain an AMA if patient refuses backup system.", note: "If continuous patient, be sure they have enough oxygen in their tank to last through the setup. If not on oxygen upon arrival, place patient on backup system." },
+      { text: "Return to the vehicle for equipment that needs to be setup or swapped out." },
+      { text: "Hand gel used between clean and dirty (e.g., home and vehicle); if gloves are used, gloves are changed between clean and dirty, and hand gel used between glove changes.", note: "Trips between home and vehicle; between glove changes; remove all dirty items (filters and supplies) → hand gel → place new items." },
+      { text: "Test outlet to ensure proper grounding. Use circuit tester.", note: "If there are no grounded outlets in the home, educate the patient on the need to have a grounded outlet installed, document this on the CL 307 Initial Plan of Care and proceed with setup." },
+      { text: "Plug in and turn on the concentrator to start run time.", note: "Observe minimum run times (Refer to OP 609 - Oxygen Concentrator Specifications)." },
+      { text: "Concentrator alarm checked by unplugging unit from power source; verify patient/caregiver can hear alarm.", note: 'Verbally ask "Can you hear the alarm?" Educate patient why they might possibly hear an alarm (ex: power outage, equipment failure, etc.) If patient cannot hear the alarm, ask if there is someone in the home who can hear it or move to a different room closer to patient. If hearing impaired, show them to look for visual cues such as lights on the concentrator.' },
+      { text: "Deliver and instruct patient on use of portable gaseous system, portable liquid oxygen, portable concentrator and/or back-up system as necessary per order, and verify conserving device cycling. Also discuss Equipment Safety Instructions.", note: 'Return demonstration is required to show patient knows how to work their portable and backup systems. Verify concentration of POC by utilizing SmartCheck Analyzer. Must flag backup system with "Backup Equipment Only" tag (RHI 600).' },
+      { text: "Instruct patient on cylinder storage for safety and security.", note: "Oxygen cylinders must NOT be stored in closets, left freestanding, placed within 15 feet of a heat source or open flame or stored in the trunk of the car. If issues are identified, correct issue, provide education to the patient and document on CL 307 - Initial Plan of Care." },
+      { text: "Verified concentrator setting matches current order. Patient must set liter flow as prescribed by physician.", note: "Educate patient on their prescription, how to set the flow, and have them set equipment to prescribed liter flow. (Non-clinicians cannot set or adjust liter flow)." },
+      { text: "Analyzed concentrator oxygen percentage, observing minimum run time (Refer to OP 609 - Oxygen Concentrator Specifications).", note: "Observe minimum run times (OP 609)." },
+      { text: "Oxygen flow checked at the end of longest tubing.", note: "Must use flow pen to check this, not an analyzer with flow built in." },
+      { text: "Educate patient on operation of equipment and changing disposable supplies and cleaning filter(s). Verify patient's ability to operate equipment.", note: "Be sure the patient is aware to change cannula every 2 weeks, tubing every 90 days, and humidifier bottles every 30 days. External filters and/or air intake vents must be cleaned weekly." },
+      { text: "Completed all sections of Initial Plan of Care (CL 307). Pay attention to the surroundings in the home: fireplaces, cigarettes/vapes, lighters, ash trays, candles, stoves, or heaters. Educate to keep 15 ft. away from any open flames or heat source. Document issue and education.", note: "Each question on CL 307, to include PCP, Pulmonologist, Emergency Contact, and Power Company, must be discussed with the patient. Educate on any issue identified. Document issue and education provided. The concentration % of the concentrator MUST be on these forms. Document \"Alarm Audible to Patient\". If patient has POC, ensure to check its concentration % and record on the CL 307." },
+      { text: '"No Smoking" sign(s) left for patient to hang at entrance to home.', note: "If oxygen is in the home, \"No Smoking\" sign is required. Signage alerts first responders that there is oxygen in the home." },
+      { text: "Checked the function, cleanliness and location label on all Rotech equipment." },
+      { text: "Concentrator, Regulator, Portable System, Conserving Device, Tanks (including backup tank), and Supplies (serial, model, and/or lot numbers) documented on delivery ticket.", note: "Document all equipment, supplies, and cylinders delivered. Cylinder lot numbers must be on Delivery Ticket and Lot Tank Form. Number of cylinders must match on Delivery Ticket, Initial Plan of Care, and Lot Tank Form." },
+      { text: "Patient internet access confirmed; instructed to visit www.rotech.com, review what is available on website and provide Rotech Paperless Contact Card (RHI 1080) with all new setups (printed booklets provided if no internet access).", note: 'Verbally ask the patient "Do you have access to the internet?" If no internet access, be prepared to give the patient printed copies of the RHI 1000 Patient Information Booklet and RHI 1001 Home Medical Equipment Booklet. If initial set up, provide with the RHI 1080 card.' },
+      { text: "Ensure ALL paperwork is filled out completely before leaving the home. (Delivery Ticket, Initial Plan of Care, Payment Authorization, etc.)" },
+      { text: "Testing equipment cleaned prior to placing back into bag or vehicle; gloves must be worn when using Madawipes.", note: "Gloves must be worn when using any Mada products. Clean analyzer, flow pen, circuit tester and tablet before placing in bag or vehicle." },
+      { text: "Used hand gel upon completion of home visit." },
+    ]
+  },
+  {
+    id: "pst_maintenance", label: "PST Home Visit — Maintenance", ref: "Form JC 426 (Maintenance)",
+    items: [
+      { text: "ALL equipment, supplies, and tanks secured in vehicle." },
+      { text: "Testing equipment, gloves, Madawipes, hand gel, non-clear bags and red tags on the vehicle." },
+      { text: "Complete dosing instructions are printed on the maintenance or exchange ticket.", note: "Must include liter flow, route of delivery, and duration (2lpm NC Continuous)." },
+      { text: "Patient information is not visible in the vehicle." },
+      { text: "Vehicle is locked and secured when unattended.", note: "Windows must be up and all doors locked." },
+      { text: "Hand gel applied prior to entering patient's home." },
+      { text: '"No Smoking" sign(s) posted at entrance to home.', note: "If oxygen is in the home, \"No Smoking\" sign is required. Signage alerts first responders that there is oxygen in the home." },
+      { text: "Confirm correct patient utilizing two patient identifiers (name, DOB, address, etc.).", note: "Verify patient's name before entering the home." },
+      { text: "Gloves used if equipment/supplies are visibly contaminated.", note: "It is Rotech's policy (2.3.1) to observe Standard Precautions — wear gloves when coming in contact with equipment and/or supplies that are visibly contaminated. If the home is clean and tidy and the equipment is not visibly contaminated, gloves are not required. Practice good hand gel hygiene." },
+      { text: "Instructed patient to use portable or back-up system as necessary per order, and verified conserving device cycling.", note: "Be sure patient has enough oxygen in their tank to last through the maintenance. This is a good opportunity for the patient to show you they know how to work their portable and backup systems." },
+      { text: "Checked portable liquid oxygen, gaseous systems, or portable concentrator (conserving device, POC, regulator) and patient's ability to operate.", note: "If patient has POC, check the concentration % utilizing the SmartCheck analyzer and record on the OP 511 Equipment Maintenance Form." },
+      { text: "Turn on the concentrator if it is not already running.", note: "Observe minimum run times (OP 609)." },
+      { text: "Concentrator alarm checked by unplugging unit from power source; verify patient/caregiver can hear alarm.", note: 'Verbally ask "Can you hear the alarm?" If patient cannot hear the alarm, ask if there is someone in the home who can hear it or move to a different room closer to patient. If hearing impaired, show them to look for visual cues such as lights on the concentrator.' },
+      { text: "Verified back-up only tanks and patient's ability to operate (AMA on file if patient refuses back-up).", note: "Back-up tanks must be tagged with a Back-up Equipment Only tag (RHI 600)." },
+      { text: "Identified cylinder storage for safety and security, address as necessary.", note: "Oxygen cylinders must NOT be stored in closets, left freestanding, placed within 15 feet of a heat source or open flame or stored in the trunk of the car. If issues are identified, correct issue, provide education to the patient and document on OP 511 Equipment Maintenance Record." },
+      { text: "Analyzed concentrator oxygen percentage, observing minimum run time (OP 609 Oxygen Concentrator Specifications).", note: "Observe minimum run times and concentration (OP 609)." },
+      { text: "Hand gel used between clean and dirty (e.g., home and vehicle); if gloves are used, gloves are changed between clean and dirty, and hand gel used between glove changes.", note: "Trips between home and vehicle; between glove changes; remove all dirty items (filters and supplies) → hand gel → place new items." },
+      { text: "Verified concentrator setting matches current order, address as necessary.", note: "If the concentrator is not set to the prescription on file (dosing instructions), ask patient why it is set differently. If there has been a change in the prescription, leave the liter flow as is and notify the LCM that an updated prescription is needed. If the prescription is correct, have patient adjust to correct liter flow. PATIENT MUST MAKE ALL CHANGES TO LITER FLOW, PST CANNOT ADJUST." },
+      { text: "Oxygen flow checked at the end of longest tubing.", note: "Must use flow pen to check this, not an analyzer with flow built in." },
+      { text: "Checked the function, cleanliness and location label on all Rotech equipment.", note: "All equipment must have a location label on it." },
+      { text: "Asked patient about changing disposable supplies and cleaning filter(s).", note: "Be sure the patient is aware to change cannula every 2 weeks, tubing every 90 days, humidifier bottles every 30 days, and filters per manufacturer guidelines. External filters and/or air intake vents must be cleaned weekly." },
+      { text: "Completed all sections of Equipment Maintenance Record (OP 511). Pay attention to the surroundings in the home: fireplaces, cigarettes/vapes, lighters, ash trays, candles, stoves, or heaters. Educate to keep 15 ft. away from any open flames or heat source. Document issue and education.", note: "All 16 questions on the Safety Assessment of the OP 511 Equipment Maintenance Record must be discussed with the patient. Educate on any issue identified. Document issue and education provided. The concentration % of the concentrator MUST be on these forms." },
+      { text: "If fire risk is identified, a PE 662 High-Risk Smoking & Education Packet must be provided to the patient.", note: "Back page must be signed by the patient and returned to the location to be scanned into the EMR." },
+      { text: "Supplies and serial/lot numbers documented on delivery ticket.", note: "Document all supplies and cylinders delivered. Cylinder lot numbers must be on Delivery Ticket and the Lot Tank Form." },
+      { text: "Ensure ALL paperwork is filled out completely before leaving the home. (BL 401, COPD assessment and Are You Tired of Being Tired?)" },
+      { text: "Testing equipment MUST be cleaned prior to placing back into bag or vehicle; gloves must be worn when using Madawipes.", note: "Gloves must be worn when using any Mada products. Clean analyzer, flow pen, circuit tester and tablet before placing in bag or vehicle." },
+      { text: "Used hand gel upon completion of home visit." },
     ]
   },
   {
@@ -712,7 +744,7 @@ export default function App() {
   const [op541tFileName, setOp541tFileName] = useState("");
 
   // Tab-level comments for PST Home Visit, PAP Setup, Ventilator Home Visit
-  const [tabComments, setTabComments] = useState({ pst: "", clinician: "", vent: "" });
+  const [tabComments, setTabComments] = useState({ pst_setup: "", pst_maintenance: "", clinician: "", vent: "" });
   const setTabComment = (id, val) => setTabComments(prev => ({ ...prev, [id]: val }));
 
   const setState = useCallback((key, val) => {
@@ -1033,7 +1065,7 @@ export default function App() {
     setForm(b);
     setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({});
     setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName("");
-    setTabComments({ pst: "", clinician: "", vent: "" });
+    setTabComments({ pst_setup: "", pst_maintenance: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
   }
 
@@ -1066,7 +1098,7 @@ export default function App() {
     setOp541tStates(visit.op541tStates ?? {});
     setOp541tComments(visit.op541tComments ?? {});
     setOp541tFileName(visit.op541tFileName ?? "");
-    setTabComments(visit.tabComments ?? { pst: "", clinician: "", vent: "" });
+    setTabComments(visit.tabComments ?? { pst_setup: "", pst_maintenance: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]);
     setShowVisits(false);
   }
@@ -1703,7 +1735,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
               })}
 
               {/* Tab-level comments for PST, PAP Setup, Vent */}
-              {["pst", "clinician", "vent"].includes(sec.id) && (
+              {["pst_setup", "pst_maintenance", "clinician", "vent"].includes(sec.id) && (
                 <div style={{ marginTop: 12, padding: "14px 16px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     📝 Visit Notes / Unable to Complete Reason

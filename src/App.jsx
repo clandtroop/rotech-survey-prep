@@ -9,69 +9,339 @@ const VISITS_KEY      = "rotech_saved_visits";
 const TREND_KEY       = "rotech_trend_data";
 const PDF_HISTORY_KEY = "rotech_pdf_history";
 
-// Region 8 location roster — Lawson #, location name, city/state, and Area Manager.
-// Source: June 2026 Region 8 LCM roster + Lawson-AM crosswalk. LCM/contact info intentionally
-// excluded — those change too often to maintain in the app. Update this list as locations move,
-// open, or close.
-const R8_LOCATIONS = [
-  { lawson: "121510", name: "Rotech", city: "Beaverton", state: "OR", areaCode: "A2", areaManager: "Cassidy Williams" },
-  { lawson: "120310", name: "Rotech", city: "Eugene", state: "OR", areaCode: "A2", areaManager: "Cassidy Williams" },
-  { lawson: "72010", name: "Rotech", city: "Idaho Falls", state: "ID", areaCode: "A2", areaManager: "Cassidy Williams" },
-  { lawson: "120210", name: "Rotech", city: "Medford", state: "OR", areaCode: "A2", areaManager: "Cassidy Williams" },
-  { lawson: "74410", name: "Rotech", city: "Renton", state: "WA", areaCode: "A2", areaManager: "Cassidy Williams" },
-  { lawson: "619810", name: "Rotech", city: "Silverdale", state: "WA", areaCode: "A2", areaManager: "Cassidy Williams" },
-  { lawson: "72310", name: "Homecare Medical", city: "Soda Springs", state: "ID", areaCode: "A2", areaManager: "Cassidy Williams" },
-  { lawson: "619210", name: "Rotech", city: "Spokane", state: "WA", areaCode: "A2", areaManager: "Cassidy Williams" },
-  { lawson: "619110", name: "NCW Respiratory Care", city: "Wenatchee", state: "WA", areaCode: "A2", areaManager: "Cassidy Williams" },
-  { lawson: "628410", name: "Rotech", city: "(WHS) Hardin", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "632210", name: "Rotech", city: "(WHS) Laramie", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "627010", name: "Rotech", city: "Billings", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "627130", name: "Rotech", city: "Bozeman", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "627210", name: "Rotech", city: "Butte", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "631310", name: "Rotech", city: "Casper", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "632810", name: "Rotech", city: "Cheyenne", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "631810", name: "Rotech", city: "Cody", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "627510", name: "Rotech", city: "Great Falls", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "627910", name: "Rotech", city: "Helena", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "628110", name: "Rotech", city: "Miles City", state: "MT", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "632510", name: "Rotech", city: "Rock Springs", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "632110", name: "Rotech", city: "Sheridan", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "632010", name: "Rotech", city: "Wheatland", state: "WY", areaCode: "A3", areaManager: "Lisa Durgain" },
-  { lawson: "631010", name: "Rotech", city: "Flagstaff", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "10010", name: "Rotech", city: "Layton", state: "UT", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "690410", name: "Rotech", city: "Mesa", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "122310", name: "Rotech", city: "Orem", state: "UT", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "630410", name: "Rotech", city: "Payson", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "630610", name: "The Oxygen Store", city: "Peoria", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "690110", name: "Rotech", city: "Prescott", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "631110", name: "Sentry Home Health", city: "Show Low", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "630110", name: "Rotech", city: "Tucson", state: "AZ", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "137510", name: "Rotech", city: "West Valley City", state: "UT", areaCode: "A4", areaManager: "Brian Duffell" },
-  { lawson: "76910", name: "Summit Respiratory", city: "Colorado Springs (N)", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
-  { lawson: "651310", name: "Summit Respiratory", city: "Colorado Springs (S)", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
-  { lawson: "651010", name: "Summit Respiratory", city: "Denver", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
-  { lawson: "91510", name: "Aloha Respiratory", city: "Honolulu", state: "HI", areaCode: "A6", areaManager: "Kristi Kellogg" },
-  { lawson: "76810", name: "Summit Respiratory", city: "Lakewood", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
-  { lawson: "651110", name: "Roth Medical", city: "Westminster", state: "CO", areaCode: "A6", areaManager: "Kristi Kellogg" },
-  { lawson: "652010", name: "Roth Medical", city: "(WHS) Lamar", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "650910", name: "Rotech", city: "Alamosa", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "651710", name: "A-Med Supply", city: "Cortez", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "608510", name: "G & G Medical", city: "Craig", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "662810", name: "Oxygen Plus", city: "Delta", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "650610", name: "A-Med Supply", city: "Durango", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "651210", name: "Roth Medical", city: "Ft. Collins", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "662910", name: "Don Paul Resp. Services", city: "Ft. Morgan", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "608310", name: "G & G Medical", city: "Grand Junction", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "651410", name: "Roth Medical", city: "Pueblo", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "662310", name: "Medco Professionals", city: "Trinidad", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "9310", name: "Valley Home Medical", city: "Vernal", state: "UT", areaCode: "A7", areaManager: "Joetta Bryant" },
-  { lawson: "662210", name: "Don Paul Resp. Services", city: "Windsor", state: "CO", areaCode: "A7", areaManager: "Joetta Bryant" },
+// Company-wide location roster — Lawson #, location name, city/state, region, and Area Manager.
+// Source: June 2026 Region 2/3/5/6/7/8 LCM rosters. LCM/contact info intentionally excluded —
+// those change too often to maintain in the app. Update this list as locations move, open, or close.
+const ALL_LOCATIONS = [
+  { lawson: "200210", name: "BP Gamma Medical Supply", city: "Frederick", state: "MD", region: "R2", areaCode: "A1", areaManager: "Brenda Perry" },
+  { lawson: "92110", name: "Rotech", city: "Glen Burnie", state: "MD", region: "R2", areaCode: "A1", areaManager: "Brenda Perry" },
+  { lawson: "133210", name: "Medic-Aire Medical Equipment", city: "Prince Frederick", state: "MD", region: "R2", areaCode: "A1", areaManager: "Brenda Perry" },
+  { lawson: "200510", name: "Best Home Medical", city: "Barboursville", state: "WV", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "123010", name: "Rotech", city: "Charleston", state: "WV", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "6810", name: "Rotech Home Medical Care", city: "Christiansburg", state: "VA", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "67510", name: "Laurel Mountain Medical", city: "Clarksburg", state: "WV", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "68010", name: "Pioneer Medical Services", city: "Man", state: "WV", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "67910", name: "Pioneer Medical Services", city: "Mount Hope", state: "WV", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "200410", name: "Best Medical Equipment", city: "Nitro", state: "WV", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "123210", name: "Andy Boyd's Inhome Medical", city: "Parkersburg", state: "WV", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "6610", name: "Rotech Home Medical Care", city: "Pearisburg", state: "VA", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "6410", name: "Rotech Home Medical Care", city: "Roanoke", state: "VA", region: "R2", areaCode: "A2", areaManager: "Buddy Volinski" },
+  { lawson: "135010", name: "First Community Care", city: "Amherst", state: "NY", region: "R2", areaCode: "A3", areaManager: "Dawn Ragukas" },
+  { lawson: "47510", name: "Rotech", city: "Bloomsburg", state: "PA", region: "R2", areaCode: "A3", areaManager: "Dawn Ragukas" },
+  { lawson: "47310", name: "Rotech", city: "Dickson City", state: "PA", region: "R2", areaCode: "A3", areaManager: "Dawn Ragukas" },
+  { lawson: "135210", name: "First Community Care", city: "East Syracuse", state: "NY", region: "R2", areaCode: "A3", areaManager: "Dawn Ragukas" },
+  { lawson: "201320", name: "Better Living Now", city: "Hauppauge", state: "NY", region: "R2", areaCode: "A3", areaManager: "Dawn Ragukas" },
+  { lawson: "135710", name: "North Country Medical", city: "Malone", state: "NY", region: "R2", areaCode: "A3", areaManager: "Dawn Ragukas" },
+  { lawson: "48810", name: "Rotech", city: "Mifflinburg", state: "PA", region: "R2", areaCode: "A3", areaManager: "Dawn Ragukas" },
+  { lawson: "135910", name: "North Country Medical", city: "Potsdam", state: "NY", region: "R2", areaCode: "A3", areaManager: "Dawn Ragukas" },
+  { lawson: "46910", name: "Rotech", city: "Bensalem", state: "PA", region: "R2", areaCode: "A4", areaManager: "Michael Belmont" },
+  { lawson: "200310", name: "American Home Medical Equipment and Supplies", city: "Bethlehem", state: "PA", region: "R2", areaCode: "A4", areaManager: "Michael Belmont" },
+  { lawson: "133510", name: "CPO2", city: "Chambersburg", state: "PA", region: "R2", areaCode: "A4", areaManager: "Michael Belmont" },
+  { lawson: "105310", name: "Rotech", city: "Lewistown", state: "PA", region: "R2", areaCode: "A4", areaManager: "Michael Belmont" },
+  { lawson: "92010", name: "Rotech", city: "Marlton", state: "NJ", region: "R2", areaCode: "A4", areaManager: "Michael Belmont" },
+  { lawson: "47410", name: "CPO2", city: "Mechanicsburg", state: "PA", region: "R2", areaCode: "A4", areaManager: "Michael Belmont" },
+  { lawson: "133310", name: "Rotech", city: "Pottsville", state: "PA", region: "R2", areaCode: "A4", areaManager: "Michael Belmont" },
+  { lawson: "35110", name: "Rotech", city: "Cincinnati", state: "OH", region: "R2", areaCode: "A5", areaManager: "Scott Thompson" },
+  { lawson: "97310", name: "Hook's Oxygen & Medical Equipment", city: "Dayton", state: "OH", region: "R2", areaCode: "A5", areaManager: "Scott Thompson" },
+  { lawson: "36110", name: "Rotech of Crestview Hills", city: "Erlanger", state: "KY", region: "R2", areaCode: "A5", areaManager: "Scott Thompson" },
+  { lawson: "97610", name: "Hook's Oxygen & Medical Equipment", city: "Gahanna", state: "OH", region: "R2", areaCode: "A5", areaManager: "Scott Thompson" },
+  { lawson: "97510", name: "Rotech", city: "Milford", state: "OH", region: "R2", areaCode: "A5", areaManager: "Scott Thompson" },
+  { lawson: "97810", name: "Hook's Oxygen & Medical Equipment", city: "Springfield", state: "OH", region: "R2", areaCode: "A5", areaManager: "Scott Thompson" },
+  { lawson: "156310", name: "Rotech", city: "Toledo", state: "OH", region: "R2", areaCode: "A5", areaManager: "Scott Thompson" },
+  { lawson: "98010", name: "Rotech", city: "Washington Court House", state: "OH", region: "R2", areaCode: "A5", areaManager: "Scott Thompson" },
+  { lawson: "120110", name: "Rotech", city: "Cambridge", state: "OH", region: "R2", areaCode: "A6", areaManager: "Lee Harris" },
+  { lawson: "91710", name: "Rotech", city: "Erie", state: "PA", region: "R2", areaCode: "A6", areaManager: "Lee Harris" },
+  { lawson: "99710", name: "Rotech", city: "Girard", state: "OH", region: "R2", areaCode: "A6", areaManager: "Lee Harris" },
+  { lawson: "116510", name: "HSM Medical", city: "Jamestown", state: "NY", region: "R2", areaCode: "A6", areaManager: "Lee Harris" },
+  { lawson: "135510", name: "Rotech", city: "Monroeville", state: "PA", region: "R2", areaCode: "A6", areaManager: "Lee Harris" },
+  { lawson: "99610", name: "Richards Medical", city: "New Philadelphia", state: "OH", region: "R2", areaCode: "A6", areaManager: "Lee Harris" },
+  { lawson: "47910", name: "Rotech", city: "Oil City", state: "PA", region: "R2", areaCode: "A6", areaManager: "Lee Harris" },
+  { lawson: "97410", name: "Rotech", city: "Valley View", state: "OH", region: "R2", areaCode: "A6", areaManager: "Lee Harris" },
+  { lawson: "120810", name: "Rotech", city: "Washington", state: "PA", region: "R2", areaCode: "A6", areaManager: "Lee Harris" },
+  { lawson: "201610", name: "Rotech", city: "Auburn", state: "ME", region: "R2", areaCode: "A8", areaManager: "Tom Fontaine" },
+  { lawson: "201810", name: "Rotech", city: "Bedford", state: "NH", region: "R2", areaCode: "A8", areaManager: "Tom Fontaine" },
+  { lawson: "136510", name: "Rotech", city: "Cranston", state: "RI", region: "R2", areaCode: "A8", areaManager: "Tom Fontaine" },
+  { lawson: "121910", name: "Rotech", city: "Cromwell", state: "CT", region: "R2", areaCode: "A8", areaManager: "Tom Fontaine" },
+  { lawson: "155310", name: "Rotech", city: "Hampden", state: "ME", region: "R2", areaCode: "A8", areaManager: "Tom Fontaine" },
+  { lawson: "137410", name: "Rotech", city: "Methuen", state: "MA", region: "R2", areaCode: "A8", areaManager: "Tom Fontaine" },
+  { lawson: "155010", name: "Rotech", city: "Presque Isle", state: "ME", region: "R2", areaCode: "A8", areaManager: "Tom Fontaine" },
+  { lawson: "201710", name: "Rotech", city: "Southborough", state: "MA", region: "R2", areaCode: "A8", areaManager: "Tom Fontaine" },
+  { lawson: "23410", name: "Rotech", city: "Clinton", state: "NC", region: "R3", areaCode: "A1", areaManager: "Mindy Mills" },
+  { lawson: "14210", name: "Rotech", city: "Fayetteville", state: "NC", region: "R3", areaCode: "A1", areaManager: "Mindy Mills" },
+  { lawson: "13410", name: "Sun Medical Supply", city: "Henderson", state: "NC", region: "R3", areaCode: "A1", areaManager: "Mindy Mills" },
+  { lawson: "15810", name: "Rotech", city: "High Point", state: "NC", region: "R3", areaCode: "A1", areaManager: "Mindy Mills" },
+  { lawson: "17510", name: "Rotech", city: "Myrtle Beach", state: "SC", region: "R3", areaCode: "A1", areaManager: "Mindy Mills" },
+  { lawson: "14010", name: "Rotech", city: "Raleigh", state: "NC", region: "R3", areaCode: "A1", areaManager: "Mindy Mills" },
+  { lawson: "16710", name: "Ideal Home Medical", city: "Rocky Mount", state: "NC", region: "R3", areaCode: "A1", areaManager: "Mindy Mills" },
+  { lawson: "14110", name: "Home Medical Systems", city: "Whiteville", state: "NC", region: "R3", areaCode: "A1", areaManager: "Mindy Mills" },
+  { lawson: "201110", name: "Rotech", city: "Wilmington", state: "NC", region: "R3", areaCode: "A1", areaManager: "Mindy Mills" },
+  { lawson: "37210", name: "Rotech of Corbin", city: "Corbin", state: "KY", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "7710", name: "Rotech of Central Kentucky", city: "Elizabethtown", state: "KY", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "37310", name: "Rotech of Frankfort", city: "Frankfort", state: "KY", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "37110", name: "Rotech of Hazard", city: "Hazard", state: "KY", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "8110", name: "Rotech", city: "Jeffersonville", state: "IN", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "37710", name: "Rotech of Lexington", city: "Lexington", state: "KY", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "7210", name: "Rotech of Central Kentucky", city: "Louisville", state: "KY", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "37610", name: "Rotech of Pikeville", city: "Pikeville", state: "KY", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "7510", name: "Rotech of Richmond", city: "Richmond", state: "KY", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "117710", name: "Rotech of Somerset", city: "Somerset", state: "KY", region: "R3", areaCode: "A2", areaManager: "Brandy Nalley" },
+  { lawson: "15910", name: "Bluedot National Respiratory", city: "Charlotte", state: "NC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "13510", name: "Rotech", city: "Conover", state: "NC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "14910", name: "American Health Services", city: "Gastonia", state: "NC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "17210", name: "American Health Services", city: "Greenville", state: "SC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "18210", name: "Rotech", city: "Lancaster", state: "SC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "18610", name: "Rotech", city: "Lexington", state: "SC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "14410", name: "American Health Services", city: "Lincolnton", state: "NC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "16110", name: "Monroe Home Medical", city: "Monroe", state: "NC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "14510", name: "American Health Services", city: "Mooresville", state: "NC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "156010", name: "Home Medical Systems", city: "Summerville", state: "SC", region: "R3", areaCode: "A3", areaManager: "Aleksandr Povarich" },
+  { lawson: "15210", name: "Rotech", city: "Asheville", state: "NC", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "22110", name: "Rotech", city: "Chattanooga", state: "TN", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "15510", name: "Kelley's Home Health Services", city: "Franklin", state: "NC", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "107510", name: "Rotech", city: "Johnson City", state: "TN", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "41010", name: "Rotech", city: "Knoxville", state: "TN", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "107110", name: "Rotech", city: "Lafollette", state: "TN", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "23110", name: "Rotech", city: "Morristown", state: "TN", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "41710", name: "Preferred Medical Equipment Company", city: "Murfreesboro", state: "TN", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "15410", name: "Kelley's Home Health Services", city: "Murphy", state: "NC", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "41210", name: "Rotech", city: "Nashville", state: "TN", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "107010", name: "Rotech", city: "Tazewell", state: "TN", region: "R3", areaCode: "A5", areaManager: "OPEN (R3-A5)" },
+  { lawson: "26810", name: "Rotech Oxygen & Medical Equipment", city: "Fort Myers", state: "FL", region: "R5", areaCode: "A1", areaManager: "Mark Paul" },
+  { lawson: "138410", name: "Rotech Oxygen & Medical Equipment", city: "Hudson", state: "FL", region: "R5", areaCode: "A1", areaManager: "Mark Paul" },
+  { lawson: "510", name: "Rotech Oxygen & Medical Equipment", city: "Inverness", state: "FL", region: "R5", areaCode: "A1", areaManager: "Mark Paul" },
+  { lawson: "138510", name: "Rotech Oxygen & Medical Equipment", city: "Lakeland", state: "FL", region: "R5", areaCode: "A1", areaManager: "Mark Paul" },
+  { lawson: "138610", name: "Rotech Oxygen & Medical Equipment", city: "Largo", state: "FL", region: "R5", areaCode: "A1", areaManager: "Mark Paul" },
+  { lawson: "810", name: "Rotech Oxygen & Medical Equipment", city: "Leesburg", state: "FL", region: "R5", areaCode: "A1", areaManager: "Mark Paul" },
+  { lawson: "8410", name: "Rotech Oxygen & Medical Equipment", city: "Ocala", state: "FL", region: "R5", areaCode: "A1", areaManager: "Mark Paul" },
+  { lawson: "26410", name: "Rotech Oxygen & Medical Equipment", city: "Sarasota", state: "FL", region: "R5", areaCode: "A1", areaManager: "Mark Paul" },
+  { lawson: "1310", name: "Rotech Oxygen & Medical Equipment", city: "Tampa", state: "FL", region: "R5", areaCode: "A1", areaManager: "Mark Paul" },
+  { lawson: "137910", name: "Abba Medical Equipment", city: "Cartersville", state: "GA", region: "R5", areaCode: "A2", areaManager: "Shannon Hutson" },
+  { lawson: "202420", name: "Rotech Oxygen & Medical Equipment", city: "Cumming", state: "GA", region: "R5", areaCode: "A2", areaManager: "Shannon Hutson" },
+  { lawson: "24310", name: "Home Medical Systems", city: "Duluth", state: "GA", region: "R5", areaCode: "A2", areaManager: "Shannon Hutson" },
+  { lawson: "23610", name: "Pickens Medical Supply", city: "Jasper", state: "GA", region: "R5", areaCode: "A2", areaManager: "Shannon Hutson" },
+  { lawson: "117410", name: "Corley Home Health Care", city: "Lagrange", state: "GA", region: "R5", areaCode: "A2", areaManager: "Shannon Hutson" },
+  { lawson: "16210", name: "Georgia Medical Resources", city: "Marietta", state: "GA", region: "R5", areaCode: "A2", areaManager: "Shannon Hutson" },
+  { lawson: "25110", name: "Rotech Oxygen & Medical Equipment", city: "Villa Rica", state: "GA", region: "R5", areaCode: "A2", areaManager: "Shannon Hutson" },
+  { lawson: "8710", name: "Rotech Oxygen & Medical Equipment", city: "Davie", state: "FL", region: "R5", areaCode: "A3", areaManager: "Wanda Kavades" },
+  { lawson: "310", name: "Rotech Oxygen & Medical Equipment", city: "Deland", state: "FL", region: "R5", areaCode: "A3", areaManager: "Wanda Kavades" },
+  { lawson: "1910", name: "Rotech Oxygen & Medical Equipment", city: "Melbourne", state: "FL", region: "R5", areaCode: "A3", areaManager: "Wanda Kavades" },
+  { lawson: "710", name: "Rotech Oxygen & Medical Equipment", city: "Orlando", state: "FL", region: "R5", areaCode: "A3", areaManager: "Wanda Kavades" },
+  { lawson: "156110", name: "Rotech Oxygen & Medical Equipment", city: "Riviera Beach", state: "FL", region: "R5", areaCode: "A3", areaManager: "Wanda Kavades" },
+  { lawson: "9610", name: "Rotech Oxygen & Medical Equipment", city: "Stuart", state: "FL", region: "R5", areaCode: "A3", areaManager: "Wanda Kavades" },
+  { lawson: "22010", name: "1ST Choice Home Medical", city: "Adel", state: "GA", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "22510", name: "Southern Home Respiratory", city: "Brunswick", state: "GA", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "21610", name: "Rotech Oxygen & Medical Equipment", city: "Douglas", state: "GA", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "210", name: "Rotech Oxygen & Medical Equipment", city: "Gainesville", state: "FL", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "26010", name: "Rotech Oxygen & Medical Equipment", city: "Garden City", state: "GA", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "1510", name: "Rotech Oxygen & Medical Equipment", city: "Jacksonville", state: "FL", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "910", name: "Patient's Choice Medical Services", city: "Lynn Haven", state: "FL", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "1410", name: "Rotech Oxygen & Medical Equipment", city: "Marianna", state: "FL", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "9410", name: "Rotech Oxygen & Medical Equipment", city: "Pensacola", state: "FL", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "21010", name: "Medical Equipment Professionals", city: "Statesboro", state: "GA", region: "R5", areaCode: "A4", areaManager: "Amber Fulghum" },
+  { lawson: "79910", name: "First Choice Medical", city: "Alexander City", state: "AL", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "80410", name: "Rotech Oxygen & Medical Equipment", city: "Anniston", state: "AL", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "202320", name: "Valentine's Diabetic Supply", city: "Birmingham", state: "AL", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "75010", name: "Baumann's Home Medical and Respiratory", city: "Dothan", state: "AL", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "633510", name: "RN Homecare", city: "Grenada", state: "MS", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "634110", name: "Rotech Oxygen & Medical Equipment", city: "Gulfport", state: "MS", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "633810", name: "Rotech Home Medical Equipment", city: "Hattiesburg", state: "MS", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "33010", name: "Stat Medical Equipment", city: "Meridian", state: "MS", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "633310", name: "Rotech Home Medical Equipment", city: "Richland", state: "MS", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "125810", name: "First Choice Medical", city: "Saraland", state: "AL", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "74910", name: "Community Healthcare", city: "Troy", state: "AL", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "633910", name: "Rotech Home Medical Equipment", city: "Tupelo", state: "MS", region: "R5", areaCode: "A5", areaManager: "Carla Ard" },
+  { lawson: "70710", name: "Medical Technology of Louisiana", city: "Alexandria", state: "LA", region: "R5", areaCode: "A7", areaManager: "Damon Melton" },
+  { lawson: "670210", name: "Rotech Home Medical Equipment", city: "Baton Rouge", state: "LA", region: "R5", areaCode: "A7", areaManager: "Damon Melton" },
+  { lawson: "646110", name: "Samaritan Home Medical Equipment", city: "Bossier City", state: "LA", region: "R5", areaCode: "A7", areaManager: "Damon Melton" },
+  { lawson: "670310", name: "Taylor Home Health Supply", city: "Broussard", state: "LA", region: "R5", areaCode: "A7", areaManager: "Damon Melton" },
+  { lawson: "670410", name: "Taylor Home Health Supply", city: "Harahan", state: "LA", region: "R5", areaCode: "A7", areaManager: "Damon Melton" },
+  { lawson: "670110", name: "Rotech Home Medical Equipment", city: "Lake Charles", state: "LA", region: "R5", areaCode: "A7", areaManager: "Damon Melton" },
+  { lawson: "70810", name: "Medical Technology of Louisiana", city: "Monroe", state: "LA", region: "R5", areaCode: "A7", areaManager: "Damon Melton" },
+  { lawson: "646310", name: "Rotech Oxygen & Medical Equipment", city: "Natchitoches", state: "LA", region: "R5", areaCode: "A7", areaManager: "Damon Melton" },
+  { lawson: "612110", name: "Rotech", city: "Austin", state: "TX", region: "R6", areaCode: "A1", areaManager: "Jeffrey Ford" },
+  { lawson: "617410", name: "Rotech", city: "Corpus Christi", state: "TX", region: "R6", areaCode: "A1", areaManager: "Jeffrey Ford" },
+  { lawson: "640310", name: "Major Medical", city: "Del Rio", state: "TX", region: "R6", areaCode: "A1", areaManager: "Jeffrey Ford" },
+  { lawson: "612610", name: "Rotech", city: "San Antonio", state: "TX", region: "R6", areaCode: "A1", areaManager: "Jeffrey Ford" },
+  { lawson: "610310", name: "Rotech", city: "Uvalde", state: "TX", region: "R6", areaCode: "A1", areaManager: "Jeffrey Ford" },
+  { lawson: "690610", name: "Rotech", city: "Lake Havasu City", state: "AZ", region: "R6", areaCode: "A2", areaManager: "Debbie Stroud" },
+  { lawson: "4710", name: "Rotech", city: "Las Vegas", state: "NV", region: "R6", areaCode: "A2", areaManager: "Debbie Stroud" },
+  { lawson: "120510", name: "CalCare Medical", city: "Pasadena", state: "CA", region: "R6", areaCode: "A2", areaManager: "Debbie Stroud" },
+  { lawson: "119710", name: "Rotech", city: "Santa Rosa", state: "CA", region: "R6", areaCode: "A2", areaManager: "Debbie Stroud" },
+  { lawson: "4610", name: "Vital Care", city: "Sparks", state: "NV", region: "R6", areaCode: "A2", areaManager: "Debbie Stroud" },
+  { lawson: "45510", name: "Rotech", city: "St. George", state: "UT", region: "R6", areaCode: "A2", areaManager: "Debbie Stroud" },
+  { lawson: "668510", name: "Rotech", city: "Alamogordo", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "669610", name: "Rotech", city: "Albuquerque", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "615910", name: "Major Medical", city: "Clovis", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "640410", name: "Major Medical Supply", city: "El Paso", state: "TX", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "650810", name: "A-Med Supply", city: "Farmington", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "616410", name: "Major Medical", city: "Gallup", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "610510", name: "Rotech", city: "Las Cruces", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "669010", name: "Roswell Home Medical", city: "Roswell", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "623510", name: "Rotech", city: "Santa Fe", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "615710", name: "Rotech", city: "Silver City", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "667710", name: "Premier Medical", city: "Taos", state: "NM", region: "R6", areaCode: "A3", areaManager: "Michael Herrera" },
+  { lawson: "613610", name: "Caremor Health Services", city: "Amarillo", state: "TX", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "642710", name: "Marshalls Home Medical Equip.", city: "Atlanta", state: "TX", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "658010", name: "Camden Medical Supply", city: "Camden", state: "AR", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "639310", name: "Rotech", city: "Hillsboro", state: "TX", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "659510", name: "Marshalls Home Medical Equip.", city: "Hope", state: "AR", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "610110", name: "Major Medical", city: "Lubbock", state: "TX", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "659610", name: "Marshalls Home Medical Equipment", city: "Magnolia", state: "AR", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "640110", name: "Rotech", city: "Odessa", state: "TX", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "602810", name: "Rotech", city: "Pampa", state: "TX", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "610210", name: "Rhema Medical", city: "Plainview", state: "TX", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "11510", name: "Rotech", city: "Temple", state: "TX", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "642910", name: "Marshalls Home Medical Equip.", city: "Texarkana", state: "TX", region: "R6", areaCode: "A4", areaManager: "Matthew Bailey" },
+  { lawson: "642210", name: "Taylor Home Health Supply", city: "Beaumont", state: "TX", region: "R6", areaCode: "A5", areaManager: "Stephanie McEuen" },
+  { lawson: "42510", name: "Rotech", city: "Bryan", state: "TX", region: "R6", areaCode: "A5", areaManager: "Stephanie McEuen" },
+  { lawson: "642810", name: "Rotech", city: "Longview", state: "TX", region: "R6", areaCode: "A5", areaManager: "Stephanie McEuen" },
+  { lawson: "642410", name: "Rotech", city: "Spring", state: "TX", region: "R6", areaCode: "A5", areaManager: "Stephanie McEuen" },
+  { lawson: "642110", name: "Rotech", city: "Tyler", state: "TX", region: "R6", areaCode: "A5", areaManager: "Stephanie McEuen" },
+  { lawson: "639910", name: "Rhema Medical", city: "Webster", state: "TX", region: "R6", areaCode: "A5", areaManager: "Stephanie McEuen" },
+  { lawson: "610410", name: "Rotech", city: "Abilene", state: "TX", region: "R6", areaCode: "A9", areaManager: "Wendy Oxner" },
+  { lawson: "644210", name: "Rhema Medical", city: "Dallas", state: "TX", region: "R6", areaCode: "A9", areaManager: "Wendy Oxner" },
+  { lawson: "611610", name: "Rhema Medical", city: "Denton", state: "TX", region: "R6", areaCode: "A9", areaManager: "Wendy Oxner" },
+  { lawson: "644010", name: "Rhema Medical", city: "Fort Worth", state: "TX", region: "R6", areaCode: "A9", areaManager: "Wendy Oxner" },
+  { lawson: "639410", name: "Texstar Medical Equip.", city: "Granbury", state: "TX", region: "R6", areaCode: "A9", areaManager: "Wendy Oxner" },
+  { lawson: "611710", name: "Rhema Medical", city: "Greenville", state: "TX", region: "R6", areaCode: "A9", areaManager: "Wendy Oxner" },
+  { lawson: "604510", name: "Rhema Medical", city: "Irving", state: "TX", region: "R6", areaCode: "A9", areaManager: "Wendy Oxner" },
+  { lawson: "44610", name: "Rhema Medical", city: "Venus", state: "TX", region: "R6", areaCode: "A9", areaManager: "Wendy Oxner" },
+  { lawson: "639110", name: "Ellis County Home Medical", city: "Waxahachie", state: "TX", region: "R6", areaCode: "A9", areaManager: "Wendy Oxner" },
+  { lawson: "659710", name: "Patient Rental Needs", city: "Fort Smith", state: "AR", region: "R7", areaCode: "A1", areaManager: "John 'David' Webb" },
+  { lawson: "663510", name: "American Medi-Serv", city: "Lawton", state: "OK", region: "R7", areaCode: "A1", areaManager: "John 'David' Webb" },
+  { lawson: "661010", name: "American Medical Services", city: "McAlester", state: "OK", region: "R7", areaCode: "A1", areaManager: "John 'David' Webb" },
+  { lawson: "666010", name: "Rotech", city: "Oklahoma City", state: "OK", region: "R7", areaCode: "A1", areaManager: "John 'David' Webb" },
+  { lawson: "661510", name: "Oxygen of Oklahoma", city: "Shawnee", state: "OK", region: "R7", areaCode: "A1", areaManager: "John 'David' Webb" },
+  { lawson: "660010", name: "Rotech", city: "Springdale", state: "AR", region: "R7", areaCode: "A1", areaManager: "John 'David' Webb" },
+  { lawson: "661410", name: "American Medical Rentals & Sales", city: "Tulsa", state: "OK", region: "R7", areaCode: "A1", areaManager: "John 'David' Webb" },
+  { lawson: "611910", name: "A-Plus Medical Equipment", city: "Wichita Falls", state: "TX", region: "R7", areaCode: "A1", areaManager: "John 'David' Webb" },
+  { lawson: "73820", name: "First Care", city: "(WHS) Wichita", state: "KS", region: "R7", areaCode: "A2", areaManager: "Bryan Wink" },
+  { lawson: "73310", name: "Home Care Medical Equipment", city: "Kansas City", state: "MO", region: "R7", areaCode: "A2", areaManager: "Bryan Wink" },
+  { lawson: "4010", name: "Home Care Medical Equipment", city: "Lees Summit", state: "MO", region: "R7", areaCode: "A2", areaManager: "Bryan Wink" },
+  { lawson: "73010", name: "Rotech", city: "Lenexa", state: "KS", region: "R7", areaCode: "A2", areaManager: "Bryan Wink" },
+  { lawson: "118810", name: "PSI Health Care", city: "Omaha", state: "NE", region: "R7", areaCode: "A2", areaManager: "Bryan Wink" },
+  { lawson: "73710", name: "First Care", city: "Pratt", state: "KS", region: "R7", areaCode: "A2", areaManager: "Bryan Wink" },
+  { lawson: "3210", name: "Rotech", city: "Springfield", state: "MO", region: "R7", areaCode: "A2", areaManager: "Bryan Wink" },
+  { lawson: "73810", name: "First Care", city: "Wichita", state: "KS", region: "R7", areaCode: "A2", areaManager: "Bryan Wink" },
+  { lawson: "156910", name: "Health-Way Medical Supply", city: "(WHS) Jonesboro", state: "AR", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "156810", name: "Rotech", city: "(WHS) Memphis", state: "TN", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "660310", name: "Heartland Home Health Care", city: "Blytheville", state: "AR", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "603610", name: "Heartland Home Health Care", city: "Cape Girardeau", state: "MO", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "658410", name: "Rotech", city: "Conway", state: "AR", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "603410", name: "Heartland Home Health Care", city: "Kennett", state: "MO", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "58210", name: "Rotech", city: "Little Rock", state: "AR", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "641910", name: "Preferred Medical Equipment Company", city: "Memphis", state: "TN", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "659010", name: "Baxter Medical Equipment", city: "Mountain Home", state: "AR", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "29210", name: "Rotech of Mount Vernon", city: "Mt Vernon", state: "IL", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "36310", name: "Rotech of Western Kentucky", city: "Paducah", state: "KY", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "657910", name: "Health-Way Medical Supply", city: "Pocahontas", state: "AR", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "600410", name: "Health-Way Medical Supply", city: "Searcy", state: "AR", region: "R7", areaCode: "A3", areaManager: "Rebecca Green" },
+  { lawson: "3910", name: "Rotech", city: "(WHS) Kirksville", state: "MO", region: "R7", areaCode: "A4", areaManager: "Michele Smith" },
+  { lawson: "98710", name: "Hook's Oxygen & Medical Equipment", city: "(WHS) Peoria", state: "IL", region: "R7", areaCode: "A4", areaManager: "Michele Smith" },
+  { lawson: "99310", name: "Rotech", city: "Jacksonville", state: "IL", region: "R7", areaCode: "A4", areaManager: "Michele Smith" },
+  { lawson: "29310", name: "Care Medical Supplies", city: "O'Fallon", state: "IL", region: "R7", areaCode: "A4", areaManager: "Michele Smith" },
+  { lawson: "98810", name: "Home Care Medical Equipment", city: "Quincy", state: "IL", region: "R7", areaCode: "A4", areaManager: "Michele Smith" },
+  { lawson: "603710", name: "Rotech", city: "Sikeston", state: "MO", region: "R7", areaCode: "A4", areaManager: "Michele Smith" },
+  { lawson: "98610", name: "Rotech", city: "Springfield", state: "IL", region: "R7", areaCode: "A4", areaManager: "Michele Smith" },
+  { lawson: "125210", name: "Rotech", city: "St Louis", state: "MO", region: "R7", areaCode: "A4", areaManager: "Michele Smith" },
+  { lawson: "29510", name: "Rotech of Urbana", city: "Urbana", state: "IL", region: "R7", areaCode: "A4", areaManager: "Michele Smith" },
+  { lawson: "99910", name: "Rotech", city: "(WHS) Grand Rapids", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "102410", name: "ABC Medical Supply", city: "Cheboygan", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "105110", name: "Great Lakes Home Medical", city: "Iron River", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "4810", name: "Medwest Medical Supply", city: "Livonia", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "103710", name: "Great Lakes Home Medical", city: "Menominee", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "104910", name: "Rotech", city: "Midland", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "103910", name: "Great Lakes Home Medical", city: "Negaunee", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "7010", name: "Professional Breathing Associates", city: "Rochester Hills", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "114810", name: "Great Lakes Home Medical", city: "Traverse City", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "101910", name: "ABC Medical Supply", city: "West Branch", state: "MI", region: "R7", areaCode: "A5", areaManager: "OPEN (R7-A5)" },
+  { lawson: "96110", name: "Hook's Oxygen & Medical Equipment", city: "(WHS) Mishawaka", state: "IN", region: "R7", areaCode: "A6", areaManager: "M 'Alex' Van Zant" },
+  { lawson: "97110", name: "Rotech", city: "Columbus", state: "IN", region: "R7", areaCode: "A6", areaManager: "M 'Alex' Van Zant" },
+  { lawson: "95810", name: "Rotech", city: "Fort Wayne", state: "IN", region: "R7", areaCode: "A6", areaManager: "M 'Alex' Van Zant" },
+  { lawson: "95410", name: "Hook's Oxygen & Medical Equipment", city: "Indianapolis", state: "IN", region: "R7", areaCode: "A6", areaManager: "M 'Alex' Van Zant" },
+  { lawson: "96210", name: "Hook's Oxygen & Medical Equipment", city: "Indianapolis", state: "IN", region: "R7", areaCode: "A6", areaManager: "M 'Alex' Van Zant" },
+  { lawson: "96510", name: "Rotech", city: "Kokomo", state: "IN", region: "R7", areaCode: "A6", areaManager: "M 'Alex' Van Zant" },
+  { lawson: "96810", name: "Hook's Oxygen & Medical Equipment", city: "Lafayette", state: "IN", region: "R7", areaCode: "A6", areaManager: "M 'Alex' Van Zant" },
+  { lawson: "96310", name: "Hook's Oxygen & Medical Equipment", city: "Merrillville", state: "IN", region: "R7", areaCode: "A6", areaManager: "M 'Alex' Van Zant" },
+  { lawson: "96910", name: "Hook's Oxygen & Medical Equipment", city: "Yorktown", state: "IN", region: "R7", areaCode: "A6", areaManager: "M 'Alex' Van Zant" },
+  { lawson: "63910", name: "Rotech", city: "(WHS) Fort Dodge", state: "IA", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "144110", name: "Rotech", city: "Apple Valley", state: "MN", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "29910", name: "Rotech of Aurora", city: "Aurora", state: "IL", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "122210", name: "Specialty Home Med", city: "Baxter", state: "MN", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "63710", name: "Rotech", city: "Charles City", state: "IA", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "64810", name: "Rotech", city: "Dubuque", state: "IA", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "119210", name: "Rotech", city: "Duluth", state: "MN", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "110810", name: "Rotech of Elmhurst", city: "Elmhurst", state: "IL", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "64210", name: "Rotech", city: "Hiawatha", state: "IA", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "64110", name: "Rotech", city: "Marshalltown", state: "IA", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "104510", name: "Medwest", city: "Marshfield", state: "WI", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "63210", name: "Rotech", city: "Moline", state: "IL", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "64410", name: "Rotech", city: "Oelwein", state: "IA", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "144810", name: "Arrowhealth Medical Supply", city: "Rochester", state: "MN", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "113410", name: "Rotech", city: "Storm Lake", state: "IA", region: "R7", areaCode: "A7", areaManager: "Jeffrey 'Jeff' Trotman" },
+  { lawson: "99410", name: "Rotech of Champaign", city: "(WHS) Champaign", state: "IL", region: "R7", areaCode: "A8", areaManager: "Cornell Covington" },
+  { lawson: "105710", name: "Rotech", city: "(WHS) Tomah", state: "WI", region: "R7", areaCode: "A8", areaManager: "Cornell Covington" },
+  { lawson: "110710", name: "Rotech of Elmhurst", city: "Elmhurst (VA only)", state: "IL", region: "R7", areaCode: "A8", areaManager: "Cornell Covington" },
+  { lawson: "105610", name: "Rotech", city: "Watertown (VA only)", state: "WI", region: "R7", areaCode: "A8", areaManager: "Cornell Covington" },
+  { lawson: "121510", name: "Rotech", city: "Beaverton", state: "OR", region: "R8", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "120310", name: "Rotech", city: "Eugene", state: "OR", region: "R8", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "72010", name: "Rotech", city: "Idaho Falls", state: "ID", region: "R8", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "120210", name: "Rotech", city: "Medford", state: "OR", region: "R8", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "74410", name: "Rotech", city: "Renton", state: "WA", region: "R8", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "619810", name: "Rotech", city: "Silverdale", state: "WA", region: "R8", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "72310", name: "Homecare Medical", city: "Soda Springs", state: "ID", region: "R8", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "619210", name: "Rotech", city: "Spokane", state: "WA", region: "R8", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "619110", name: "NCW Respiratory Care", city: "Wenatchee", state: "WA", region: "R8", areaCode: "A2", areaManager: "Cassidy Williams" },
+  { lawson: "628410", name: "Rotech", city: "(WHS) Hardin", state: "MT", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632210", name: "Rotech", city: "(WHS) Laramie", state: "WY", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627010", name: "Rotech", city: "Billings", state: "MT", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627130", name: "Rotech", city: "Bozeman", state: "MT", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627210", name: "Rotech", city: "Butte", state: "MT", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "631310", name: "Rotech", city: "Casper", state: "WY", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632810", name: "Rotech", city: "Cheyenne", state: "WY", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "631810", name: "Rotech", city: "Cody", state: "WY", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627510", name: "Rotech", city: "Great Falls", state: "MT", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "627910", name: "Rotech", city: "Helena", state: "MT", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "628110", name: "Rotech", city: "Miles City", state: "MT", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632510", name: "Rotech", city: "Rock Springs", state: "WY", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632110", name: "Rotech", city: "Sheridan", state: "WY", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "632010", name: "Rotech", city: "Wheatland", state: "WY", region: "R8", areaCode: "A3", areaManager: "Lisa Durgain" },
+  { lawson: "631010", name: "Rotech", city: "Flagstaff", state: "AZ", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "10010", name: "Rotech", city: "Layton", state: "UT", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "690410", name: "Rotech", city: "Mesa", state: "AZ", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "122310", name: "Rotech", city: "Orem", state: "UT", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "630410", name: "Rotech", city: "Payson", state: "AZ", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "630610", name: "The Oxygen Store", city: "Peoria", state: "AZ", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "690110", name: "Rotech", city: "Prescott", state: "AZ", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "631110", name: "Sentry Home Health", city: "Show Low", state: "AZ", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "630110", name: "Rotech", city: "Tucson", state: "AZ", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "137510", name: "Rotech", city: "West Valley City", state: "UT", region: "R8", areaCode: "A4", areaManager: "Brian Duffell" },
+  { lawson: "76910", name: "Summit Respiratory", city: "Colorado Springs (N)", state: "CO", region: "R8", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "651310", name: "Summit Respiratory", city: "Colorado Springs (S)", state: "CO", region: "R8", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "651010", name: "Summit Respiratory", city: "Denver", state: "CO", region: "R8", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "91510", name: "Aloha Respiratory", city: "Honolulu", state: "HI", region: "R8", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "76810", name: "Summit Respiratory", city: "Lakewood", state: "CO", region: "R8", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "651110", name: "Roth Medical", city: "Westminster", state: "CO", region: "R8", areaCode: "A6", areaManager: "Kristi Kellogg" },
+  { lawson: "652010", name: "Roth Medical", city: "(WHS) Lamar", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "650910", name: "Rotech", city: "Alamosa", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "651710", name: "A-Med Supply", city: "Cortez", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "608510", name: "G & G Medical", city: "Craig", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "662810", name: "Oxygen Plus", city: "Delta", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "650610", name: "A-Med Supply", city: "Durango", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "651210", name: "Roth Medical", city: "Ft. Collins", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "662910", name: "Don Paul Resp. Services", city: "Ft. Morgan", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "608310", name: "G & G Medical", city: "Grand Junction", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "651410", name: "Roth Medical", city: "Pueblo", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "662310", name: "Medco Professionals", city: "Trinidad", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "9310", name: "Valley Home Medical", city: "Vernal", state: "UT", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
+  { lawson: "662210", name: "Don Paul Resp. Services", city: "Windsor", state: "CO", region: "R8", areaCode: "A7", areaManager: "Joetta Bryant" },
 ];
 
-const R8_AREA_MANAGERS = [...new Set(R8_LOCATIONS.map(l => l.areaManager))];
+const ALL_REGIONS = [...new Set(ALL_LOCATIONS.map(l => l.region))].sort();
+const ALL_AREA_MANAGERS = [...new Set(ALL_LOCATIONS.map(l => l.areaManager))].sort();
 
-function findR8Location(lawson) {
-  return R8_LOCATIONS.find(l => l.lawson === lawson);
+function findLocation(lawson) {
+  return ALL_LOCATIONS.find(l => l.lawson === lawson);
 }
 
 
@@ -150,7 +420,7 @@ function writeTrendData(visitId, meta, sections, states, comments, op541Sections
     // Remove any prior records for this visitId so re-saves don't duplicate
     const existing = loadTrendData().filter(r => r.visitId !== visitId);
     const records = [];
-    const locInfo = findR8Location(meta.lawson || "");
+    const locInfo = findLocation(meta.lawson || "");
     const base = {
       visitId,
       lawson: meta.lawson || "",
@@ -158,6 +428,7 @@ function writeTrendData(visitId, meta, sections, states, comments, op541Sections
       city: meta.city || locInfo?.city || "",
       date: meta.date || "",
       specialist: meta.specialist || "",
+      region: locInfo?.region || "",
       areaCode: locInfo?.areaCode || "",
       areaManager: locInfo?.areaManager || "Unassigned",
     };
@@ -490,6 +761,7 @@ function TrendTracker() {
   const [filterSection, setFilterSection] = useState("");
   const [filterSpec, setFilterSpec] = useState("");
   const [filterAM, setFilterAM] = useState("");
+  const [filterRegion, setFilterRegion] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -500,6 +772,7 @@ function TrendTracker() {
     if (filterSection && r.section !== filterSection) return false;
     if (filterSpec    && r.specialist !== filterSpec) return false;
     if (filterAM      && (r.areaManager || "Unassigned") !== filterAM) return false;
+    if (filterRegion  && r.region !== filterRegion) return false;
     if (dateFrom && r.date < dateFrom) return false;
     if (dateTo   && r.date > dateTo)   return false;
     return true;
@@ -579,10 +852,11 @@ function TrendTracker() {
   const allSections   = [...new Set(data.map(r => r.section).filter(s => s !== "_summary"))].sort();
   const allSpecialists = [...new Set(data.map(r => r.specialist).filter(Boolean))].sort();
   const allAMs = [...new Set(data.map(r => r.areaManager || "Unassigned"))].sort();
+  const allRegions = [...new Set(data.map(r => r.region).filter(Boolean))].sort();
 
   function exportXLSX() {
-    const rows = [["Visit ID","Lawson #","Location","City","Date","Specialist","Area Manager","Section","Form Ref","Item","Comment"]];
-    filtered.forEach(r => rows.push([r.visitId, r.lawson || "", r.location, r.city, r.date, r.specialist, r.areaManager || "Unassigned", r.section, r.formRef, r.itemText, r.comment]));
+    const rows = [["Visit ID","Lawson #","Location","City","Region","Area Manager","Date","Specialist","Section","Form Ref","Item","Comment"]];
+    filtered.forEach(r => rows.push([r.visitId, r.lawson || "", r.location, r.city, r.region || "", r.areaManager || "Unassigned", r.date, r.specialist, r.section, r.formRef, r.itemText, r.comment]));
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Issue Trends");
@@ -661,6 +935,13 @@ function TrendTracker() {
             </select>
           </div>
           <div>
+            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Region</div>
+            <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} style={inputStyle}>
+              <option value="">All regions</option>
+              {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
             <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Area Manager</div>
             <select value={filterAM} onChange={e => setFilterAM(e.target.value)} style={inputStyle}>
               <option value="">All area managers</option>
@@ -676,7 +957,7 @@ function TrendTracker() {
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={inputStyle} />
           </div>
           <div style={{ display: "flex", alignItems: "flex-end" }}>
-            <button onClick={() => { setFilterLoc(""); setFilterSection(""); setFilterSpec(""); setFilterAM(""); setDateFrom(""); setDateTo(""); }}
+            <button onClick={() => { setFilterLoc(""); setFilterSection(""); setFilterSpec(""); setFilterAM(""); setFilterRegion(""); setDateFrom(""); setDateTo(""); }}
               style={{ width: "100%", padding: "5px 8px", fontSize: 12, background: "#fff", border: "1px solid #e0e0e0", borderRadius: 5, cursor: "pointer", color: "#616161" }}>
               Clear Filters
             </button>
@@ -815,25 +1096,27 @@ function TrendTracker() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#f8f9fa" }}>
-                {["Date","Location","Area Manager","Section","Item","Comment","Specialist"].map(h => (
+                {["Date","Location","Region","Area Manager","Section","Item","Comment","Specialist"].map(h => (
                   <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#424242", borderBottom: "1px solid #e0e0e0", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={7} style={{ padding: "20px", textAlign: "center", color: "#9e9e9e" }}>No issues match the current filters.</td></tr>
+                <tr><td colSpan={8} style={{ padding: "20px", textAlign: "center", color: "#9e9e9e" }}>No issues match the current filters.</td></tr>
               )}
               {filtered.map((r, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid #f5f5f5", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
                   <td style={{ padding: "7px 12px", whiteSpace: "nowrap", color: "#616161" }}>{r.date}</td>
                   <td style={{ padding: "7px 12px", fontWeight: 600, color: BRAND }}>{r.location}</td>
+                  <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.region || "—"}</td>
                   <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.areaManager || "Unassigned"}</td>
                   <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.section}</td>
                   <td style={{ padding: "7px 12px", color: "#212121", lineHeight: 1.4 }}>{r.itemText}</td>
                   <td style={{ padding: "7px 12px", color: "#757575", fontStyle: r.comment ? "normal" : "italic" }}>{r.comment || "—"}</td>
                   <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.specialist}</td>
                 </tr>
+
               ))}
             </tbody>
           </table>
@@ -1612,15 +1895,19 @@ Write a professional but direct email. If there are issues, list them clearly wi
             <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>Lawson #</div>
             <select value={meta.lawson} onChange={e => {
                 const lw = e.target.value;
-                const info = findR8Location(lw);
+                const info = findLocation(lw);
                 setMeta(p => ({ ...p, lawson: lw, location: info ? info.name : p.location, city: info ? `${info.city}, ${info.state}` : p.city }));
               }}
               style={{ width: "100%", padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box" }}>
               <option value="" style={{ color: "#000" }}>— Select Lawson # —</option>
-              {R8_LOCATIONS.map(l => (
-                <option key={l.lawson} value={l.lawson} style={{ color: "#000" }}>
-                  {l.lawson} — {l.name}, {l.city} {l.state} ({l.areaCode})
-                </option>
+              {ALL_REGIONS.map(region => (
+                <optgroup key={region} label={region} style={{ color: "#000" }}>
+                  {ALL_LOCATIONS.filter(l => l.region === region).map(l => (
+                    <option key={l.lawson} value={l.lawson} style={{ color: "#000" }}>
+                      {l.lawson} — {l.name}, {l.city} {l.state} ({l.areaCode})
+                    </option>
+                  ))}
+                </optgroup>
               ))}
               <option value="other" style={{ color: "#000" }}>Other / Not Listed</option>
             </select>

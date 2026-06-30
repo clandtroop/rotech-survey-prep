@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
+import { db } from "./firebase";
+import { doc, getDoc, setDoc, updateDoc, onSnapshot } from "firebase/firestore";
 
 const BRAND = "#1a3a5c";
 const ACCENT = "#2e6da4";
@@ -9,14 +11,12 @@ const DRAFT_KEY       = "rotech_survey_draft";
 const VISITS_KEY      = "rotech_saved_visits";
 const TREND_KEY       = "rotech_trend_data";
 const PDF_HISTORY_KEY = "rotech_pdf_history";
-const TALLY_EDIT_LINKS_KEY = "rotech_tally_edit_links";
 
-// Tally.so form ID for the Follow-Up Checklist — replace with the real form ID
-// from tally.so/r/<FORM_ID> after completing the manual setup steps in the project README.
-const TALLY_FORM_ID = "5BQ5XM";
+// Firestore collection holding per-visit follow-up checklists (see firestore.rules).
+const CHECKLISTS_COLLECTION = "followUpChecklists";
 
-// Maps each SECTIONS id to one of the four Tally checklist categories.
-const SECTION_TO_TALLY_CATEGORY = {
+// Maps each SECTIONS id to one of the four follow-up checklist categories.
+const SECTION_TO_CHECKLIST_CATEGORY = {
   morning: "Binders",
   inservice: "Binders",
   site: "Binders",
@@ -429,32 +429,23 @@ function deleteVisitFromStorage(id) {
   } catch {}
 }
 
-function loadTallyEditLinks() {
-  try { const r = localStorage.getItem(TALLY_EDIT_LINKS_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
-}
-function saveTallyEditLink(visitId, link) {
-  try {
-    const links = loadTallyEditLinks();
-    if (link) links[visitId] = link; else delete links[visitId];
-    localStorage.setItem(TALLY_EDIT_LINKS_KEY, JSON.stringify(links));
-  } catch {}
-}
-
-// Groups a saved visit's failed items into the four Tally checklist categories
-// (Warehouse / Vehicles / Documentation / Binders), mirroring how getAllIssues()
-// and writeTrendData() already walk SECTIONS / op541Sections / op541tSections.
-function getTallyChecklistCategories(visit) {
-  const categories = { Warehouse: [], Vehicles: [], Documentation: [], Binders: [] };
+// Builds the flat list of checkable follow-up items from a saved visit's failed
+// findings, grouped into the four checklist categories (Warehouse / Vehicles /
+// Documentation / Binders), mirroring how getAllIssues() and writeTrendData()
+// already walk SECTIONS / op541Sections / op541tSections.
+function buildChecklistItems(visit) {
+  const items = [];
+  let n = 0;
   const { states = {}, comments = {}, op541Sections = [], op541States = {}, op541Comments = {},
           op541tSections = [], op541tStates = {}, op541tComments = {} } = visit;
 
   SECTIONS.forEach((sec, si) => {
-    const category = SECTION_TO_TALLY_CATEGORY[sec.id];
+    const category = SECTION_TO_CHECKLIST_CATEGORY[sec.id];
     if (!category) return;
     sec.items.forEach((item, ii) => {
       const key = `${si}-${ii}`;
       if (states[key] === "no") {
-        categories[category].push(`☐ ${item.text}${comments[key] ? ` — ${comments[key]}` : ""}`);
+        items.push({ id: `i${n++}`, category, text: item.text, comment: comments[key] || "", done: false });
       }
     });
   });
@@ -462,7 +453,7 @@ function getTallyChecklistCategories(visit) {
   op541Sections.forEach(sec => {
     sec.items.forEach(item => {
       if (op541States[item.key] === "no") {
-        categories.Documentation.push(`☐ [OP 541 — ${sec.sheetLabel}] ${item.text}${op541Comments[item.key] ? ` — ${op541Comments[item.key]}` : ""}`);
+        items.push({ id: `i${n++}`, category: "Documentation", text: `[OP 541 — ${sec.sheetLabel}] ${item.text}`, comment: op541Comments[item.key] || "", done: false });
       }
     });
   });
@@ -470,29 +461,35 @@ function getTallyChecklistCategories(visit) {
   op541tSections.forEach(sec => {
     sec.items.forEach(item => {
       if (op541tStates[item.key] === "no") {
-        categories.Documentation.push(`☐ [OP 541T — ${sec.sheetLabel}] ${item.text}${op541tComments[item.key] ? ` — ${op541tComments[item.key]}` : ""}`);
+        items.push({ id: `i${n++}`, category: "Documentation", text: `[OP 541T — ${sec.sheetLabel}] ${item.text}`, comment: op541tComments[item.key] || "", done: false });
       }
     });
   });
 
-  return categories;
+  return items;
 }
 
-function buildTallyChecklistUrl(visit, visitId) {
-  const categories = getTallyChecklistCategories(visit);
-  const fmt = list => list.length ? list.join("\n") : "No outstanding items.";
-  const params = new URLSearchParams({
-    location: visit.meta?.location || "",
-    lawson: visit.meta?.lawson || "",
-    visit_date: visit.meta?.date || "",
-    specialist: visit.meta?.specialist || "",
-    visit_id: visitId || "",
-    warehouse_findings: fmt(categories.Warehouse),
-    vehicles_findings: fmt(categories.Vehicles),
-    documentation_findings: fmt(categories.Documentation),
-    binders_findings: fmt(categories.Binders),
-  });
-  return `https://tally.so/r/${TALLY_FORM_ID}?${params.toString()}`;
+// Creates the Firestore checklist doc for a visit if it doesn't already exist,
+// then returns the shareable checklist URL (?checklist=<visitId>).
+async function ensureChecklistDoc(visit, visitId) {
+  const ref = doc(db, CHECKLISTS_COLLECTION, visitId);
+  const existing = await getDoc(ref);
+  if (!existing.exists()) {
+    await setDoc(ref, {
+      meta: {
+        location: visit.meta?.location || "",
+        lawson: visit.meta?.lawson || "",
+        date: visit.meta?.date || "",
+        specialist: visit.meta?.specialist || "",
+      },
+      categories: buildChecklistItems(visit),
+      notes: "",
+      createdAt: Date.now(),
+    });
+  }
+  const url = new URL(window.location.href);
+  url.search = `?checklist=${encodeURIComponent(visitId)}`;
+  return url.toString();
 }
 
 function loadTrendData() {
@@ -797,6 +794,100 @@ function ChecklistQrCode({ value }) {
   }, [value]);
   if (!value) return null;
   return <canvas ref={canvasRef} style={{ display: "block", marginTop: 12, border: "1px solid #e0e0e0", borderRadius: 6 }} />;
+}
+
+// Standalone follow-up checklist page, opened via ?checklist=<visitId>. Used by
+// both the location manager (checking items off) and the accreditation
+// specialist (watching live progress) — no auth, the visit ID is the secret.
+const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Vehicles", "Documentation", "Binders"];
+
+function ChecklistView({ visitId }) {
+  const [doc_, setDoc_] = useState(undefined); // undefined = loading, null = not found
+  const [notes, setNotes] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
+  const notesTimer = useRef(null);
+
+  useEffect(() => {
+    const ref = doc(db, CHECKLISTS_COLLECTION, visitId);
+    const unsub = onSnapshot(ref, snap => {
+      if (!snap.exists()) { setDoc_(null); return; }
+      const data = snap.data();
+      setDoc_(data);
+      setNotes(prev => (notesTimer.current ? prev : data.notes || ""));
+    }, () => setDoc_(null));
+    return () => unsub();
+  }, [visitId]);
+
+  function toggleItem(itemId) {
+    if (!doc_) return;
+    const categories = doc_.categories.map(it => it.id === itemId ? { ...it, done: !it.done } : it);
+    updateDoc(doc(db, CHECKLISTS_COLLECTION, visitId), { categories, updatedAt: Date.now() }).catch(() => {});
+  }
+
+  function onNotesChange(value) {
+    setNotes(value);
+    if (notesTimer.current) clearTimeout(notesTimer.current);
+    notesTimer.current = setTimeout(() => {
+      setSavingNotes(true);
+      updateDoc(doc(db, CHECKLISTS_COLLECTION, visitId), { notes: value, updatedAt: Date.now() })
+        .finally(() => { setSavingNotes(false); notesTimer.current = null; });
+    }, 600);
+  }
+
+  if (doc_ === undefined) {
+    return <div style={{ padding: 40, textAlign: "center", color: "#9e9e9e", fontFamily: "system-ui, sans-serif" }}>Loading checklist…</div>;
+  }
+  if (doc_ === null) {
+    return <div style={{ padding: 40, textAlign: "center", color: "#c62828", fontFamily: "system-ui, sans-serif" }}>Checklist not found. Double-check the link.</div>;
+  }
+
+  const total = doc_.categories.length;
+  const done = doc_.categories.filter(it => it.done).length;
+
+  return (
+    <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px", fontFamily: "system-ui, sans-serif" }}>
+      <div style={{ fontWeight: 700, fontSize: 18, color: BRAND }}>Follow-Up Checklist</div>
+      <div style={{ fontSize: 13, color: "#616161", marginTop: 4 }}>
+        {doc_.meta?.location} {doc_.meta?.lawson ? `(#${doc_.meta.lawson})` : ""} — visited {doc_.meta?.date}
+      </div>
+      <div style={{ fontSize: 13, color: "#616161", marginTop: 2 }}>Specialist: {doc_.meta?.specialist}</div>
+
+      <div style={{ background: "#f5f8fb", border: "1px solid #c5cfe0", borderRadius: 8, padding: "10px 14px", margin: "16px 0", fontSize: 13, fontWeight: 600, color: BRAND }}>
+        {total === 0 ? "No outstanding items — nice work!" : `${done} of ${total} items complete`}
+      </div>
+
+      {total === 0 ? null : CHECKLIST_CATEGORY_ORDER.map(cat => {
+        const catItems = doc_.categories.filter(it => it.category === cat);
+        if (catItems.length === 0) return null;
+        return (
+          <div key={cat} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{cat}</div>
+            {catItems.map(item => (
+              <label key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
+                <input type="checkbox" checked={!!item.done} onChange={() => toggleItem(item.id)} style={{ marginTop: 3, width: 16, height: 16 }} />
+                <span style={{ fontSize: 14, color: item.done ? "#9e9e9e" : "#212121", textDecoration: item.done ? "line-through" : "none" }}>
+                  {item.text}{item.comment ? <span style={{ color: "#757575" }}> — {item.comment}</span> : null}
+                </span>
+              </label>
+            ))}
+          </div>
+        );
+      })}
+
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+          Notes {savingNotes ? <span style={{ fontWeight: 400, color: "#9e9e9e", textTransform: "none" }}>(saving…)</span> : null}
+        </div>
+        <textarea
+          value={notes}
+          onChange={e => onNotesChange(e.target.value)}
+          rows={4}
+          placeholder="Add any notes for the accreditation specialist…"
+          style={{ width: "100%", fontSize: 13, padding: 10, border: "1px solid #e0e0e0", borderRadius: 6, resize: "vertical", boxSizing: "border-box", color: "#212121" }}
+        />
+      </div>
+    </div>
+  );
 }
 
 function PolicyDateSearch() {
@@ -1221,6 +1312,11 @@ function TrendTracker() {
 }
 
 export default function App() {
+  const checklistVisitId = new URLSearchParams(window.location.search).get("checklist");
+  if (checklistVisitId) {
+    return <ChecklistView visitId={checklistVisitId} />;
+  }
+
   const draft = loadDraft();
 
   const [meta, setMeta] = useState(draft?.meta ?? { lawson: "", location: "", city: "", specialist: "", date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
@@ -1242,7 +1338,7 @@ export default function App() {
   const [showPdfReminder, setShowPdfReminder] = useState(false);
   const [checklistLink, setChecklistLink] = useState("");
   const [checklistLinkCopied, setChecklistLinkCopied] = useState(false);
-  const [tallyEditLinks, setTallyEditLinks] = useState(loadTallyEditLinks);
+  const [checklistLinkLoading, setChecklistLinkLoading] = useState(false);
   const [currentVisitId, setCurrentVisitId] = useState(null);
 
   // Fail-safe: the browser print dialog never tells JS whether the user actually
@@ -1613,7 +1709,11 @@ export default function App() {
   function generateChecklistLink() {
     if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return; }
     const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments };
-    setChecklistLink(buildTallyChecklistUrl(visit, currentVisitId));
+    setChecklistLinkLoading(true);
+    ensureChecklistDoc(visit, currentVisitId)
+      .then(url => setChecklistLink(url))
+      .catch(() => alert("Couldn't create the checklist. Check your internet connection and try again."))
+      .finally(() => setChecklistLinkLoading(false));
   }
 
   function loadVisit(visit) {
@@ -2069,18 +2169,6 @@ Write a professional but direct email. If there are issues, list them clearly wi
                       <button onClick={() => loadVisit(v)} style={{ padding: "6px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>Load</button>
                       <button onClick={() => { if (window.confirm("Delete this saved visit?")) deleteVisit(v.id); }} style={{ padding: "6px 10px", fontSize: 12, background: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", borderRadius: 5, cursor: "pointer" }}>✕</button>
                     </div>
-                  </div>
-                  <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
-                    <span style={{ fontSize: 11, color: "#9e9e9e", whiteSpace: "nowrap" }}>Tally edit link:</span>
-                    <input
-                      defaultValue={tallyEditLinks[v.id] || ""}
-                      placeholder="Paste edit link from Tally's Submissions dashboard"
-                      onBlur={e => { saveTallyEditLink(v.id, e.target.value.trim()); setTallyEditLinks(loadTallyEditLinks()); }}
-                      style={{ flex: 1, fontSize: 11, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#424242" }}
-                    />
-                    {tallyEditLinks[v.id] && (
-                      <a href={tallyEditLinks[v.id]} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: ACCENT, whiteSpace: "nowrap" }}>Open ↗</a>
-                    )}
                   </div>
                 </div>
               ))}
@@ -2606,15 +2694,15 @@ Write a professional but direct email. If there are issues, list them clearly wi
               <button onClick={exportPDF} style={{ padding: "7px 14px", fontSize: 13, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
                 ⬇ Download PDF
               </button>
-              <button onClick={generateChecklistLink} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: `1px solid ${BRAND}`, borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
-                📋 Generate Follow-Up Checklist Link
+              <button onClick={generateChecklistLink} disabled={checklistLinkLoading} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: `1px solid ${BRAND}`, borderRadius: 6, cursor: checklistLinkLoading ? "default" : "pointer", fontWeight: 600, opacity: checklistLinkLoading ? 0.6 : 1 }}>
+                📋 {checklistLinkLoading ? "Generating…" : "Generate Follow-Up Checklist Link"}
               </button>
             </div>
           </div>
 
           {checklistLink && (
             <div className="no-print" style={{ background: "#f5f8fb", border: "1px solid #c5cfe0", borderRadius: 8, padding: "14px 16px", marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: BRAND, marginBottom: 8 }}>Follow-Up Checklist Link (Tally)</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: BRAND, marginBottom: 8 }}>Follow-Up Checklist Link</div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input readOnly value={checklistLink} onFocus={e => e.target.select()}
                   style={{ flex: 1, fontSize: 12, padding: "8px 10px", border: "1px solid #e0e0e0", borderRadius: 6, color: "#212121", background: "#fff" }} />

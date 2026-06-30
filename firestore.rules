@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Follow-up checklists are looked up by an unguessable visit ID (timestamp +
+    // location based), not by auth — there are no user accounts for managers.
+    // Only allow reads/writes to this one collection, and only to documents
+    // that already match the expected shape (no arbitrary field injection).
+    match /followUpChecklists/{visitId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['meta', 'categories', 'notes', 'createdAt'])
+                    && request.resource.data.notes is string;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['categories', 'notes', 'updatedAt']);
+      allow delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

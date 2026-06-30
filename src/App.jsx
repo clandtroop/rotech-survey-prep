@@ -26,6 +26,28 @@ function deletePdfSnapshot(id) {
   } catch {}
 }
 
+// Fail-safe: always push a real file to disk, independent of localStorage and
+// independent of whether the user actually completes/saves the print dialog.
+function downloadBackupFile(snapshot, prefix) {
+  try {
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const loc  = (snapshot.location || "Location").replace(/\s+/g, "_");
+    const date = (snapshot.date || "").replace(/\//g, "-") || new Date().toISOString().slice(0, 10);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${prefix}_${loc}_${date}_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return true;
+  } catch (e) {
+    console.error("Backup download failed", e);
+    return false;
+  }
+}
+
 function saveDraft(meta, states, comments) {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ meta, states, comments, savedAt: new Date().toISOString() })); } catch {}
 }
@@ -472,6 +494,8 @@ function TrendTracker() {
     };
     savePdfSnapshot(snapshot);
     setPdfHistory(loadPdfHistory());
+    const backupOk = downloadBackupFile(snapshot, "Rotech_TrendBackup");
+    if (!backupOk) alert("Warning: automatic backup download failed. Please make sure to save the PDF from the print dialog.");
     window.print();
   }
   const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%" };
@@ -664,6 +688,15 @@ export default function App() {
   const [savedVisits, setSavedVisits] = useState(loadVisits);
   const [pdfHistory, setPdfHistory]   = useState(loadPdfHistory);
   const [showVisits, setShowVisits] = useState(false);
+  const [showPdfReminder, setShowPdfReminder] = useState(false);
+
+  // Fail-safe: the browser print dialog never tells JS whether the user actually
+  // saved a PDF or hit cancel, so once it closes, prompt them to double check.
+  useEffect(() => {
+    const handler = () => setShowPdfReminder(true);
+    window.addEventListener("afterprint", handler);
+    return () => window.removeEventListener("afterprint", handler);
+  }, []);
 
   // OP 541 state
   const [op541Sections, setOp541Sections] = useState([]);
@@ -1326,6 +1359,8 @@ Write a professional but direct email. If there are issues, list them clearly wi
     };
     savePdfSnapshot(snapshot);
     setPdfHistory(loadPdfHistory());
+    const backupOk = downloadBackupFile(snapshot, "Rotech_Backup");
+    if (!backupOk) alert("Warning: automatic backup download failed. Please make sure to save the PDF from the print dialog.");
     window.print();
   }
 
@@ -1417,6 +1452,18 @@ Write a professional but direct email. If there are issues, list them clearly wi
           </div>
         </div>
       </div>
+
+      {showPdfReminder && (
+        <div style={{ background: "#fff3e0", borderBottom: "2px solid #ffb74d", padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12.5, color: "#7a4a00" }}>
+            ⚠️ <strong>Double-check your PDF saved.</strong> A backup snapshot was downloaded to your device and stored in PDF History as a fail-safe — if the print dialog didn't actually save a PDF, reopen it with "Print / PDF" again, or recover the data anytime from PDF History below.
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowVisits(true)} style={{ padding: "5px 12px", fontSize: 12, background: "#fff", color: "#7a4a00", border: "1px solid #ffb74d", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>View PDF History</button>
+            <button onClick={() => setShowPdfReminder(false)} style={{ padding: "5px 12px", fontSize: 12, background: "transparent", color: "#7a4a00", border: "1px solid #ffb74d", borderRadius: 5, cursor: "pointer" }}>Dismiss</button>
+          </div>
+        </div>
+      )}
 
       {/* Saved Visits Panel */}
       {showVisits && (

@@ -1,10 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Follow-up checklists are looked up by an unguessable visit ID (timestamp +
-    // location based), not by auth — there are no user accounts for managers.
-    // Only allow reads/writes to this one collection, and only to documents
-    // that already match the expected shape (no arbitrary field injection).
+
+    // Follow-up checklists — looked up by unguessable visit ID, no auth required.
     match /followUpChecklists/{visitId} {
       allow read: if true;
       allow create: if request.resource.data.keys().hasAll(['meta', 'categories', 'notes', 'createdAt'])
@@ -13,6 +11,18 @@ service cloud.firestore {
                       .hasOnly(['categories', 'notes', 'updatedAt']);
       allow delete: if false;
     }
+
+    // Company-wide visit trend records — one document per finalized visit.
+    // Any specialist can write/overwrite their own visit doc and read all docs.
+    match /visitTrends/{visitId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['visitId', 'records', 'finalizedAt'])
+                             && request.resource.data.records is list
+                             && request.resource.data.visitId is string;
+      allow delete: if true;
+    }
+
+    // Lock down everything else
     match /{document=**} {
       allow read, write: if false;
     }

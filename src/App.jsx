@@ -1440,6 +1440,11 @@ export default function App() {
   // Tab-level comments for PST Home Visit, PAP Setup, Ventilator Home Visit
   const [tabComments, setTabComments] = useState({ pst: "", clinician: "", vent: "" });
   const setTabComment = (id, val) => setTabComments(prev => ({ ...prev, [id]: val }));
+  // Patient info (Global ID + Current RX) per PST/PAP/Vent tab
+  const [tabPatientInfo, setTabPatientInfo] = useState({ pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
+  const setTabPatient = (id, field, val) => setTabPatientInfo(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }));
+  // Additional comments shown at bottom of report
+  const [additionalComments, setAdditionalComments] = useState("");
 
   const setState = useCallback((key, val) => {
     setForm(prev => ({ ...prev, states: { ...prev.states, [key]: prev.states[key] === val ? null : val } }));
@@ -1527,7 +1532,13 @@ export default function App() {
         if (states[key] === "yes" && !comments[key]) return [{ text: item.text }];
         return [];
       });
-      return { label: sec.label, ref: sec.ref, ...stats, issues, observations, compliantItems };
+      const isPSTTab = ["pst", "clinician", "vent"].includes(sec.id);
+      return {
+        label: sec.label, ref: sec.ref, ...stats, issues, observations, compliantItems,
+        tabComment: isPSTTab ? (tabComments[sec.id] || null) : null,
+        globalId:   isPSTTab ? (tabPatientInfo[sec.id]?.globalId || null) : null,
+        currentRx:  isPSTTab ? (tabPatientInfo[sec.id]?.currentRx || null) : null,
+      };
     });
 
     op541Sections.forEach(sec => {
@@ -1840,6 +1851,8 @@ export default function App() {
     setTabComments({ pst: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
     setCurrentVisitId(null); setVisitFinalized(false);
+    setTabPatientInfo({ pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
+    setAdditionalComments("");
   }
 
   function saveProgress() {
@@ -1852,7 +1865,7 @@ export default function App() {
       meta, states, comments,
       op541Sections, op541States, op541Comments, op541FileName, op541VehicleInfo,
       op541tSections, op541tStates, op541tComments, op541tFileName,
-      tabComments,
+      tabComments, tabPatientInfo, additionalComments,
     };
     saveVisitToStorage(visit);
     // Trend data is NOT written here — use "Finalize Visit" to commit to trend tracking
@@ -1901,6 +1914,8 @@ export default function App() {
     setOp541tComments(visit.op541tComments ?? {});
     setOp541tFileName(visit.op541tFileName ?? "");
     setTabComments(visit.tabComments ?? { pst: "", clinician: "", vent: "" });
+    setTabPatientInfo(visit.tabPatientInfo ?? { pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
+    setAdditionalComments(visit.additionalComments ?? "");
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null);
     setVisitFinalized(false);
     setShowVisits(false);
@@ -2190,7 +2205,7 @@ Write a professional but direct email. If there are issues, list them clearly wi
       specialist: meta.specialist || "",
       date: meta.date || "",
       generatedAt: new Date().toISOString(),
-      meta, states, comments, tabComments, op541VehicleInfo,
+      meta, states, comments, tabComments, tabPatientInfo, additionalComments, op541VehicleInfo,
     };
     savePdfSnapshot(snapshot);
     setPdfHistory(loadPdfHistory());
@@ -2369,12 +2384,16 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => {
                       // Load snapshot state
-                      const snapStates   = s.states   || {};
-                      const snapComments = s.comments  || {};
+                      const snapStates        = s.states        || {};
+                      const snapComments      = s.comments      || {};
+                      const snapTabComments   = s.tabComments   || {};
+                      const snapTabPatientInfo = s.tabPatientInfo || {};
                       setMeta(s.meta || {});
                       setStates(snapStates);
                       setComments(snapComments);
                       if (s.tabComments)     setTabComments(s.tabComments);
+                      if (s.tabPatientInfo)  setTabPatientInfo(s.tabPatientInfo);
+                      if (s.additionalComments !== undefined) setAdditionalComments(s.additionalComments);
                       if (s.op541VehicleInfo) setOp541VehicleInfo(s.op541VehicleInfo);
                       // Build reportLines directly from snapshot so report isn't blank
                       const lines = SECTIONS.map((sec, si) => {
@@ -2392,7 +2411,14 @@ Write a professional but direct email. If there are issues, list them clearly wi
                         const compliantItems = items.flatMap((item, ii) =>
                           snapStates[`${si}-${ii}`] === "yes" && !snapComments[`${si}-${ii}`]
                             ? [{ text: item.text }] : []);
-                        return { label: sec.label, ref: sec.ref, yes, no, na, pending, total: items.length, issues, observations, compliantItems };
+                        const isPSTTab = ["pst", "clinician", "vent"].includes(sec.id);
+                        return {
+                          label: sec.label, ref: sec.ref, yes, no, na, pending, total: items.length,
+                          issues, observations, compliantItems,
+                          tabComment: isPSTTab ? (snapTabComments[sec.id] || null) : null,
+                          globalId:   isPSTTab ? (snapTabPatientInfo[sec.id]?.globalId || null) : null,
+                          currentRx:  isPSTTab ? (snapTabPatientInfo[sec.id]?.currentRx || null) : null,
+                        };
                       });
                       setReportLines(lines);
                       setView("report");
@@ -2571,6 +2597,27 @@ Write a professional but direct email. If there are issues, list them clearly wi
               {/* Tab-level comments for PST, PAP Setup, Vent */}
               {["pst", "clinician", "vent"].includes(sec.id) && (
                 <div style={{ marginTop: 12, padding: "14px 16px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8 }}>
+                  {/* Global ID + Current RX */}
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: "#757575", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>Global ID</label>
+                      <input
+                        value={tabPatientInfo[sec.id]?.globalId || ""}
+                        onChange={e => setTabPatient(sec.id, "globalId", e.target.value)}
+                        placeholder="Patient Global ID"
+                        style={{ width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", boxSizing: "border-box" }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: "#757575", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>Current RX</label>
+                      <input
+                        value={tabPatientInfo[sec.id]?.currentRx || ""}
+                        onChange={e => setTabPatient(sec.id, "currentRx", e.target.value)}
+                        placeholder="Current prescription / order"
+                        style={{ width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", boxSizing: "border-box" }}
+                      />
+                    </div>
+                  </div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     📝 Visit Notes / Unable to Complete Reason
                   </div>
@@ -3002,6 +3049,12 @@ Write a professional but direct email. If there are issues, list them clearly wi
                         {s.vehicleNum && <span>Vehicle #: <strong>{s.vehicleNum}</strong></span>}
                       </div>
                     )}
+                    {(s.globalId || s.currentRx) && (
+                      <div style={{ display: "flex", gap: 14, marginTop: 2, fontSize: 11, color: "#555" }}>
+                        {s.globalId  && <span>Global ID: <strong>{s.globalId}</strong></span>}
+                        {s.currentRx && <span>Current RX: <strong>{s.currentRx}</strong></span>}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: 10, fontSize: 11, whiteSpace: "nowrap" }}>
                     <span style={{ color: "#2e7d32" }}>✓ {s.yes}</span>
@@ -3065,6 +3118,16 @@ Write a professional but direct email. If there are issues, list them clearly wi
                   </div>
                 )}
 
+                {/* Visit Notes — PST / PAP / Vent tab-level comment */}
+                {s.tabComment && (
+                  <div style={{ padding: "8px 14px 10px", borderTop: "1px solid #ede8f5" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#4a148c", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 5 }}>Visit Notes</div>
+                    <div style={{ fontSize: 12, color: "#212121", lineHeight: 1.5, padding: "6px 10px", background: "#f8f4ff", borderLeft: "3px solid #9c27b0", borderRadius: "0 4px 4px 0" }}>
+                      {s.tabComment}
+                    </div>
+                  </div>
+                )}
+
                 {/* All-compliant banner (no issues AND no pending) */}
                 {isCompliant && (!s.compliantItems || s.compliantItems.length === 0) && (
                   <div style={{ padding: "6px 14px", fontSize: 12, color: "#2e7d32" }}>All items compliant — no corrective action required.</div>
@@ -3076,7 +3139,11 @@ Write a professional but direct email. If there are issues, list them clearly wi
           {/* ── ADDITIONAL COMMENTS ── */}
           <div style={{ border: "1px solid #e0e0e0", borderRadius: 6, padding: "12px 14px", marginTop: 16, marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Additional Comments</div>
-            <textarea placeholder="Add any additional notes or observations here…" rows={3}
+            <textarea
+              placeholder="Add any additional notes or observations here…"
+              rows={3}
+              value={additionalComments}
+              onChange={e => setAdditionalComments(e.target.value)}
               style={{ width: "100%", fontSize: 13, padding: "8px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
           </div>
 

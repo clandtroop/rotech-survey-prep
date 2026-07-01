@@ -776,7 +776,7 @@ function initStates() {
 const STATUS_COLORS = {
   yes: { bg: "#e8f5e9", border: "#66bb6a", text: "#2e7d32", label: "Y" },
   no:  { bg: "#ffebee", border: "#ef5350", text: "#c62828", label: "N" },
-  na:  { bg: "#f5f5f5", border: "#bdbdbd", text: "#616161", label: "N/A" },
+  na:  { bg: "#e0e0e0", border: "#757575", text: "#212121", label: "N/A" },
 };
 
 // ─── POLICY REVISION DATES ────────────────────────────────────────────────────
@@ -2667,6 +2667,29 @@ Write a professional but direct email. If there are issues, list them clearly wi
                               );
                             })}
                           </div>
+
+                          {/* Mark all N/A toggle */}
+                          {(() => {
+                            const allNa = section.items.length > 0 && section.items.every(item => op541States[item.key] === "na");
+                            return (
+                              <button
+                                onClick={() => {
+                                  const update = {};
+                                  section.items.forEach(item => { update[item.key] = allNa ? null : "na"; });
+                                  setOp541States(p => ({ ...p, ...update }));
+                                }}
+                                style={{
+                                  marginTop: 8, padding: "5px 14px", fontSize: 11, fontWeight: 600,
+                                  background: allNa ? "#f5f5f5" : "#fafafa",
+                                  color: allNa ? "#616161" : "#757575",
+                                  border: `1px solid ${allNa ? "#bdbdbd" : "#e0e0e0"}`,
+                                  borderRadius: 5, cursor: "pointer", letterSpacing: "0.02em"
+                                }}
+                              >
+                                {allNa ? "✕ Unmark All N/A" : "Mark All N/A"}
+                              </button>
+                            );
+                          })()}
                         </div>
                       );
                     })}

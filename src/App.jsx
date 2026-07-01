@@ -1123,7 +1123,7 @@ function TrendTracker() {
     <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
       <div style={{ fontSize: 38, marginBottom: 12 }}>📊</div>
       <div style={{ fontSize: 16, fontWeight: 600, color: "#424242", marginBottom: 8 }}>No trend data yet</div>
-      <div style={{ fontSize: 13 }}>Complete a visit and click "💾 Save Progress" to start tracking issue trends.</div>
+      <div style={{ fontSize: 13 }}>Complete a visit and click "☑ Finalize Visit" to start tracking issue trends.</div>
     </div>
   );
 
@@ -1385,6 +1385,7 @@ export default function App() {
   const [checklistLinkCopied, setChecklistLinkCopied] = useState(false);
   const [checklistLinkLoading, setChecklistLinkLoading] = useState(false);
   const [currentVisitId, setCurrentVisitId] = useState(null);
+  const [visitFinalized, setVisitFinalized] = useState(false);
 
   // Fail-safe: the browser print dialog never tells JS whether the user actually
   // saved a PDF or hit cancel, so once it closes, prompt them to double check.
@@ -1810,10 +1811,12 @@ export default function App() {
     setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName("");
     setTabComments({ pst: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
+    setCurrentVisitId(null); setVisitFinalized(false);
   }
 
   function saveProgress() {
-    const id = `visit_${meta.location?.replace(/\s+/g,"_") || "unknown"}_${Date.now()}`;
+    // Reuse the existing visit ID so repeated saves update in place rather than creating duplicates
+    const id = currentVisitId || `visit_${meta.location?.replace(/\s+/g,"_") || "unknown"}_${Date.now()}`;
     const visit = {
       id,
       label: `${meta.location || "Unknown Location"} — ${meta.date}`,
@@ -1824,10 +1827,21 @@ export default function App() {
       tabComments,
     };
     saveVisitToStorage(visit);
-    writeTrendData(id, meta, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments);
+    // Trend data is NOT written here — use "Finalize Visit" to commit to trend tracking
     setSavedVisits(loadVisits());
     setCurrentVisitId(id);
     alert(`Visit saved: ${visit.label}`);
+  }
+
+  function finalizeVisit() {
+    if (!currentVisitId) {
+      alert("Save the visit first before finalizing.");
+      return;
+    }
+    if (!window.confirm("Mark this visit as finalized? This will record it in your trend data.\n\nYou can re-finalize after making changes to update the trend entry.")) return;
+    writeTrendData(currentVisitId, meta, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments);
+    setVisitFinalized(true);
+    alert("Visit finalized and recorded in trend data.");
   }
 
   function generateChecklistLink() {
@@ -1856,6 +1870,7 @@ export default function App() {
     setOp541tFileName(visit.op541tFileName ?? "");
     setTabComments(visit.tabComments ?? { pst: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null);
+    setVisitFinalized(false);
     setShowVisits(false);
   }
 
@@ -2201,6 +2216,11 @@ Write a professional but direct email. If there are issues, list them clearly wi
                 <button onClick={saveProgress} style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 6, cursor: "pointer" }}>
                   💾 Save Progress
                 </button>
+                {currentVisitId && (
+                  <button onClick={finalizeVisit} style={{ padding: "7px 14px", fontSize: 13, background: visitFinalized ? "rgba(76,175,80,0.35)" : "rgba(255,255,255,0.1)", border: `1px solid ${visitFinalized ? "rgba(76,175,80,0.7)" : "rgba(255,255,255,0.3)"}`, color: "#fff", borderRadius: 6, cursor: "pointer", fontWeight: visitFinalized ? 600 : 400 }}>
+                    {visitFinalized ? "✅ Visit Finalized" : "☑ Finalize Visit"}
+                  </button>
+                )}
                 <button onClick={() => setShowVisits(v => !v)} style={{ padding: "7px 14px", fontSize: 13, background: showVisits ? "#fff" : "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: showVisits ? BRAND : "#fff", borderRadius: 6, cursor: "pointer", fontWeight: showVisits ? 600 : 400 }}>
                   📋 Saved Visits {savedVisits.length > 0 && `(${savedVisits.length})`}
                 </button>

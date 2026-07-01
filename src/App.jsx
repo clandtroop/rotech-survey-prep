@@ -1134,25 +1134,6 @@ function TrendTracker() {
   }
 
   function exportPDF() {
-    // Save snapshot to localStorage before printing
-    const snapshot = {
-      id: `pdf_${Date.now()}`,
-      label: `${meta.location || "Unknown Location"} — ${meta.date || "No Date"}`,
-      location: meta.location || "",
-      city: meta.city || "",
-      specialist: meta.specialist || "",
-      date: meta.date || "",
-      generatedAt: new Date().toISOString(),
-      meta,
-      states,
-      comments,
-      tabComments,
-      op541VehicleInfo,
-    };
-    savePdfSnapshot(snapshot);
-    setPdfHistory(loadPdfHistory());
-    const backupOk = downloadBackupFile(snapshot, "Rotech_TrendBackup");
-    if (!backupOk) alert("Warning: automatic backup download failed. Please make sure to save the PDF from the print dialog.");
     window.print();
   }
   const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%" };

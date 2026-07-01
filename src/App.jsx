@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 import { db } from "./firebase";
-import { doc, getDoc, setDoc, updateDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from "firebase/firestore";
 
 const BRAND = "#1a3a5c";
 const ACCENT = "#2e6da4";
@@ -14,6 +14,7 @@ const PDF_HISTORY_KEY = "rotech_pdf_history";
 
 // Firestore collection holding per-visit follow-up checklists (see firestore.rules).
 const CHECKLISTS_COLLECTION = "followUpChecklists";
+const TRENDS_COLLECTION    = "visitTrends";
 
 // Maps each SECTIONS id to its follow-up checklist category.
 const SECTION_TO_CHECKLIST_CATEGORY = {
@@ -528,7 +529,7 @@ function loadTrendData() {
   try { const r = localStorage.getItem(TREND_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
 }
 
-function writeTrendData(visitId, meta, sections, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments) {
+async function writeTrendData(visitId, meta, sections, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments) {
   try {
     // Remove any prior records for this visitId so re-saves don't duplicate
     const existing = loadTrendData().filter(r => r.visitId !== visitId);
@@ -584,13 +585,25 @@ function writeTrendData(visitId, meta, sections, states, comments, op541Sections
       records.push({ ...base, section: "_summary", formRef: "", itemText: "_clean", comment: "", visitType: "summary" });
     }
 
+    // Write to localStorage as offline backup
     localStorage.setItem(TREND_KEY, JSON.stringify([...existing, ...records].slice(-2000)));
-  } catch {}
+
+    // Write to Firestore for company-wide visibility (one doc per visit)
+    await setDoc(doc(db, TRENDS_COLLECTION, visitId), {
+      visitId,
+      finalizedAt: new Date().toISOString(),
+      records,
+    });
+  } catch (e) {
+    console.error("writeTrendData error:", e);
+    throw e; // re-throw so finalizeVisit can surface the error
+  }
 }
 
-function deleteTrendVisit(visitId) {
+async function deleteTrendVisit(visitId) {
   try {
     localStorage.setItem(TREND_KEY, JSON.stringify(loadTrendData().filter(r => r.visitId !== visitId)));
+    await deleteDoc(doc(db, TRENDS_COLLECTION, visitId));
   } catch {}
 }
 
@@ -986,7 +999,9 @@ function PolicyDateSearch() {
 }
 
 function TrendTracker() {
-  const [data] = useState(loadTrendData);
+  const [localData] = useState(loadTrendData);
+  const [firestoreRecords, setFirestoreRecords] = useState([]);
+  const [firestoreLoading, setFirestoreLoading] = useState(true);
   const [filterLoc, setFilterLoc] = useState("");
   const [filterSection, setFilterSection] = useState("");
   const [filterSpec, setFilterSpec] = useState("");
@@ -994,6 +1009,31 @@ function TrendTracker() {
   const [filterRegion, setFilterRegion] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  // Real-time Firestore listener — picks up all specialists' finalized visits
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, TRENDS_COLLECTION),
+      snap => {
+        const records = [];
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          if (Array.isArray(d.records)) records.push(...d.records);
+        });
+        setFirestoreRecords(records);
+        setFirestoreLoading(false);
+      },
+      () => setFirestoreLoading(false) // on error, fall back to local data
+    );
+    return () => unsub();
+  }, []);
+
+  // Merge: Firestore is authoritative; localStorage fills in anything not yet synced
+  const firestoreVisitIds = new Set(firestoreRecords.map(r => r.visitId));
+  const data = [
+    ...firestoreRecords,
+    ...localData.filter(r => !firestoreVisitIds.has(r.visitId)),
+  ];
 
   const issues = data.filter(r => r.itemText !== "_clean" && r.section !== "_summary" && r.visitType !== "note");
 
@@ -1094,11 +1134,37 @@ function TrendTracker() {
   }
 
   function exportPDF() {
+    // Save snapshot to localStorage before printing
+    const snapshot = {
+      id: `pdf_${Date.now()}`,
+      label: `${meta.location || "Unknown Location"} — ${meta.date || "No Date"}`,
+      location: meta.location || "",
+      city: meta.city || "",
+      specialist: meta.specialist || "",
+      date: meta.date || "",
+      generatedAt: new Date().toISOString(),
+      meta,
+      states,
+      comments,
+      tabComments,
+      op541VehicleInfo,
+    };
+    savePdfSnapshot(snapshot);
+    setPdfHistory(loadPdfHistory());
+    const backupOk = downloadBackupFile(snapshot, "Rotech_TrendBackup");
+    if (!backupOk) alert("Warning: automatic backup download failed. Please make sure to save the PDF from the print dialog.");
     window.print();
   }
   const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%" };
   const cardStyle  = { background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden", marginBottom: 16 };
   const headStyle  = { background: BRAND, color: "#fff", padding: "10px 16px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" };
+
+  if (firestoreLoading) return (
+    <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
+      <div style={{ fontSize: 14, color: "#616161" }}>Loading company-wide trend data…</div>
+    </div>
+  );
 
   if (totalVisits === 0) return (
     <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
@@ -1814,15 +1880,19 @@ export default function App() {
     alert(`Visit saved: ${visit.label}`);
   }
 
-  function finalizeVisit() {
+  async function finalizeVisit() {
     if (!currentVisitId) {
       alert("Save the visit first before finalizing.");
       return;
     }
     if (!window.confirm("Mark this visit as finalized? This will record it in your trend data.\n\nYou can re-finalize after making changes to update the trend entry.")) return;
-    writeTrendData(currentVisitId, meta, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments);
-    setVisitFinalized(true);
-    alert("Visit finalized and recorded in trend data.");
+    try {
+      await writeTrendData(currentVisitId, meta, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments);
+      setVisitFinalized(true);
+      alert("Visit finalized and recorded in trend data.");
+    } catch {
+      alert("Trend data saved locally but could not sync to the company database. Check your internet connection and try again.");
+    }
   }
 
   function generateChecklistLink() {

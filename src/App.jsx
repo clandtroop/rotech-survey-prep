@@ -1705,8 +1705,8 @@ export default function App() {
     }
 
     try {
-      // Read original workbook from stored bytes
-      const wb = XLSX.read(op541BufferBytes, { type: "array" });
+      // Read original workbook from stored bytes — cellStyles preserves formatting
+      const wb = XLSX.read(op541BufferBytes, { type: "array", cellStyles: true, bookSST: true });
 
       // Write each item's response back into the correct cell
       op541Sections.forEach(sec => {
@@ -1720,22 +1720,24 @@ export default function App() {
           // Map app state to Excel value
           const onSiteVal = state === "yes" ? "Y" : state === "no" ? "N" : state === "na" ? "N/A" : "";
 
-          // Write On-Site Visit column
+          // Write On-Site Visit column — spread existing cell to preserve its style/formatting
           if (onSiteVal) {
             const cellAddr = XLSX.utils.encode_cell({ r: item.rowIdx, c: item.cOnSite });
-            wb.Sheets[item.sheetName][cellAddr] = { t: "s", v: onSiteVal, w: onSiteVal };
+            const existing = ws[cellAddr] || {};
+            wb.Sheets[item.sheetName][cellAddr] = { ...existing, t: "s", v: onSiteVal, w: onSiteVal };
           }
 
-          // Write Comments column
+          // Write Comments column — spread existing cell to preserve its style/formatting
           if (comment) {
             const commentAddr = XLSX.utils.encode_cell({ r: item.rowIdx, c: item.cComments });
-            wb.Sheets[item.sheetName][commentAddr] = { t: "s", v: comment, w: comment };
+            const existingC = ws[commentAddr] || {};
+            wb.Sheets[item.sheetName][commentAddr] = { ...existingC, t: "s", v: comment, w: comment };
           }
         });
       });
 
-      // Download the updated workbook
-      const wbOut = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      // Download the updated workbook — cellStyles writes formatting back out
+      const wbOut = XLSX.write(wb, { bookType: "xlsx", type: "array", cellStyles: true });
       const blob = new Blob([wbOut], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

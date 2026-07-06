@@ -1,16 +1,25 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { initializeAppCheck, getReCaptchaV3Provider } from "firebase/app-check";
 
-// Public client config — not a secret. Access is controlled by Firestore
-// security rules (see firestore.rules), not by hiding this object.
 const firebaseConfig = {
-  apiKey: "AIzaSyA-tfOM9h3CRkKKBZlvlsS4t4bxdHURYWw",
-  authDomain: "rotech-survey-prep.firebaseapp.com",
-  projectId: "rotech-survey-prep",
-  storageBucket: "rotech-survey-prep.firebasestorage.app",
-  messagingSenderId: "547512204276",
-  appId: "1:547512204276:web:fbf97b7705ec6bbdbcd7a1",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const firebaseApp = initializeApp(firebaseConfig);
-export const db = getFirestore(firebaseApp, "surveyprep");
+const app = initializeApp(firebaseConfig);
+
+// Initialize App Check (do this BEFORE Firestore)
+const appCheck = initializeAppCheck(app, {
+  provider: new getReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
+  isTokenAutoRefreshEnabled: true,
+});
+
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const appCheckInstance = appCheck;

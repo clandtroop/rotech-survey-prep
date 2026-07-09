@@ -199,6 +199,223 @@ function loadTrendData() {
   try { const r = localStorage.getItem(TREND_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
 }
 
+// --- Direct OOXML cell patching -------------------------------------------
+// An .xlsx is just a zip of XML files. Rather than asking a library to parse
+// the whole workbook into an object model and reserialize it (which is how
+// both SheetJS and ExcelJS lose fidelity — SheetJS's free build drops most
+// cell styling on write, and ExcelJS can crash re-serializing conditional
+// formatting rules it doesn't fully support), we patch only the exact <c>
+// cell elements that need new values directly in each sheet's XML and leave
+// every other file in the zip — styles.xml, conditional formatting, column
+// widths, everything — completely untouched.
+
+function colLettersToNum(letters) {
+  let n = 0;
+  for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n;
+}
+function numToColLetters(num) {
+  let s = "";
+  while (num > 0) {
+    const rem = (num - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    num = Math.floor((num - 1) / 26);
+  }
+  return s;
+}
+
+// Finds the <row r="rowNum"> element under <sheetData>, creating and
+// inserting one at the correct numeric position if it doesn't exist yet.
+// New elements are created with createElementNS in the sheet's own namespace
+// (not plain createElement) — otherwise the browser creates them with no
+// namespace at all, which forces the serializer to emit an explicit
+// xmlns="" override that Excel silently fails to parse as real cell content.
+function getOrCreateRow(doc, sheetDataEl, rowNum) {
+  const ns = doc.documentElement.namespaceURI;
+  const rows = sheetDataEl.getElementsByTagName("row");
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const rNum = parseInt(r.getAttribute("r"), 10);
+    if (rNum === rowNum) return r;
+    if (rNum > rowNum) {
+      const newRow = doc.createElementNS(ns, "row");
+      newRow.setAttribute("r", String(rowNum));
+      sheetDataEl.insertBefore(newRow, r);
+      return newRow;
+    }
+  }
+  const newRow = doc.createElementNS(ns, "row");
+  newRow.setAttribute("r", String(rowNum));
+  sheetDataEl.appendChild(newRow);
+  return newRow;
+}
+
+// Finds the <c r="address"> element under a row, creating and inserting one
+// at the correct column position if it doesn't exist yet (rows are often
+// sparse — a blank cell may have no <c> element at all in the original file).
+function getOrCreateCell(doc, rowEl, address, colNum) {
+  const ns = doc.documentElement.namespaceURI;
+  const cells = rowEl.getElementsByTagName("c");
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i];
+    if (c.getAttribute("r") === address) return c;
+    const cCol = colLettersToNum(c.getAttribute("r").match(/^[A-Z]+/)[0]);
+    if (cCol > colNum) {
+      const newCell = doc.createElementNS(ns, "c");
+      newCell.setAttribute("r", address);
+      rowEl.insertBefore(newCell, c);
+      return newCell;
+    }
+  }
+  const newCell = doc.createElementNS(ns, "c");
+  newCell.setAttribute("r", address);
+  rowEl.appendChild(newCell);
+  return newCell;
+}
+
+// Overwrites a cell's value as an inline string — safely replaces whatever
+// type it was before (number, shared string, formula) without needing to
+// touch sharedStrings.xml, and preserves the cell's style-index (`s`)
+// attribute since we only ever remove/set `t`, never `s`.
+function setInlineStringValue(doc, cellEl, value) {
+  const ns = doc.documentElement.namespaceURI;
+  cellEl.removeAttribute("t");
+  cellEl.setAttribute("t", "inlineStr");
+  while (cellEl.firstChild) cellEl.removeChild(cellEl.firstChild);
+  const isEl = doc.createElementNS(ns, "is");
+  const tEl = doc.createElementNS(ns, "t");
+  tEl.appendChild(doc.createTextNode(value));
+  isEl.appendChild(tEl);
+  cellEl.appendChild(isEl);
+}
+
+// Resolves sheet names (e.g. "Binder_1") to their internal zip paths
+// (e.g. "xl/worksheets/sheet3.xml") via workbook.xml + its rels file.
+// DOMParser never throws on malformed XML — it silently returns a document
+// containing a <parsererror> element instead. Catching that explicitly turns
+// a silent "nothing got written" failure into a clear, visible error.
+function assertParsedOk(doc, label) {
+  const err = doc.getElementsByTagName("parsererror")[0];
+  if (err) throw new Error(`Could not parse ${label} as XML: ${err.textContent.slice(0, 300)}`);
+}
+
+async function resolveSheetPaths(zip, sheetNames, parser) {
+  const wbXmlStr = await zip.file("xl/workbook.xml").async("string");
+  const relsXmlStr = await zip.file("xl/_rels/workbook.xml.rels").async("string");
+  const wbDoc = parser.parseFromString(wbXmlStr, "application/xml");
+  assertParsedOk(wbDoc, "xl/workbook.xml");
+  const relsDoc = parser.parseFromString(relsXmlStr, "application/xml");
+  assertParsedOk(relsDoc, "xl/_rels/workbook.xml.rels");
+  const paths = {};
+  const sheetEls = wbDoc.getElementsByTagName("sheet");
+  for (let i = 0; i < sheetEls.length; i++) {
+    const el = sheetEls[i];
+    const name = el.getAttribute("name");
+    if (!sheetNames.has(name)) continue;
+    const rId = el.getAttribute("r:id");
+    const relEls = relsDoc.getElementsByTagName("Relationship");
+    let target = null;
+    for (let j = 0; j < relEls.length; j++) {
+      if (relEls[j].getAttribute("Id") === rId) { target = relEls[j].getAttribute("Target"); break; }
+    }
+    if (!target) { console.warn(`[write-back] sheet "${name}" has r:id="${rId}" but no matching Relationship was found`); continue; }
+    paths[name] = target.startsWith("/") ? target.slice(1) : "xl/" + target;
+  }
+  return paths;
+}
+
+// op541VehicleInfo is keyed by the computed sheet LABEL (e.g. "Unit # 123"),
+// shared by every section parsed from that sheet — resolves each labeled
+// entry back to the real Excel sheet name (item.sheetName) it belongs to, and
+// drops any sheet with no PST name / vehicle # actually filled in.
+function buildVehicleWrites(sections, vehicleInfoMap) {
+  const bySheetName = {};
+  sections.forEach(sec => {
+    const info = vehicleInfoMap[sec.sheetLabel];
+    if (!info || (!info.pstName && !info.vehicleNum)) return;
+    const sheetName = sec.items[0]?.sheetName;
+    if (!sheetName) return;
+    bySheetName[sheetName] = info;
+  });
+  return Object.entries(bySheetName).map(([sheetName, info]) => ({ sheetName, pstName: info.pstName, vehicleNum: info.vehicleNum }));
+}
+
+// Writes on-site Y/N/N/A answers + comments into the ORIGINAL uploaded
+// workbook by patching only the specific cells that changed (see comment
+// block above). Items without a known write target (item.cOnSite == null —
+// e.g. OP 541T personnel rows, whose column layout isn't confirmed) are
+// skipped rather than guessed at. vehicleWrites additionally writes PST Name
+// into B4 and Vehicle # into B5 of each vehicle sheet that has one set.
+async function writeBackToOriginalWorkbook(bufferBytes, sections, states, comments, vehicleWrites = []) {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(bufferBytes.buffer ?? bufferBytes);
+
+  const neededSheetNames = new Set();
+  sections.forEach(sec => sec.items.forEach(item => { if (item.cOnSite != null) neededSheetNames.add(item.sheetName); }));
+  vehicleWrites.forEach(vw => neededSheetNames.add(vw.sheetName));
+
+  const parser = new DOMParser();
+  const serializer = new XMLSerializer();
+  const sheetPaths = await resolveSheetPaths(zip, neededSheetNames, parser);
+  const docs = {}; // sheet path -> parsed Document (one per sheet, reused across items)
+
+  for (const name of neededSheetNames) {
+    const path = sheetPaths[name];
+    if (!path) { console.warn(`[write-back] no resolved path for sheet "${name}" — its items will be skipped`); continue; }
+    if (docs[path]) continue;
+    const xmlStr = await zip.file(path).async("string");
+    if (!xmlStr) { console.warn(`[write-back] zip has no entry at "${path}" for sheet "${name}"`); continue; }
+    const doc = parser.parseFromString(xmlStr, "application/xml");
+    assertParsedOk(doc, path);
+    docs[path] = doc;
+  }
+
+  sections.forEach(sec => sec.items.forEach(item => {
+    if (item.cOnSite == null) return;
+    const path = sheetPaths[item.sheetName];
+    const doc = path && docs[path];
+    if (!doc) return;
+    const sheetDataEl = doc.getElementsByTagName("sheetData")[0];
+    if (!sheetDataEl) { console.warn(`[write-back] no <sheetData> found in ${path}`); return; }
+
+    const rowNum = item.rowIdx + 1;
+    const state = states[item.key];
+    const onSiteVal = state === "yes" ? "Y" : state === "no" ? "N" : state === "na" ? "N/A" : "";
+    const comment = comments[item.key] || "";
+
+    if (onSiteVal) {
+      const colNum = item.cOnSite + 1;
+      const address = numToColLetters(colNum) + rowNum;
+      const rowEl = getOrCreateRow(doc, sheetDataEl, rowNum);
+      setInlineStringValue(doc, getOrCreateCell(doc, rowEl, address, colNum), onSiteVal);
+    }
+    if (comment) {
+      const colNum = item.cComments + 1;
+      const address = numToColLetters(colNum) + rowNum;
+      const rowEl = getOrCreateRow(doc, sheetDataEl, rowNum);
+      setInlineStringValue(doc, getOrCreateCell(doc, rowEl, address, colNum), comment);
+    }
+  }));
+
+  vehicleWrites.forEach(vw => {
+    const path = sheetPaths[vw.sheetName];
+    const doc = path && docs[path];
+    if (!doc) return;
+    const sheetDataEl = doc.getElementsByTagName("sheetData")[0];
+    if (!sheetDataEl) return;
+    if (vw.pstName) setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, 4), "B4", 2), vw.pstName);
+    if (vw.vehicleNum) setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, 5), "B5", 2), vw.vehicleNum);
+  });
+
+  Object.entries(docs).forEach(([path, doc]) => {
+    const serialized = serializer.serializeToString(doc);
+    const xml = serialized.startsWith("<?xml") ? serialized : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${serialized}`;
+    zip.file(path, xml);
+  });
+
+  return zip.generateAsync({ type: "arraybuffer" });
+}
+
 async function writeTrendData(visitId, meta, locations, sections, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments) {
   try {
     // Remove any prior records for this visitId so re-saves don't duplicate
@@ -1321,9 +1538,9 @@ function AuthGate({ children }) {
     }
   }
 
-  const cardStyle = { background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10, padding: "32px 28px", width: 320, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" };
+  const cardStyle = { background: "rgb(233, 239, 253)", border: "1px solid #e0e0e0", borderRadius: 10, padding: "32px 28px", width: 320, boxShadow: "0 14px 12px rgba(6, 24, 187, 0.06)" };
   const fieldLabel = { fontSize: 11, color: "#757575", marginBottom: 4 };
-  const fieldInput = { width: "100%", padding: "8px 10px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 6, boxSizing: "border-box", color: "#212121" };
+  const fieldInput = { width: "100%", padding: "8px 10px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 6, boxSizing: "border-box", color: "#080aaf" };
   const submitBtn = busy => ({ width: "100%", padding: "9px 0", fontSize: 13, fontWeight: 600, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1 });
 
   if (user === undefined) {
@@ -1346,7 +1563,7 @@ function AuthGate({ children }) {
           </div>
           {error && <div style={{ fontSize: 12, color: "#c62828", marginBottom: 12 }}>{error}</div>}
           <button type="submit" disabled={signingIn} style={submitBtn(signingIn)}>{signingIn ? "Signing in…" : "Sign In"}</button>
-          <div style={{ fontSize: 11, color: "#bdbdbd", marginTop: 16, textAlign: "center" }}>No account? Ask your accreditation team lead to create one.</div>
+          <div style={{ fontSize: 11, color: "#020077", marginTop: 16, textAlign: "center" }}>No account? Request one by emailing accreditation@rotech.com</div>
         </form>
       </div>
     );
@@ -1425,6 +1642,7 @@ function SurveyPrepApp() {
   const [op541tStates, setOp541tStates] = useState({});
   const [op541tComments, setOp541tComments] = useState({});
   const [op541tFileName, setOp541tFileName] = useState("");
+  const [op541tBufferBytes, setOp541tBufferBytes] = useState(null); // original file bytes for write-back export
 
   // Tab-level comments for PST Home Visit, PAP Setup, Ventilator Home Visit
   const [tabComments, setTabComments] = useState({ pst: "", clinician: "", vent: "" });
@@ -1694,39 +1912,7 @@ function SurveyPrepApp() {
     }
 
     try {
-      // Read original workbook from stored bytes — cellStyles preserves formatting
-      const wb = XLSX.read(op541BufferBytes, { type: "array", cellStyles: true, bookSST: true });
-
-      // Write each item's response back into the correct cell
-      op541Sections.forEach(sec => {
-        sec.items.forEach(item => {
-          const ws = wb.Sheets[item.sheetName];
-          if (!ws) return;
-
-          const state = op541States[item.key];
-          const comment = op541Comments[item.key] || "";
-
-          // Map app state to Excel value
-          const onSiteVal = state === "yes" ? "Y" : state === "no" ? "N" : state === "na" ? "N/A" : "";
-
-          // Write On-Site Visit column — spread existing cell to preserve its style/formatting
-          if (onSiteVal) {
-            const cellAddr = XLSX.utils.encode_cell({ r: item.rowIdx, c: item.cOnSite });
-            const existing = ws[cellAddr] || {};
-            wb.Sheets[item.sheetName][cellAddr] = { ...existing, t: "s", v: onSiteVal, w: onSiteVal };
-          }
-
-          // Write Comments column — spread existing cell to preserve its style/formatting
-          if (comment) {
-            const commentAddr = XLSX.utils.encode_cell({ r: item.rowIdx, c: item.cComments });
-            const existingC = ws[commentAddr] || {};
-            wb.Sheets[item.sheetName][commentAddr] = { ...existingC, t: "s", v: comment, w: comment };
-          }
-        });
-      });
-
-      // Download the updated workbook — cellStyles writes formatting back out
-      const wbOut = XLSX.write(wb, { bookType: "xlsx", type: "array", cellStyles: true });
+      const wbOut = await writeBackToOriginalWorkbook(op541BufferBytes, op541Sections, op541States, op541Comments, buildVehicleWrites(op541Sections, op541VehicleInfo));
       const blob = new Blob([wbOut], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1738,13 +1924,43 @@ function SurveyPrepApp() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message);
+      console.error("Write-back export failed. Full stack:\n" + (err.stack || err));
+      alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message + "\n\n(Full details logged to the browser console — press F12.)");
+    }
+  }
+
+  async function exportUpdatedOp541t() {
+    if (!op541tBufferBytes) {
+      alert("The original OP 541T file is not available in this session.\n\nPlease re-upload the file, fill in your responses, then use this export.");
+      return;
+    }
+    if (op541tSections.length === 0) {
+      alert("No OP 541T data to export.");
+      return;
+    }
+
+    try {
+      const wbOut = await writeBackToOriginalWorkbook(op541tBufferBytes, op541tSections, op541tStates, op541tComments, buildVehicleWrites(op541tSections, op541VehicleInfo));
+      const blob = new Blob([wbOut], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const baseName = op541tFileName.replace(/\.xlsx?$/i, "");
+      a.download = `${baseName}_OnSite_${meta.date ? meta.date.replace(/\//g, "-") : "completed"}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Write-back export failed. Full stack:\n" + (err.stack || err));
+      alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message + "\n\n(Full details logged to the browser console — press F12.)");
     }
   }
 
   async function handleOp541tUpload(file) {
     try {
       const buf = await file.arrayBuffer();
+      setOp541tBufferBytes(new Uint8Array(buf)); // store for write-back export
       const wb = XLSX.read(buf, { type: "array" });
       const allSections = [];
       let globalIdx = 0;
@@ -1766,17 +1982,19 @@ function SurveyPrepApp() {
           sheetLabel = unitNum ? `Unit # ${unitNum}` : sheetName;
         }
 
-        let hRow = -1, cDesc = 1, cLoc = 2, cComments = 4;
+        let hRow = -1, cDesc = 1, cLoc = 2, cComments = 4, cOnSite = null;
 
         if (isVehicle) {
           // Vehicle sheets: desc=col A(0), loc=col B(1), on-site=col C(2), comments=col D(3)
-          hRow = 6; cDesc = 0; cLoc = 1; cComments = 3;
+          hRow = 6; cDesc = 0; cLoc = 1; cComments = 3; cOnSite = 2;
         } else if (isPersonnel) {
-          // Personnel: desc=col A(0), loc answers across cols C-L, comments=col M(13)
+          // Personnel: desc=col A(0), loc answers across cols C-L, comments=col M(13).
+          // No single on-site column — layout isn't confirmed against a real sample
+          // file, so cOnSite stays null and these rows are skipped by write-back export.
           hRow = 6; cDesc = 0; cLoc = -1; cComments = 13;
         } else {
           // Facility sheet: policy=col A(0), desc=col B(1), loc=col C(2), on-site=col D(3), comments=col E(4)
-          hRow = 5; cDesc = 1; cLoc = 2; cComments = 4;
+          hRow = 5; cDesc = 1; cLoc = 2; cComments = 4; cOnSite = 3;
         }
 
         if (hRow < 0 || hRow >= rows.length) continue;
@@ -1812,6 +2030,10 @@ function SurveyPrepApp() {
               text: desc,
               locAns: ["Y","N","NA","N/A"].includes(locAns) ? locAns : "",
               locComment,
+              rowIdx: i,        // row index in the sheet (for write-back)
+              sheetName,        // actual Excel sheet name (for write-back)
+              cOnSite,          // On-Site Visit column index (for write-back); null for personnel rows
+              cComments,        // Comments column index (for write-back)
             });
           }
         }
@@ -1838,7 +2060,7 @@ function SurveyPrepApp() {
     setMeta({ lawson: "", location: "", city: "", specialist: auth.currentUser?.displayName || "", date: new Date().toLocaleDateString("en-US"), followUpDate: "", followUpTime: "" });
     setForm(b);
     setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({}); setOp541BufferBytes(null);
-    setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName("");
+    setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName(""); setOp541tBufferBytes(null);
     setTabComments({ pst: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
     setCurrentVisitId(null); setVisitFinalized(false);
@@ -1907,7 +2129,7 @@ function SurveyPrepApp() {
     setTabComments(visit.tabComments ?? { pst: "", clinician: "", vent: "" });
     setTabPatientInfo(visit.tabPatientInfo ?? { pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments(visit.additionalComments ?? "");
-    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null);
+    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null); setOp541tBufferBytes(null);
     setVisitFinalized(false);
     setShowVisits(false);
   }
@@ -2810,10 +3032,17 @@ function SurveyPrepApp() {
                         <span style={{ color: "#e65100", fontWeight: 600 }}>⚠ {op541tStats.mismatch} mismatch{op541tStats.mismatch !== 1 ? "es" : ""} with location self-audit</span>
                       )}
                     </div>
-                    <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
-                      Change file
-                      <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
-                    </label>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      {op541tBufferBytes && (
+                        <button onClick={exportUpdatedOp541t} style={{ fontSize: 12, padding: "5px 12px", background: "#1a6e35", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                          ⬇ Export Updated OP 541T
+                        </button>
+                      )}
+                      <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
+                        Change file
+                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
+                      </label>
+                    </div>
                   </div>
                   <div style={{ padding: "16px 24px" }}>
                     {op541tSections.map((section, si) => {

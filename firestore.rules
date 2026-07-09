@@ -2,10 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Follow-up checklists — looked up by unguessable visit ID, no auth required.
+    // Follow-up checklists — looked up by unguessable visit ID. Location
+    // managers open and check these off with no login (read/update must stay
+    // open), but only a signed-in specialist can create a new one.
     match /followUpChecklists/{visitId} {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasAll(['meta', 'categories', 'notes', 'createdAt'])
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasAll(['meta', 'categories', 'notes', 'createdAt'])
                     && request.resource.data.notes is string;
       allow update: if request.resource.data.diff(resource.data).affectedKeys()
                       .hasOnly(['categories', 'notes', 'updatedAt']);
@@ -13,13 +16,21 @@ service cloud.firestore {
     }
 
     // Company-wide visit trend records — one document per finalized visit.
-    // Any specialist can write/overwrite their own visit doc and read all docs.
+    // Internal data: any signed-in specialist can read/write/delete their own
+    // and others' visit docs (matches how TrendTracker already merges everyone's
+    // finalized visits), but no one outside the app can touch it anymore.
     match /visitTrends/{visitId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.keys().hasAll(['visitId', 'records', 'finalizedAt'])
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+                             && request.resource.data.keys().hasAll(['visitId', 'records', 'finalizedAt'])
                              && request.resource.data.records is list
                              && request.resource.data.visitId is string;
-      allow delete: if true;
+      allow delete: if request.auth != null;
+    }
+
+    // Company-wide location roster, edited via the in-app Location Roster tab.
+    match /locations/{lawson} {
+      allow read, write: if request.auth != null;
     }
 
     // Lock down everything else

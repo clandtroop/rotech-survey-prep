@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 import { db, auth } from "./firebase";
-import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, orderBy, limit } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
 
 const BRAND = "#1a3a5c";
@@ -371,6 +371,7 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     docs[path] = doc;
   }
 
+  let cellsWritten = 0;
   sections.forEach(sec => sec.items.forEach(item => {
     if (item.cOnSite == null) return;
     const path = sheetPaths[item.sheetName];
@@ -389,12 +390,14 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
       const address = numToColLetters(colNum) + rowNum;
       const rowEl = getOrCreateRow(doc, sheetDataEl, rowNum);
       setInlineStringValue(doc, getOrCreateCell(doc, rowEl, address, colNum), onSiteVal);
+      cellsWritten++;
     }
     if (comment) {
       const colNum = item.cComments + 1;
       const address = numToColLetters(colNum) + rowNum;
       const rowEl = getOrCreateRow(doc, sheetDataEl, rowNum);
       setInlineStringValue(doc, getOrCreateCell(doc, rowEl, address, colNum), comment);
+      cellsWritten++;
     }
   }));
 
@@ -404,8 +407,8 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     if (!doc) return;
     const sheetDataEl = doc.getElementsByTagName("sheetData")[0];
     if (!sheetDataEl) return;
-    if (vw.pstName) setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, 4), "B4", 2), vw.pstName);
-    if (vw.vehicleNum) setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, 5), "B5", 2), vw.vehicleNum);
+    if (vw.pstName) { setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, 4), "B4", 2), vw.pstName); cellsWritten++; }
+    if (vw.vehicleNum) { setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, 5), "B5", 2), vw.vehicleNum); cellsWritten++; }
   });
 
   Object.entries(docs).forEach(([path, doc]) => {
@@ -414,7 +417,8 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     zip.file(path, xml);
   });
 
-  return zip.generateAsync({ type: "arraybuffer" });
+  const buffer = await zip.generateAsync({ type: "arraybuffer" });
+  return { buffer, cellsWritten, sheetsWritten: Object.keys(docs).length };
 }
 
 async function writeTrendData(visitId, meta, locations, sections, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments) {
@@ -1005,11 +1009,42 @@ function FollowUpDashboard() {
 
 // In-app editor for the company-wide location roster (Firestore "locations"
 // collection), replacing the old hardcoded array + code-redeploy workflow.
+// Appends an immutable audit entry — before/after are full document snapshots
+// (not just a diff summary) so a future deletion is instantly recoverable
+// without digging through git history, unlike a bare updatedBy/updatedAt field.
+async function logAudit(collectionName, docId, action, before, after) {
+  try {
+    await setDoc(doc(collection(db, "auditLog")), {
+      collection: collectionName,
+      docId,
+      action,
+      before: before ?? null,
+      after: after ?? null,
+      user: auth.currentUser?.displayName || "",
+      userEmail: auth.currentUser?.email || "",
+      at: Date.now(),
+    });
+  } catch (err) {
+    console.error("Audit log write failed (change was still applied):", err);
+  }
+}
+
 function LocationRoster({ locations, onReload }) {
   const [query, setQuery] = useState("");
   const [editingLawson, setEditingLawson] = useState(null); // lawson being edited, or "new"
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showChanges, setShowChanges] = useState(false);
+  const [auditEntries, setAuditEntries] = useState([]);
+
+  useEffect(() => {
+    if (!showChanges) return;
+    const q = fsQuery(collection(db, "auditLog"), orderBy("at", "desc"), limit(50));
+    const unsub = onSnapshot(q, snap => {
+      setAuditEntries(snap.docs.map(d => d.data()).filter(e => e.collection === "locations"));
+    }, () => setAuditEntries([]));
+    return () => unsub();
+  }, [showChanges]);
 
   const filtered = query.trim()
     ? locations.filter(l => [l.lawson, l.name, l.city, l.state, l.region, l.areaManager].some(v => (v || "").toLowerCase().includes(query.toLowerCase())))
@@ -1024,7 +1059,12 @@ function LocationRoster({ locations, onReload }) {
     if (!draft.lawson.trim()) { alert("Lawson # is required."); return; }
     setSaving(true);
     try {
-      await setDoc(doc(db, "locations", draft.lawson.trim()), { ...draft, lawson: draft.lawson.trim() });
+      const lawson = draft.lawson.trim();
+      const ref = doc(db, "locations", lawson);
+      const existing = await getDoc(ref);
+      const after = { ...draft, lawson };
+      await setDoc(ref, after);
+      await logAudit("locations", lawson, existing.exists() ? "update" : "create", existing.exists() ? existing.data() : null, after);
       await onReload();
       cancelEdit();
     } finally {
@@ -1034,7 +1074,10 @@ function LocationRoster({ locations, onReload }) {
 
   async function removeLocation(lawson) {
     if (!window.confirm(`Remove location #${lawson} from the roster?`)) return;
-    await deleteDoc(doc(db, "locations", lawson));
+    const ref = doc(db, "locations", lawson);
+    const existing = await getDoc(ref);
+    await deleteDoc(ref);
+    await logAudit("locations", lawson, "delete", existing.exists() ? existing.data() : null, null);
     await onReload();
   }
 
@@ -1049,11 +1092,43 @@ function LocationRoster({ locations, onReload }) {
           <div style={{ fontSize: 12, color: "#9e9e9e", marginTop: 2 }}>{locations.length} location{locations.length !== 1 ? "s" : ""} — edits apply immediately for all specialists</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setShowChanges(v => !v)} style={{ padding: "7px 14px", fontSize: 12, background: showChanges ? BRAND : "#fff", color: showChanges ? "#fff" : "#616161", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+            {showChanges ? "Hide" : "Show"} Recent Changes
+          </button>
           <button onClick={startNew} style={{ padding: "7px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
             + Add Location
           </button>
         </div>
       </div>
+
+      {showChanges && (
+        <div style={{ background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 8, marginBottom: 14, overflow: "hidden" }}>
+          <div style={{ padding: "8px 14px", fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e0e0e0" }}>
+            Recent Changes
+          </div>
+          {auditEntries.length === 0 ? (
+            <div style={{ padding: 14, fontSize: 13, color: "#9e9e9e" }}>No changes recorded yet.</div>
+          ) : (
+            <div style={{ maxHeight: 260, overflowY: "auto" }}>
+              {auditEntries.map((e, i) => {
+                const label = e.action === "delete" ? e.before?.name : e.after?.name;
+                const actionColor = e.action === "delete" ? "#c62828" : e.action === "create" ? "#2e7d32" : "#e65100";
+                return (
+                  <div key={i} style={{ padding: "8px 14px", fontSize: 12, borderTop: i > 0 ? "1px solid #f0f0f0" : "none", display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <div>
+                      <span style={{ fontWeight: 700, color: actionColor, textTransform: "uppercase", marginRight: 6 }}>{e.action}</span>
+                      <span style={{ color: "#424242" }}>#{e.docId}{label ? ` — ${label}` : ""}</span>
+                    </div>
+                    <div style={{ color: "#9e9e9e", whiteSpace: "nowrap" }}>
+                      {e.user || e.userEmail || "unknown"} · {e.at ? new Date(e.at).toLocaleString("en-US") : "—"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name, city, region, Lawson #, Area Manager…"
         style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 6, marginBottom: 14, boxSizing: "border-box", color: "#212121" }} />
@@ -1817,6 +1892,7 @@ function SurveyPrepApp() {
       setOp541BufferBytes(new Uint8Array(buf)); // store for write-back export
       const wb = XLSX.read(buf, { type: "array" });
       const allSections = [];
+      const skippedSheets = [];
       let globalIdx = 0;
 
       for (const sheetName of wb.SheetNames) {
@@ -1851,7 +1927,7 @@ function SurveyPrepApp() {
             break;
           }
         }
-        if (hRow < 0) continue;
+        if (hRow < 0) { skippedSheets.push(sheetName); continue; }
 
         let curSection = null;
         for (let i = hRow + 1; i < rows.length; i++) {
@@ -1897,6 +1973,11 @@ function SurveyPrepApp() {
       setOp541States(ns);
       setOp541Comments(nc);
       setOp541FileName(file.name);
+
+      if (skippedSheets.length > 0) {
+        const parsedCount = wb.SheetNames.length - skippedSheets.length - (wb.SheetNames.includes("Formula") ? 1 : 0);
+        alert(`Uploaded — parsed ${parsedCount} sheet(s) successfully.\n\nCouldn't find a "LOCATION" column header on ${skippedSheets.length} sheet(s), so they were skipped: ${skippedSheets.join(", ")}.\n\nIf that sheet should have data, check its header row matches the expected format.`);
+      }
     } catch {
       alert("Could not read the file. Make sure it is a valid .xlsx file.");
     }
@@ -1913,8 +1994,8 @@ function SurveyPrepApp() {
     }
 
     try {
-      const wbOut = await writeBackToOriginalWorkbook(op541BufferBytes, op541Sections, op541States, op541Comments, buildVehicleWrites(op541Sections, op541VehicleInfo));
-      const blob = new Blob([wbOut], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(op541BufferBytes, op541Sections, op541States, op541Comments, buildVehicleWrites(op541Sections, op541VehicleInfo));
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1924,6 +2005,11 @@ function SurveyPrepApp() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      if (cellsWritten === 0) {
+        alert("Downloaded, but no matching answers were written — check that you've marked at least one Y/N/N/A on this tab.");
+      } else {
+        alert(`Export complete — wrote ${cellsWritten} value${cellsWritten !== 1 ? "s" : ""} across ${sheetsWritten} sheet${sheetsWritten !== 1 ? "s" : ""}.`);
+      }
     } catch (err) {
       console.error("Write-back export failed. Full stack:\n" + (err.stack || err));
       alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message + "\n\n(Full details logged to the browser console — press F12.)");
@@ -1941,8 +2027,8 @@ function SurveyPrepApp() {
     }
 
     try {
-      const wbOut = await writeBackToOriginalWorkbook(op541tBufferBytes, op541tSections, op541tStates, op541tComments, buildVehicleWrites(op541tSections, op541VehicleInfo));
-      const blob = new Blob([wbOut], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(op541tBufferBytes, op541tSections, op541tStates, op541tComments, buildVehicleWrites(op541tSections, op541VehicleInfo));
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1952,6 +2038,11 @@ function SurveyPrepApp() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      if (cellsWritten === 0) {
+        alert("Downloaded, but no matching answers were written — check that you've marked at least one Y/N/N/A on this tab.");
+      } else {
+        alert(`Export complete — wrote ${cellsWritten} value${cellsWritten !== 1 ? "s" : ""} across ${sheetsWritten} sheet${sheetsWritten !== 1 ? "s" : ""}.`);
+      }
     } catch (err) {
       console.error("Write-back export failed. Full stack:\n" + (err.stack || err));
       alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message + "\n\n(Full details logged to the browser console — press F12.)");
@@ -1964,6 +2055,7 @@ function SurveyPrepApp() {
       setOp541tBufferBytes(new Uint8Array(buf)); // store for write-back export
       const wb = XLSX.read(buf, { type: "array" });
       const allSections = [];
+      const skippedSheets = [];
       let globalIdx = 0;
 
       for (const sheetName of wb.SheetNames) {
@@ -1998,7 +2090,7 @@ function SurveyPrepApp() {
           hRow = 5; cDesc = 1; cLoc = 2; cComments = 4; cOnSite = 3;
         }
 
-        if (hRow < 0 || hRow >= rows.length) continue;
+        if (hRow < 0 || hRow >= rows.length) { skippedSheets.push(sheetName); continue; }
 
         let curSection = null;
         for (let i = hRow + 1; i < rows.length; i++) {
@@ -2049,6 +2141,11 @@ function SurveyPrepApp() {
       setOp541tStates(ns);
       setOp541tComments(nc);
       setOp541tFileName(file.name);
+
+      if (skippedSheets.length > 0) {
+        const parsedCount = wb.SheetNames.length - skippedSheets.length;
+        alert(`Uploaded — parsed ${parsedCount} sheet(s) successfully.\n\n${skippedSheets.length} sheet(s) didn't match the expected header layout and were skipped: ${skippedSheets.join(", ")}.\n\nIf that sheet should have data, check its header row matches the expected format.`);
+      }
     } catch {
       alert("Could not read the OP 541T file. Make sure it is a valid .xlsx file.");
     }

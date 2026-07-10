@@ -33,6 +33,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
+    // Append-only audit trail of locations writes (who changed/deleted what,
+    // with full before/after content) — added after an incident where the
+    // whole roster was found deleted with no record of who or when.
+    match /auditLog/{entryId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasAll(['collection', 'docId', 'action', 'user', 'at']);
+      allow update, delete: if false;
+    }
+
     // Lock down everything else
     match /{document=**} {
       allow read, write: if false;

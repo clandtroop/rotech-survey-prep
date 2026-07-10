@@ -13,5 +13,12 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Named Firestore database — this project has no "(default)" database at all
+// (confirmed via console: only "surveyprep" exists, and creating a second one
+// needs a Blaze upgrade). A prior refactor accidentally dropped this back to
+// the default, which silently broke every write — Firestore's client SDK
+// queues writes locally and reflects them immediately in-session even when
+// the target database doesn't exist, so it looked like it worked until the
+// session/cache reset and the phantom data vanished.
+export const db = getFirestore(app, "surveyprep");
 export const auth = getAuth(app);

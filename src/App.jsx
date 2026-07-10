@@ -8,6 +8,11 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile 
 const BRAND = "#1a3a5c";
 const ACCENT = "#2e6da4";
 
+// Admins allowed to add/edit/delete Location Roster entries (everyone else,
+// any signed-in specialist, gets read-only access). Must be kept in sync with
+// the matching allowlist in firestore.rules, which enforces this server-side.
+const ROSTER_ADMIN_EMAILS = ["tasmith@rotech.com", "cody.landtroop@rotech.com"];
+
 const DRAFT_KEY       = "rotech_survey_draft";
 const VISITS_KEY      = "rotech_saved_visits";
 const TREND_KEY       = "rotech_trend_data";
@@ -1366,6 +1371,7 @@ async function logAudit(collectionName, docId, action, before, after) {
 }
 
 function LocationRoster({ locations, onReload }) {
+  const isAdmin = ROSTER_ADMIN_EMAILS.includes(auth.currentUser?.email);
   const [query, setQuery] = useState("");
   const [editingLawson, setEditingLawson] = useState(null); // lawson being edited, or "new"
   const [draft, setDraft] = useState(null);
@@ -1441,18 +1447,24 @@ function LocationRoster({ locations, onReload }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: BRAND }}>Location Roster</div>
-          <div style={{ fontSize: 12, color: "#9e9e9e", marginTop: 2 }}>{locations.length} location{locations.length !== 1 ? "s" : ""} — edits apply immediately for all specialists</div>
+          <div style={{ fontSize: 12, color: "#9e9e9e", marginTop: 2 }}>
+            {locations.length} location{locations.length !== 1 ? "s" : ""}{isAdmin ? " — edits apply immediately for all specialists" : " — read-only (contact an admin to request changes)"}
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={restoreFromBackup} disabled={restoring} title={`Restore all ${LOCATIONS_BACKUP_SNAPSHOT.length} locations from the standing backup`} style={{ padding: "7px 14px", fontSize: 12, background: "#fff", color: "#e65100", border: "1px solid #e65100", borderRadius: 6, cursor: "pointer", fontWeight: 600, opacity: restoring ? 0.7 : 1 }}>
-            {restoring ? "Restoring…" : "Restore from backup"}
-          </button>
+          {isAdmin && (
+            <button onClick={restoreFromBackup} disabled={restoring} title={`Restore all ${LOCATIONS_BACKUP_SNAPSHOT.length} locations from the standing backup`} style={{ padding: "7px 14px", fontSize: 12, background: "#fff", color: "#e65100", border: "1px solid #e65100", borderRadius: 6, cursor: "pointer", fontWeight: 600, opacity: restoring ? 0.7 : 1 }}>
+              {restoring ? "Restoring…" : "Restore from backup"}
+            </button>
+          )}
           <button onClick={() => setShowChanges(v => !v)} style={{ padding: "7px 14px", fontSize: 12, background: showChanges ? BRAND : "#fff", color: showChanges ? "#fff" : "#616161", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
             {showChanges ? "Hide" : "Show"} Recent Changes
           </button>
-          <button onClick={startNew} style={{ padding: "7px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
-            + Add Location
-          </button>
+          {isAdmin && (
+            <button onClick={startNew} style={{ padding: "7px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+              + Add Location
+            </button>
+          )}
         </div>
       </div>
 
@@ -1521,8 +1533,8 @@ function LocationRoster({ locations, onReload }) {
             <div>{l.areaCode}</div>
             <div>{l.areaManager}</div>
             <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => startEdit(l)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 4, cursor: "pointer" }}>Edit</button>
-              <button onClick={() => removeLocation(l.lawson)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #ffcdd2", color: "#c62828", borderRadius: 4, cursor: "pointer" }}>✕</button>
+              {isAdmin && <button onClick={() => startEdit(l)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 4, cursor: "pointer" }}>Edit</button>}
+              {isAdmin && <button onClick={() => removeLocation(l.lawson)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #ffcdd2", color: "#c62828", borderRadius: 4, cursor: "pointer" }}>✕</button>}
             </div>
           </div>
         ))}

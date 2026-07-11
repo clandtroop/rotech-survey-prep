@@ -450,7 +450,8 @@ function buildChecklistItems(visit) {
   let n = 0;
   const { states = {}, comments = {}, op541Sections = [], op541States = {}, op541Comments = {},
           op541tSections = [], op541tStates = {}, op541tComments = {},
-          op541VehicleInfo = {} } = visit;
+          op541VehicleInfo = {},
+          personnelSlots = [], personnelItems = [], personnelAnswers = {}, personnelComments = {} } = visit;
 
   SECTIONS.forEach((sec, si) => {
     const category = SECTION_TO_CHECKLIST_CATEGORY[sec.id];
@@ -494,6 +495,20 @@ function buildChecklistItems(visit) {
     sec.items.forEach(item => {
       if (op541tStates[item.key] === "no") {
         items.push({ id: `i${n++}`, category, subheader, text: item.text, comment: op541tComments[item.key] || "", done: false });
+      }
+    });
+  });
+
+  // Personnel/Medical File "No" answers, one follow-up item per (item, employee).
+  // FDA File date items aren't included — there's no in-app validity ruleset to
+  // judge a date as a "failure" (that's left to the file's own conditional
+  // formatting on export), so there's no clean signal to surface here yet.
+  personnelItems.forEach(item => {
+    if (item.answerType !== "yn") return;
+    personnelSlots.forEach(slot => {
+      const key = `${item.key}|${slot.sheetName}|${slot.col}`;
+      if (personnelAnswers[key] === "no") {
+        items.push({ id: `i${n++}`, category: "Personnel", subheader: slot.name, text: item.text, comment: personnelComments[item.key] || "", done: false });
       }
     });
   });
@@ -670,7 +685,7 @@ async function resolveSheetPaths(zip, sheetNames, parser) {
 // shared by every section parsed from that sheet — resolves each labeled
 // entry back to the real Excel sheet name (item.sheetName) it belongs to, and
 // drops any sheet with no PST name / vehicle # actually filled in.
-function buildVehicleWrites(sections, vehicleInfoMap) {
+function buildVehicleWrites(sections, vehicleInfoMap, cellMap) {
   const bySheetName = {};
   sections.forEach(sec => {
     const info = vehicleInfoMap[sec.sheetLabel];
@@ -679,22 +694,58 @@ function buildVehicleWrites(sections, vehicleInfoMap) {
     if (!sheetName) return;
     bySheetName[sheetName] = info;
   });
-  return Object.entries(bySheetName).map(([sheetName, info]) => ({ sheetName, pstName: info.pstName, vehicleNum: info.vehicleNum }));
+  return Object.entries(bySheetName).map(([sheetName, info]) => ({
+    sheetName, pstName: info.pstName, vehicleNum: info.vehicleNum,
+    nameCell: cellMap.name, numCell: cellMap.num,
+  }));
+}
+
+// Builds the flat list of cell writes for a Personnel Records Review: one
+// entry per answered (item × employee) cell, plus one comment write per item
+// on every sheet that has slots present — "Personnel Records" and
+// "Additional Personnel Records" share the same item rows, so a comment edit
+// is kept in sync across both rather than living on only one of them.
+function buildPersonnelWrites(slots, items, answers, dates, comments) {
+  const writes = [];
+  const sheetNames = [...new Set(slots.map(s => s.sheetName))];
+
+  items.forEach(item => {
+    slots.forEach(slot => {
+      const key = `${item.key}|${slot.sheetName}|${slot.col}`;
+      if (item.answerType === "yn") {
+        const val = answers[key];
+        const text = val === "yes" ? "Y" : val === "no" ? "N" : val === "na" ? "N/A" : "";
+        if (text) writes.push({ sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: text });
+      } else {
+        const val = (dates[key] || "").trim();
+        if (val) writes.push({ sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: val });
+      }
+    });
+
+    const commentVal = (comments[item.key] || "").trim();
+    if (commentVal) {
+      sheetNames.forEach(sheetName => {
+        writes.push({ sheetName, rowIdx: item.rowIdx, col: PERSONNEL_COMMENTS_COL, value: commentVal });
+      });
+    }
+  });
+
+  return writes;
 }
 
 // Writes on-site Y/N/N/A answers + comments into the ORIGINAL uploaded
 // workbook by patching only the specific cells that changed (see comment
-// block above). Items without a known write target (item.cOnSite == null —
-// e.g. OP 541T personnel rows, whose column layout isn't confirmed) are
-// skipped rather than guessed at. vehicleWrites additionally writes PST Name
+// block above). Items without a known write target (item.cOnSite == null)
+// are skipped rather than guessed at. vehicleWrites additionally writes PST Name
 // into B4 and Vehicle # into B5 of each vehicle sheet that has one set.
-async function writeBackToOriginalWorkbook(bufferBytes, sections, states, comments, vehicleWrites = []) {
+async function writeBackToOriginalWorkbook(bufferBytes, sections, states, comments, vehicleWrites = [], personnelWrites = []) {
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(bufferBytes.buffer ?? bufferBytes);
 
   const neededSheetNames = new Set();
   sections.forEach(sec => sec.items.forEach(item => { if (item.cOnSite != null) neededSheetNames.add(item.sheetName); }));
   vehicleWrites.forEach(vw => neededSheetNames.add(vw.sheetName));
+  personnelWrites.forEach(pw => neededSheetNames.add(pw.sheetName));
 
   const parser = new DOMParser();
   const serializer = new XMLSerializer();
@@ -748,8 +799,29 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     if (!doc) return;
     const sheetDataEl = doc.getElementsByTagName("sheetData")[0];
     if (!sheetDataEl) return;
-    if (vw.pstName) { setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, 4), "B4", 2), vw.pstName); cellsWritten++; }
-    if (vw.vehicleNum) { setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, 5), "B5", 2), vw.vehicleNum); cellsWritten++; }
+    if (vw.pstName) {
+      const { row, col } = vw.nameCell;
+      setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, row), numToColLetters(col) + row, col), vw.pstName);
+      cellsWritten++;
+    }
+    if (vw.vehicleNum) {
+      const { row, col } = vw.numCell;
+      setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, row), numToColLetters(col) + row, col), vw.vehicleNum);
+      cellsWritten++;
+    }
+  });
+
+  personnelWrites.forEach(pw => {
+    const path = sheetPaths[pw.sheetName];
+    const doc = path && docs[path];
+    if (!doc) return;
+    const sheetDataEl = doc.getElementsByTagName("sheetData")[0];
+    if (!sheetDataEl) return;
+    const rowNum = pw.rowIdx + 1;
+    const colNum = pw.col + 1;
+    const address = numToColLetters(colNum) + rowNum;
+    setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, rowNum), address, colNum), pw.value);
+    cellsWritten++;
   });
 
   Object.entries(docs).forEach(([path, doc]) => {
@@ -762,7 +834,55 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
   return { buffer, cellsWritten, sheetsWritten: Object.keys(docs).length };
 }
 
-async function writeTrendData(visitId, meta, locations, sections, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments) {
+// Parses "Personnel Records" / "Additional Personnel Records" sheets — a
+// fundamentally different shape from every other OP 541T sheet: employees are
+// COLUMNS (C-L, 0-indexed 2-11; up to 10 per sheet) rather than rows, with
+// Name/Job Title/Hire Date as header rows above the actual review items.
+// Row positions are hardcoded from the real template (same convention as the
+// Facility/Vehicle hRow constants above) since this shape doesn't fit the
+// generic item-per-row parsing used everywhere else. Personnel File and
+// Medical File items are Y/N per employee; FDA File items are a date per
+// employee instead (validity is colored by the file's own conditional
+// formatting — this app doesn't reimplement that ruleset, just captures and
+// writes back whatever's entered).
+const PERSONNEL_EMPLOYEE_COLS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]; // C-L
+const PERSONNEL_COMMENTS_COL = 13; // N
+const PERSONNEL_ITEM_ROWS = [
+  ...[9, 10, 11, 12, 13, 14, 15, 16].map(rowIdx => ({ rowIdx, category: "Personnel File", answerType: "yn" })),
+  { rowIdx: 18, category: "Medical File", answerType: "yn" },
+  ...[20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30].map(rowIdx => ({ rowIdx, category: "FDA File", answerType: "date" })),
+];
+
+function parsePersonnelSheet(rows, sheetName) {
+  const nameRow = rows[4] || [];
+  const titleRow = rows[6] || [];
+  const hireRow = rows[7] || [];
+
+  const slots = PERSONNEL_EMPLOYEE_COLS
+    .map(col => ({
+      sheetName, col,
+      name: String(nameRow[col] || "").trim(),
+      jobTitle: String(titleRow[col] || "").trim(),
+      hireDate: String(hireRow[col] || "").trim(),
+    }))
+    .filter(s => s.name);
+
+  const items = PERSONNEL_ITEM_ROWS.map(({ rowIdx, category, answerType }, n) => {
+    const row = rows[rowIdx] || [];
+    return {
+      key: `personnel-${n}`,
+      rowIdx,
+      category,
+      answerType,
+      text: String(row[0] || "").trim(),
+      comment: String(row[PERSONNEL_COMMENTS_COL] || "").trim(),
+    };
+  }).filter(it => it.text);
+
+  return { slots, items };
+}
+
+async function writeTrendData(visitId, meta, locations, sections, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments, personnelSlots = [], personnelItems = [], personnelAnswers = {}, personnelComments = {}) {
   try {
     // Remove any prior records for this visitId so re-saves don't duplicate
     const existing = loadTrendData().filter(r => r.visitId !== visitId);
@@ -809,6 +929,19 @@ async function writeTrendData(visitId, meta, locations, sections, states, commen
       sec.items.forEach(item => {
         if (op541tStates[item.key] === "no") {
           records.push({ ...base, section: `OP 541T — ${sec.sheetLabel}`, formRef: "OP 541T", itemText: item.text, comment: op541tComments[item.key] || "", visitType: "op541t" });
+        }
+      });
+    });
+
+    // Personnel Records Review — Personnel/Medical File "No" answers, one
+    // record per (item, employee). FDA File dates are excluded (no in-app
+    // validity ruleset to judge them by — see buildChecklistItems).
+    personnelItems.forEach(item => {
+      if (item.answerType !== "yn") return;
+      personnelSlots.forEach(slot => {
+        const key = `${item.key}|${slot.sheetName}|${slot.col}`;
+        if (personnelAnswers[key] === "no") {
+          records.push({ ...base, section: `OP 541T — Personnel Records (${slot.name})`, formRef: "OP 541T Personnel Records", itemText: item.text, comment: personnelComments[item.key] || "", visitType: "op541t" });
         }
       });
     });
@@ -1077,7 +1210,7 @@ function ChecklistQrCode({ value }) {
 // Standalone follow-up checklist page, opened via ?checklist=<visitId>. Used by
 // both the location manager (checking items off) and the accreditation
 // specialist (watching live progress) — no auth, the visit ID is the secret.
-const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Vehicles", "PST Visits", "Binders"];
+const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Vehicles", "PST Visits", "Personnel", "Binders"];
 
 function ChecklistView({ visitId }) {
   const [doc_, setDoc_] = useState(undefined); // undefined = loading, null = not found
@@ -1538,6 +1671,102 @@ function LocationRoster({ locations, onReload }) {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Renders the Personnel Records Review matrix: employees as columns (from
+// both "Personnel Records" and "Additional Personnel Records" sheets
+// combined), items as rows, grouped by category. Personnel File/Medical File
+// items take Y/N/N/A per employee; FDA File items take a date (or "N/A")
+// instead — validity coloring is left entirely to the original file's own
+// conditional formatting once exported, not reimplemented here.
+function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments }) {
+  const slotId = s => `${s.sheetName}|${s.col}`;
+  const categories = ["Personnel File", "Medical File", "FDA File"];
+
+  const rows = [];
+  categories.forEach(cat => {
+    const catItems = items.filter(it => it.category === cat);
+    if (catItems.length === 0) return;
+    rows.push(
+      <tr key={`h-${cat}`}>
+        <td colSpan={slots.length + 1} style={{ background: "#e8eef4", padding: "6px 12px", fontWeight: 700, color: BRAND, textTransform: "uppercase", fontSize: 11, letterSpacing: "0.05em" }}>{cat}</td>
+      </tr>
+    );
+    catItems.forEach(item => {
+      rows.push(
+        <tr key={item.key} style={{ borderTop: "1px solid #f0f0f0" }}>
+          <td style={{ position: "sticky", left: 0, background: "#fff", padding: "8px 12px", verticalAlign: "top" }}>
+            <div style={{ color: "#212121", marginBottom: 6 }}>{item.text}</div>
+            <textarea
+              value={comments[item.key] ?? ""}
+              onChange={e => setComments(p => ({ ...p, [item.key]: e.target.value }))}
+              rows={2}
+              placeholder="Comments…"
+              style={{ width: "100%", fontSize: 11, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: "#212121" }}
+            />
+          </td>
+          {slots.map(s => {
+            const sid = slotId(s);
+            const key = `${item.key}|${sid}`;
+            if (item.answerType === "yn") {
+              const val = answers[key];
+              return (
+                <td key={sid} style={{ padding: "8px 10px" }}>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["yes", "no", "na"].map(v => {
+                      const sc = STATUS_COLORS[v];
+                      const active = val === v;
+                      return (
+                        <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))}
+                          style={{ flex: 1, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? sc.border : "#e0e0e0"}`, background: active ? sc.bg : "#fff", color: active ? sc.text : "#9e9e9e" }}>
+                          {sc.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </td>
+              );
+            }
+            return (
+              <td key={sid} style={{ padding: "8px 10px" }}>
+                <input
+                  value={dates[key] ?? ""}
+                  onChange={e => setDates(p => ({ ...p, [key]: e.target.value }))}
+                  placeholder="MM/DD/YYYY or N/A"
+                  style={{ width: "100%", fontSize: 11, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, boxSizing: "border-box", color: "#212121" }}
+                />
+              </td>
+            );
+          })}
+        </tr>
+      );
+    });
+  });
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em" }}>
+        Personnel Records Review
+      </div>
+      <div style={{ overflowX: "auto", border: "1px solid #e0e0e0", borderRadius: 8 }}>
+        <table style={{ borderCollapse: "collapse", fontSize: 12, minWidth: "100%" }}>
+          <thead>
+            <tr>
+              <th style={{ position: "sticky", left: 0, background: "#e8eef4", padding: "8px 12px", textAlign: "left", minWidth: 220, borderBottom: `2px solid ${BRAND}`, zIndex: 1 }}>Item</th>
+              {slots.map(s => (
+                <th key={slotId(s)} style={{ padding: "8px 10px", background: "#e8eef4", borderBottom: `2px solid ${BRAND}`, minWidth: 130, textAlign: "left" }}>
+                  <div style={{ fontWeight: 700, color: BRAND }}>{s.name}</div>
+                  <div style={{ fontWeight: 400, color: "#616161", fontSize: 11 }}>{s.jobTitle}</div>
+                  <div style={{ fontWeight: 400, color: "#9e9e9e", fontSize: 11 }}>Hired {s.hireDate}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>{rows}</tbody>
+        </table>
       </div>
     </div>
   );
@@ -2088,6 +2317,16 @@ function SurveyPrepApp() {
   const [op541tFileName, setOp541tFileName] = useState("");
   const [op541tBufferBytes, setOp541tBufferBytes] = useState(null); // original file bytes for write-back export
 
+  // Personnel Records Review state — employees are columns, not rows (see
+  // parsePersonnelSheet). personnelSlots covers both "Personnel Records" and
+  // "Additional Personnel Records" sheets combined; personnelAnswers/Dates are
+  // keyed by `${item.key}|${slot.sheetName}|${slot.col}`.
+  const [personnelSlots, setPersonnelSlots] = useState([]);
+  const [personnelItems, setPersonnelItems] = useState([]);
+  const [personnelAnswers, setPersonnelAnswers] = useState({});
+  const [personnelDates, setPersonnelDates] = useState({});
+  const [personnelComments, setPersonnelComments] = useState({});
+
   // Tab-level comments for PST Home Visit, PAP Setup, Ventilator Home Visit
   const [tabComments, setTabComments] = useState({ pst: "", clinician: "", vent: "" });
   const setTabComment = (id, val) => setTabComments(prev => ({ ...prev, [id]: val }));
@@ -2224,6 +2463,7 @@ function SurveyPrepApp() {
     });
 
     op541tSections.forEach(sec => {
+      const vInfo = op541VehicleInfo[sec.sheetLabel] || {};
       const issues = sec.items
         .filter(item => op541tStates[item.key] === "no")
         .map(item => ({
@@ -2245,6 +2485,8 @@ function SurveyPrepApp() {
       data.push({
         label: `OP 541T — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`,
         ref: "OP 541T Transfill Location Readiness Tool",
+        driverName: vInfo.pstName || "",
+        vehicleNum: vInfo.vehicleNum || "",
         yes, no, na, pending,
         total: sec.items.length,
         issues, observations, compliantItems,
@@ -2362,7 +2604,7 @@ function SurveyPrepApp() {
     }
 
     try {
-      const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(op541BufferBytes, op541Sections, op541States, op541Comments, buildVehicleWrites(op541Sections, op541VehicleInfo));
+      const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(op541BufferBytes, op541Sections, op541States, op541Comments, buildVehicleWrites(op541Sections, op541VehicleInfo, { name: { row: 4, col: 2 }, num: { row: 5, col: 2 } }));
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -2395,7 +2637,11 @@ function SurveyPrepApp() {
     }
 
     try {
-      const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(op541tBufferBytes, op541tSections, op541tStates, op541tComments, buildVehicleWrites(op541tSections, op541VehicleInfo));
+      const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(
+        op541tBufferBytes, op541tSections, op541tStates, op541tComments,
+        buildVehicleWrites(op541tSections, op541VehicleInfo, { name: { row: 2, col: 1 }, num: { row: 3, col: 1 } }),
+        buildPersonnelWrites(personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments)
+      );
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -2425,15 +2671,25 @@ function SurveyPrepApp() {
       const allSections = [];
       const skippedSheets = [];
       let globalIdx = 0;
+      let personnelSlots = [];
+      let personnelItems = null;
 
       for (const sheetName of wb.SheetNames) {
-        if (sheetName === "Formula" || sheetName.startsWith("Additional Personnel")) continue;
+        if (sheetName === "Formula") continue;
+
+        if (sheetName === "Personnel Records" || sheetName === "Additional Personnel Records") {
+          const ws = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+          const parsed = parsePersonnelSheet(rows, sheetName);
+          personnelSlots = personnelSlots.concat(parsed.slots);
+          if (!personnelItems && parsed.items.length > 0) personnelItems = parsed.items;
+          continue;
+        }
 
         const ws = wb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
         const isVehicle = sheetName.startsWith("Vehicle");
-        const isPersonnel = sheetName === "Personnel Records";
 
         let sheetLabel = sheetName.replace(/_/g, " ");
 
@@ -2448,11 +2704,6 @@ function SurveyPrepApp() {
         if (isVehicle) {
           // Vehicle sheets: desc=col A(0), loc=col B(1), on-site=col C(2), comments=col D(3)
           hRow = 6; cDesc = 0; cLoc = 1; cComments = 3; cOnSite = 2;
-        } else if (isPersonnel) {
-          // Personnel: desc=col A(0), loc answers across cols C-L, comments=col M(13).
-          // No single on-site column — layout isn't confirmed against a real sample
-          // file, so cOnSite stays null and these rows are skipped by write-back export.
-          hRow = 6; cDesc = 0; cLoc = -1; cComments = 13;
         } else {
           // Facility sheet: policy=col A(0), desc=col B(1), loc=col C(2), on-site=col D(3), comments=col E(4)
           hRow = 5; cDesc = 1; cLoc = 2; cComments = 4; cOnSite = 3;
@@ -2493,7 +2744,7 @@ function SurveyPrepApp() {
               locComment,
               rowIdx: i,        // row index in the sheet (for write-back)
               sheetName,        // actual Excel sheet name (for write-back)
-              cOnSite,          // On-Site Visit column index (for write-back); null for personnel rows
+              cOnSite,          // On-Site Visit column index (for write-back)
               cComments,        // Comments column index (for write-back)
             });
           }
@@ -2509,6 +2760,21 @@ function SurveyPrepApp() {
       setOp541tStates(ns);
       setOp541tComments(nc);
       setOp541tFileName(file.name);
+
+      setPersonnelSlots(personnelSlots);
+      setPersonnelItems(personnelItems || []);
+      const pa = {}, pd = {}, pc = {};
+      (personnelItems || []).forEach(item => {
+        pc[item.key] = item.comment || "";
+        personnelSlots.forEach(slot => {
+          const slotId = `${slot.sheetName}|${slot.col}`;
+          if (item.answerType === "yn") pa[`${item.key}|${slotId}`] = null;
+          else pd[`${item.key}|${slotId}`] = "";
+        });
+      });
+      setPersonnelAnswers(pa);
+      setPersonnelDates(pd);
+      setPersonnelComments(pc);
 
       if (skippedSheets.length > 0) {
         const parsedCount = wb.SheetNames.length - skippedSheets.length;
@@ -2527,6 +2793,7 @@ function SurveyPrepApp() {
     setForm(b);
     setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({}); setOp541BufferBytes(null);
     setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName(""); setOp541tBufferBytes(null);
+    setPersonnelSlots([]); setPersonnelItems([]); setPersonnelAnswers({}); setPersonnelDates({}); setPersonnelComments({});
     setTabComments({ pst: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
     setCurrentVisitId(null); setVisitFinalized(false);
@@ -2544,6 +2811,7 @@ function SurveyPrepApp() {
       meta, states, comments,
       op541Sections, op541States, op541Comments, op541FileName, op541VehicleInfo,
       op541tSections, op541tStates, op541tComments, op541tFileName,
+      personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments,
       tabComments, tabPatientInfo, additionalComments,
     };
     saveVisitToStorage(visit);
@@ -2560,7 +2828,7 @@ function SurveyPrepApp() {
     }
     if (!window.confirm("Mark this visit as finalized? This will record it in your trend data.\n\nYou can re-finalize after making changes to update the trend entry.")) return;
     try {
-      await writeTrendData(currentVisitId, meta, locations, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments);
+      await writeTrendData(currentVisitId, meta, locations, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments, personnelSlots, personnelItems, personnelAnswers, personnelComments);
       setVisitFinalized(true);
       alert("Visit finalized and recorded in trend data.");
     } catch {
@@ -2570,7 +2838,7 @@ function SurveyPrepApp() {
 
   function generateChecklistLink() {
     if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return; }
-    const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo };
+    const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo, personnelSlots, personnelItems, personnelAnswers, personnelComments };
     setChecklistLinkLoading(true);
     ensureChecklistDoc(visit, currentVisitId)
       .then(url => setChecklistLink(url))
@@ -2592,6 +2860,11 @@ function SurveyPrepApp() {
     setOp541tStates(visit.op541tStates ?? {});
     setOp541tComments(visit.op541tComments ?? {});
     setOp541tFileName(visit.op541tFileName ?? "");
+    setPersonnelSlots(visit.personnelSlots ?? []);
+    setPersonnelItems(visit.personnelItems ?? []);
+    setPersonnelAnswers(visit.personnelAnswers ?? {});
+    setPersonnelDates(visit.personnelDates ?? {});
+    setPersonnelComments(visit.personnelComments ?? {});
     setTabComments(visit.tabComments ?? { pst: "", clinician: "", vent: "" });
     setTabPatientInfo(visit.tabPatientInfo ?? { pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments(visit.additionalComments ?? "");
@@ -3513,11 +3786,39 @@ function SurveyPrepApp() {
                   <div style={{ padding: "16px 24px" }}>
                     {op541tSections.map((section, si) => {
                       const showSheetHeader = si === 0 || op541tSections[si - 1].sheetLabel !== section.sheetLabel;
+                      const isVehicleSheet = section.sheetLabel.startsWith("Vehicle") || section.sheetLabel.startsWith("Unit");
+                      const vInfo = op541VehicleInfo[section.sheetLabel] || { pstName: "", vehicleNum: "" };
+                      const setVInfo = (field, val) => setOp541VehicleInfo(prev => ({
+                        ...prev,
+                        [section.sheetLabel]: { ...prev[section.sheetLabel], pstName: prev[section.sheetLabel]?.pstName || "", vehicleNum: prev[section.sheetLabel]?.vehicleNum || "", [field]: val }
+                      }));
                       return (
                         <div key={si} style={{ marginBottom: 20 }}>
                           {showSheetHeader && (
-                            <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em", marginTop: si > 0 ? 24 : 0 }}>
-                              {section.sheetLabel}
+                            <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em", marginTop: si > 0 ? 24 : 0, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                              <span>{section.sheetLabel}</span>
+                              {isVehicleSheet && (
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                    <label style={{ fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" }}>Driver Name:</label>
+                                    <input
+                                      value={vInfo.pstName}
+                                      onChange={e => setVInfo("pstName", e.target.value)}
+                                      placeholder="Enter name"
+                                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 130 }}
+                                    />
+                                  </div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                    <label style={{ fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" }}>Vehicle #:</label>
+                                    <input
+                                      value={vInfo.vehicleNum}
+                                      onChange={e => setVInfo("vehicleNum", e.target.value)}
+                                      placeholder="Enter #"
+                                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 80 }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                           {section.label && (
@@ -3579,6 +3880,18 @@ function SurveyPrepApp() {
                         </div>
                       );
                     })}
+                    {personnelItems.length > 0 && (
+                      <PersonnelRecordsPanel
+                        slots={personnelSlots}
+                        items={personnelItems}
+                        answers={personnelAnswers}
+                        setAnswers={setPersonnelAnswers}
+                        dates={personnelDates}
+                        setDates={setPersonnelDates}
+                        comments={personnelComments}
+                        setComments={setPersonnelComments}
+                      />
+                    )}
                   </div>
                 </div>
               )}
@@ -3729,9 +4042,10 @@ function SurveyPrepApp() {
                 <div style={{ padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", background: isCompliant ? "#f6fbf6" : hasIssues ? "#fdf4f4" : "#fffbf2", borderBottom: isCompliant ? "none" : "1px solid #ede0e0" }}>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 13, color: "#212121" }}>{s.label}</div>
-                    {(s.pstName || s.vehicleNum) && (
+                    {(s.pstName || s.driverName || s.vehicleNum) && (
                       <div style={{ display: "flex", gap: 14, marginTop: 2, fontSize: 11, color: "#555" }}>
-                        {s.pstName   && <span>PST: <strong>{s.pstName}</strong></span>}
+                        {s.pstName    && <span>PST: <strong>{s.pstName}</strong></span>}
+                        {s.driverName && <span>Driver: <strong>{s.driverName}</strong></span>}
                         {s.vehicleNum && <span>Vehicle #: <strong>{s.vehicleNum}</strong></span>}
                       </div>
                     )}

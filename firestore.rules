@@ -39,6 +39,20 @@ service cloud.firestore {
                    && request.auth.token.email in ['tasmith@rotech.com', 'cody.landtroop@rotech.com'];
     }
 
+    // In-progress (not-yet-finalized) visits — lets a specialist "Save
+    // Progress" on one device (e.g. an iPad in the field) and "Load" the
+    // same visit on another (e.g. a desktop) after signing in there. Scoped
+    // to the visit's own owner only, via ownerUid set by the client at save
+    // time and matched against both the incoming write and the existing doc.
+    match /inProgressVisits/{visitId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.ownerUid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerUid;
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.ownerUid
+                    && request.auth.uid == request.resource.data.ownerUid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.ownerUid;
+    }
+
     // Append-only audit trail of locations writes (who changed/deleted what,
     // with full before/after content) — added after an incident where the
     // whole roster was found deleted with no record of who or when.

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 import { db, auth } from "./firebase";
-import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, orderBy, limit, writeBatch } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, where, orderBy, limit, writeBatch } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
 
 const BRAND = "#1a3a5c";
@@ -21,6 +21,12 @@ const PDF_HISTORY_KEY = "rotech_pdf_history";
 // Firestore collection holding per-visit follow-up checklists (see firestore.rules).
 const CHECKLISTS_COLLECTION = "followUpChecklists";
 const TRENDS_COLLECTION    = "visitTrends";
+// In-progress (not-yet-finalized) visits, synced per-specialist so "Save
+// Progress" on one device can be picked back up with "Load" on another
+// (e.g. starting a visit on an iPad, finishing it at a desk). Keyed by the
+// same visit.id used in localStorage; scoped to the signed-in specialist via
+// ownerUid (see firestore.rules — read/write is restricted to the owner).
+const IN_PROGRESS_VISITS_COLLECTION = "inProgressVisits";
 
 // Maps each SECTIONS id to its follow-up checklist category.
 const SECTION_TO_CHECKLIST_CATEGORY = {
@@ -442,6 +448,33 @@ function deleteVisitFromStorage(id) {
   } catch {}
 }
 
+// Cross-device counterparts to the localStorage functions above — same
+// "visit" shape, plus ownerUid/ownerEmail so firestore.rules can restrict
+// each specialist to their own in-progress visits. localStorage stays as an
+// immediate local cache (saveProgress writes both); Firestore is what makes
+// "Save Progress" on one device show up under "Load" on another.
+async function saveVisitToFirestore(visit) {
+  const ref = doc(db, IN_PROGRESS_VISITS_COLLECTION, visit.id);
+  await setDoc(ref, {
+    ...visit,
+    ownerUid: auth.currentUser?.uid || null,
+    ownerEmail: auth.currentUser?.email || null,
+    updatedAt: new Date().toISOString(),
+  });
+}
+async function loadVisitsFromFirestore() {
+  if (!auth.currentUser) return [];
+  const q = fsQuery(collection(db, IN_PROGRESS_VISITS_COLLECTION), where("ownerUid", "==", auth.currentUser.uid));
+  const snap = await getDocs(q);
+  const visits = [];
+  snap.forEach(d => visits.push(d.data()));
+  visits.sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
+  return visits;
+}
+async function deleteVisitFromFirestore(id) {
+  await deleteDoc(doc(db, IN_PROGRESS_VISITS_COLLECTION, id));
+}
+
 // Builds the flat list of checkable follow-up items from a saved visit's failed
 // findings. Each item carries a category and subheader so ChecklistView can
 // group them under labelled sections (binder name, unit #, PST name, etc.).
@@ -700,37 +733,138 @@ function buildVehicleWrites(sections, vehicleInfoMap, cellMap) {
   }));
 }
 
-// Builds the flat list of cell writes for a Personnel Records Review: one
-// entry per answered (item × employee) cell, plus one comment write per item
-// on every sheet that has slots present — "Personnel Records" and
-// "Additional Personnel Records" share the same item rows, so a comment edit
-// is kept in sync across both rather than living on only one of them.
-function buildPersonnelWrites(slots, items, answers, dates, comments) {
-  const writes = [];
-  const sheetNames = [...new Set(slots.map(s => s.sheetName))];
+// Builds the row content for a brand-new "Accreditation Specialist Responses"
+// sheet — one block per employee (Name/Job Title/Hire Date, then each
+// category's items with the specialist's answer/date and comment). This
+// replaced an earlier version that patched answers directly into the
+// original "Personnel Records"/"Additional Personnel Records" cells: that
+// depended on guessed row/column positions in the real template and, in
+// practice, exported with none of the specialist's answers actually written.
+// A dedicated sheet the app fully controls (rather than reverse-engineered
+// coordinates in someone else's template) sidesteps that failure mode
+// entirely, while still keeping every employee's own name attached to their
+// answers right next to them.
+function buildPersonnelResponseSheetRows(slots, items, answers, dates, comments) {
+  if (slots.length === 0) return [];
+  const categories = ["Personnel File", "Medical File", "FDA File"];
+  const rows = [["Accreditation Specialist Responses — Personnel Records Review"], []];
 
-  items.forEach(item => {
-    slots.forEach(slot => {
-      const key = `${item.key}|${slot.sheetName}|${slot.col}`;
-      if (item.answerType === "yn") {
-        const val = answers[key];
-        const text = val === "yes" ? "Y" : val === "no" ? "N" : val === "na" ? "N/A" : "";
-        if (text) writes.push({ sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: text });
-      } else {
-        const val = (dates[key] || "").trim();
-        if (val) writes.push({ sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: val });
-      }
-    });
+  slots.forEach((slot, idx) => {
+    const sid = `${slot.sheetName}|${slot.col}`;
+    rows.push([`Employee ${idx + 1}`]);
+    rows.push(["Name", slot.name || ""]);
+    rows.push(["Job Title", slot.jobTitle || ""]);
+    rows.push(["Hire Date", slot.hireDate || ""]);
+    rows.push([]);
 
-    const commentVal = (comments[item.key] || "").trim();
-    if (commentVal) {
-      sheetNames.forEach(sheetName => {
-        writes.push({ sheetName, rowIdx: item.rowIdx, col: PERSONNEL_COMMENTS_COL, value: commentVal });
+    categories.forEach(cat => {
+      const catItems = items.filter(it => it.category === cat);
+      if (catItems.length === 0) return;
+      rows.push([cat]);
+      rows.push(["Item", "Response", "Comment"]);
+      catItems.forEach(item => {
+        const key = `${item.key}|${sid}`;
+        let value = "";
+        if (item.answerType === "yn") {
+          const v = answers[key];
+          value = v === "yes" ? "Y" : v === "no" ? "N" : v === "na" ? "N/A" : "";
+        } else {
+          value = dates[key] || "";
+        }
+        rows.push([item.text, value, comments[item.key] || ""]);
       });
-    }
+      rows.push([]);
+    });
   });
 
-  return writes;
+  return rows;
+}
+
+// Appends a brand-new worksheet (not part of the original template) to the
+// zip: writes its sheetData part, then registers it in the three places
+// OOXML requires — [Content_Types].xml, xl/_rels/workbook.xml.rels, and the
+// <sheets> list in xl/workbook.xml — so Excel actually recognizes the new
+// tab. All new elements use createElementNS/setAttributeNS (never plain
+// createElement/setAttribute) for the same reason as everywhere else in this
+// file: unnamespaced elements force an xmlns="" override that Excel silently
+// fails to parse as real content.
+async function addNewWorksheetFromRows(zip, parser, serializer, sheetName, rows) {
+  const NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+  const R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+  const existingSheetNums = Object.keys(zip.files)
+    .map(p => /^xl\/worksheets\/sheet(\d+)\.xml$/.exec(p))
+    .filter(Boolean)
+    .map(m => parseInt(m[1], 10));
+  const nextNum = (existingSheetNums.length ? Math.max(...existingSheetNums) : 0) + 1;
+  const newPath = `xl/worksheets/sheet${nextNum}.xml`;
+
+  const sheetDoc = parser.parseFromString(
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${NS}"><sheetData></sheetData></worksheet>`,
+    "application/xml"
+  );
+  const sheetDataEl = sheetDoc.getElementsByTagName("sheetData")[0];
+  rows.forEach((rowVals, rIdx) => {
+    const rowNum = rIdx + 1;
+    const rowEl = sheetDoc.createElementNS(NS, "row");
+    rowEl.setAttribute("r", String(rowNum));
+    (rowVals || []).forEach((val, cIdx) => {
+      if (val === undefined || val === null || val === "") return;
+      const address = numToColLetters(cIdx + 1) + rowNum;
+      const cellEl = sheetDoc.createElementNS(NS, "c");
+      cellEl.setAttribute("r", address);
+      setInlineStringValue(sheetDoc, cellEl, String(val));
+      rowEl.appendChild(cellEl);
+    });
+    sheetDataEl.appendChild(rowEl);
+  });
+  zip.file(newPath, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${serializer.serializeToString(sheetDoc)}`);
+
+  // [Content_Types].xml
+  const ctPath = "[Content_Types].xml";
+  const ctDoc = parser.parseFromString(await zip.file(ctPath).async("string"), "application/xml");
+  assertParsedOk(ctDoc, ctPath);
+  const overrideEl = ctDoc.createElementNS(ctDoc.documentElement.namespaceURI, "Override");
+  overrideEl.setAttribute("PartName", "/" + newPath);
+  overrideEl.setAttribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml");
+  ctDoc.documentElement.appendChild(overrideEl);
+  zip.file(ctPath, serializer.serializeToString(ctDoc));
+
+  // xl/_rels/workbook.xml.rels
+  const relsPath = "xl/_rels/workbook.xml.rels";
+  const relsDoc = parser.parseFromString(await zip.file(relsPath).async("string"), "application/xml");
+  assertParsedOk(relsDoc, relsPath);
+  const relEls = relsDoc.getElementsByTagName("Relationship");
+  let maxRid = 0;
+  for (let i = 0; i < relEls.length; i++) {
+    const m = /^rId(\d+)$/.exec(relEls[i].getAttribute("Id"));
+    if (m) maxRid = Math.max(maxRid, parseInt(m[1], 10));
+  }
+  const newRid = `rId${maxRid + 1}`;
+  const newRelEl = relsDoc.createElementNS(relsDoc.documentElement.namespaceURI, "Relationship");
+  newRelEl.setAttribute("Id", newRid);
+  newRelEl.setAttribute("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet");
+  newRelEl.setAttribute("Target", `worksheets/sheet${nextNum}.xml`);
+  relsDoc.documentElement.appendChild(newRelEl);
+  zip.file(relsPath, serializer.serializeToString(relsDoc));
+
+  // xl/workbook.xml
+  const wbPath = "xl/workbook.xml";
+  const wbDoc = parser.parseFromString(await zip.file(wbPath).async("string"), "application/xml");
+  assertParsedOk(wbDoc, wbPath);
+  const sheetsEl = wbDoc.getElementsByTagName("sheets")[0];
+  const sheetEls = wbDoc.getElementsByTagName("sheet");
+  let maxSheetId = 0;
+  for (let i = 0; i < sheetEls.length; i++) {
+    const sid = parseInt(sheetEls[i].getAttribute("sheetId"), 10);
+    if (!isNaN(sid)) maxSheetId = Math.max(maxSheetId, sid);
+  }
+  const newSheetEl = wbDoc.createElementNS(wbDoc.documentElement.namespaceURI, "sheet");
+  newSheetEl.setAttribute("name", sheetName);
+  newSheetEl.setAttribute("sheetId", String(maxSheetId + 1));
+  newSheetEl.setAttributeNS(R_NS, "r:id", newRid);
+  sheetsEl.appendChild(newSheetEl);
+  zip.file(wbPath, serializer.serializeToString(wbDoc));
 }
 
 // Writes on-site Y/N/N/A answers + comments into the ORIGINAL uploaded
@@ -738,14 +872,16 @@ function buildPersonnelWrites(slots, items, answers, dates, comments) {
 // block above). Items without a known write target (item.cOnSite == null)
 // are skipped rather than guessed at. vehicleWrites additionally writes PST Name
 // into B4 and Vehicle # into B5 of each vehicle sheet that has one set.
-async function writeBackToOriginalWorkbook(bufferBytes, sections, states, comments, vehicleWrites = [], personnelWrites = []) {
+// personnelResponseRows (if non-empty) gets appended as a brand-new
+// "Accreditation Specialist Responses" sheet rather than patched into the
+// original Personnel Records cells — see addNewWorksheetFromRows above.
+async function writeBackToOriginalWorkbook(bufferBytes, sections, states, comments, vehicleWrites = [], personnelResponseRows = []) {
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(bufferBytes.buffer ?? bufferBytes);
 
   const neededSheetNames = new Set();
   sections.forEach(sec => sec.items.forEach(item => { if (item.cOnSite != null) neededSheetNames.add(item.sheetName); }));
   vehicleWrites.forEach(vw => neededSheetNames.add(vw.sheetName));
-  personnelWrites.forEach(pw => neededSheetNames.add(pw.sheetName));
 
   const parser = new DOMParser();
   const serializer = new XMLSerializer();
@@ -811,33 +947,26 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     }
   });
 
-  personnelWrites.forEach(pw => {
-    const path = sheetPaths[pw.sheetName];
-    const doc = path && docs[path];
-    if (!doc) return;
-    const sheetDataEl = doc.getElementsByTagName("sheetData")[0];
-    if (!sheetDataEl) return;
-    const rowNum = pw.rowIdx + 1;
-    const colNum = pw.col + 1;
-    const address = numToColLetters(colNum) + rowNum;
-    setInlineStringValue(doc, getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, rowNum), address, colNum), pw.value);
-    cellsWritten++;
-  });
-
   Object.entries(docs).forEach(([path, doc]) => {
     const serialized = serializer.serializeToString(doc);
     const xml = serialized.startsWith("<?xml") ? serialized : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${serialized}`;
     zip.file(path, xml);
   });
 
+  let sheetsWritten = Object.keys(docs).length;
+  if (personnelResponseRows.length > 0) {
+    await addNewWorksheetFromRows(zip, parser, serializer, "Accreditation Specialist Responses", personnelResponseRows);
+    cellsWritten += personnelResponseRows.reduce((n, r) => n + (r || []).filter(v => v !== undefined && v !== null && v !== "").length, 0);
+    sheetsWritten += 1;
+  }
+
   const buffer = await zip.generateAsync({ type: "arraybuffer" });
-  return { buffer, cellsWritten, sheetsWritten: Object.keys(docs).length };
+  return { buffer, cellsWritten, sheetsWritten };
 }
 
 // Parses "Personnel Records" / "Additional Personnel Records" sheets — a
 // fundamentally different shape from every other OP 541T sheet: employees are
-// COLUMNS (C-L, 0-indexed 2-11; up to 10 per sheet) rather than rows, with
-// Name/Job Title/Hire Date as header rows above the actual review items.
+// COLUMNS (C-L, 0-indexed 2-11; up to 10 per sheet) rather than rows.
 // Row positions are hardcoded from the real template (same convention as the
 // Facility/Vehicle hRow constants above) since this shape doesn't fit the
 // generic item-per-row parsing used everywhere else. Personnel File and
@@ -845,8 +974,16 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
 // employee instead (validity is colored by the file's own conditional
 // formatting — this app doesn't reimplement that ruleset, just captures and
 // writes back whatever's entered).
+//
+// Only the employee Name is read from the uploaded file — Job Title, Hire
+// Date, and every Personnel/Medical/FDA answer are entered fresh by the
+// specialist in the app (per explicit request: there's no need to see
+// whatever's already on file for a location, only who's already listed).
+// None of the specialist-entered fields are patched back into these sheets'
+// own cells on export — see buildPersonnelResponseSheetRows below for why.
 const PERSONNEL_EMPLOYEE_COLS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]; // C-L
 const PERSONNEL_COMMENTS_COL = 13; // N
+const PERSONNEL_NAME_ROW_IDX = 4;  // row 5
 const PERSONNEL_ITEM_ROWS = [
   ...[9, 10, 11, 12, 13, 14, 15, 16].map(rowIdx => ({ rowIdx, category: "Personnel File", answerType: "yn" })),
   { rowIdx: 18, category: "Medical File", answerType: "yn" },
@@ -854,16 +991,14 @@ const PERSONNEL_ITEM_ROWS = [
 ];
 
 function parsePersonnelSheet(rows, sheetName) {
-  const nameRow = rows[4] || [];
-  const titleRow = rows[6] || [];
-  const hireRow = rows[7] || [];
+  const nameRow = rows[PERSONNEL_NAME_ROW_IDX] || [];
 
   const slots = PERSONNEL_EMPLOYEE_COLS
     .map(col => ({
       sheetName, col,
       name: String(nameRow[col] || "").trim(),
-      jobTitle: String(titleRow[col] || "").trim(),
-      hireDate: String(hireRow[col] || "").trim(),
+      jobTitle: "",
+      hireDate: "",
     }))
     .filter(s => s.name);
 
@@ -1676,98 +1811,122 @@ function LocationRoster({ locations, onReload }) {
   );
 }
 
-// Renders the Personnel Records Review matrix: employees as columns (from
-// both "Personnel Records" and "Additional Personnel Records" sheets
-// combined), items as rows, grouped by category. Personnel File/Medical File
-// items take Y/N/N/A per employee; FDA File items take a date (or "N/A")
-// instead — validity coloring is left entirely to the original file's own
-// conditional formatting once exported, not reimplemented here.
-function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments }) {
+// Card-per-employee layout modeled directly on the real "Location Readiness
+// Platform" Personnel Files form (OP 541's reference UI — OP 541T's sheet is
+// the same shape with different item wording). Name is pre-filled if it was
+// already in the uploaded file; Job Title, Hire Date, and every item answer
+// are always specialist-entered here, never read from the file. Each item's
+// comment lives inline on its own line (one comment cell per item row in the
+// real file, shared across every employee, so editing it in any one
+// employee's card updates the same value everywhere it appears).
+// FDA date fields use a native date picker; the underlying stored value stays
+// a plain MM/DD/YYYY string (same convention as Hire Date and every other
+// date in this app) so write-back doesn't need any special-casing — a blank
+// picker just means nothing gets written, same as leaving the field empty.
+function isoToUsDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : "";
+}
+function usDateToIso(us) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(us || "");
+  return m ? `${m[3]}-${m[1]}-${m[2]}` : "";
+}
+
+function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments, onAddEmployee, onRemoveEmployee, onUpdateSlot, canAddEmployee }) {
   const slotId = s => `${s.sheetName}|${s.col}`;
   const categories = ["Personnel File", "Medical File", "FDA File"];
+  const groups = categories
+    .map(cat => ({ cat, items: items.filter(it => it.category === cat) }))
+    .filter(g => g.items.length > 0);
 
-  const rows = [];
-  categories.forEach(cat => {
-    const catItems = items.filter(it => it.category === cat);
-    if (catItems.length === 0) return;
-    rows.push(
-      <tr key={`h-${cat}`}>
-        <td colSpan={slots.length + 1} style={{ background: "#e8eef4", padding: "6px 12px", fontWeight: 700, color: BRAND, textTransform: "uppercase", fontSize: 11, letterSpacing: "0.05em" }}>{cat}</td>
-      </tr>
-    );
-    catItems.forEach(item => {
-      rows.push(
-        <tr key={item.key} style={{ borderTop: "1px solid #f0f0f0" }}>
-          <td style={{ position: "sticky", left: 0, background: "#fff", padding: "8px 12px", verticalAlign: "top" }}>
-            <div style={{ color: "#212121", marginBottom: 6 }}>{item.text}</div>
-            <textarea
-              value={comments[item.key] ?? ""}
-              onChange={e => setComments(p => ({ ...p, [item.key]: e.target.value }))}
-              rows={2}
-              placeholder="Comments…"
-              style={{ width: "100%", fontSize: 11, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: "#212121" }}
-            />
-          </td>
-          {slots.map(s => {
-            const sid = slotId(s);
-            const key = `${item.key}|${sid}`;
-            if (item.answerType === "yn") {
-              const val = answers[key];
-              return (
-                <td key={sid} style={{ padding: "8px 10px" }}>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {["yes", "no", "na"].map(v => {
-                      const sc = STATUS_COLORS[v];
-                      const active = val === v;
-                      return (
-                        <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))}
-                          style={{ flex: 1, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? sc.border : "#e0e0e0"}`, background: active ? sc.bg : "#fff", color: active ? sc.text : "#9e9e9e" }}>
-                          {sc.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </td>
-              );
-            }
-            return (
-              <td key={sid} style={{ padding: "8px 10px" }}>
-                <input
-                  value={dates[key] ?? ""}
-                  onChange={e => setDates(p => ({ ...p, [key]: e.target.value }))}
-                  placeholder="MM/DD/YYYY or N/A"
-                  style={{ width: "100%", fontSize: 11, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, boxSizing: "border-box", color: "#212121" }}
-                />
-              </td>
-            );
-          })}
-        </tr>
-      );
-    });
-  });
+  const fieldStyle = { width: "100%", fontSize: 13, padding: "6px 8px", border: "1px solid #e0e0e0", borderRadius: 4, boxSizing: "border-box", color: "#212121" };
+  const labelStyle = { fontSize: 11, color: "#616161", marginBottom: 4, fontWeight: 600 };
 
   return (
     <div style={{ marginTop: 24 }}>
-      <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em" }}>
+      <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 12, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em" }}>
         Personnel Records Review
       </div>
-      <div style={{ overflowX: "auto", border: "1px solid #e0e0e0", borderRadius: 8 }}>
-        <table style={{ borderCollapse: "collapse", fontSize: 12, minWidth: "100%" }}>
-          <thead>
-            <tr>
-              <th style={{ position: "sticky", left: 0, background: "#e8eef4", padding: "8px 12px", textAlign: "left", minWidth: 220, borderBottom: `2px solid ${BRAND}`, zIndex: 1 }}>Item</th>
-              {slots.map(s => (
-                <th key={slotId(s)} style={{ padding: "8px 10px", background: "#e8eef4", borderBottom: `2px solid ${BRAND}`, minWidth: 130, textAlign: "left" }}>
-                  <div style={{ fontWeight: 700, color: BRAND }}>{s.name}</div>
-                  <div style={{ fontWeight: 400, color: "#616161", fontSize: 11 }}>{s.jobTitle}</div>
-                  <div style={{ fontWeight: 400, color: "#9e9e9e", fontSize: 11 }}>Hired {s.hireDate}</div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>{rows}</tbody>
-        </table>
-      </div>
+
+      {slots.map((s, idx) => {
+        const sid = slotId(s);
+        return (
+          <div key={sid} style={{ border: "1px solid #e0e0e0", borderRadius: 8, padding: 16, marginBottom: 16, background: "#fff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, color: BRAND, fontSize: 14 }}>Employee {idx + 1}</div>
+              <button onClick={() => onRemoveEmployee(s)} style={{ fontSize: 11, color: "#c62828", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                Remove
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+              <label style={{ flex: "2 1 220px" }}>
+                <div style={labelStyle}>Name</div>
+                <input value={s.name} onChange={e => onUpdateSlot(s.sheetName, s.col, "name", e.target.value)} style={fieldStyle} />
+              </label>
+              <label style={{ flex: "2 1 220px" }}>
+                <div style={labelStyle}>Job Title</div>
+                <input value={s.jobTitle} onChange={e => onUpdateSlot(s.sheetName, s.col, "jobTitle", e.target.value)} style={fieldStyle} />
+              </label>
+              <label style={{ flex: "1 1 160px" }}>
+                <div style={labelStyle}>Hire Date</div>
+                <input value={s.hireDate} onChange={e => onUpdateSlot(s.sheetName, s.col, "hireDate", e.target.value)} placeholder="MM/DD/YYYY" style={fieldStyle} />
+              </label>
+            </div>
+
+            {groups.map(({ cat, items: catItems }) => (
+              <div key={cat} style={{ background: "#e8f5e9", border: "1px solid #c8e6c9", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, color: "#2e7d32", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{cat}</div>
+                {catItems.map(item => {
+                  const key = `${item.key}|${sid}`;
+                  return (
+                    <div key={item.key} style={{ padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                        <div style={{ fontSize: 12, color: "#212121", flex: 1 }}>{item.text}</div>
+                        {item.answerType === "yn" ? (
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {["yes", "no", "na"].map(v => {
+                              const sc = STATUS_COLORS[v];
+                              const active = answers[key] === v;
+                              return (
+                                <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))}
+                                  style={{ width: 40, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? sc.border : "#e0e0e0"}`, background: active ? sc.bg : "#fff", color: active ? sc.text : "#9e9e9e" }}>
+                                  {sc.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <input
+                            type="date"
+                            value={usDateToIso(dates[key])}
+                            onChange={e => setDates(p => ({ ...p, [key]: isoToUsDate(e.target.value) }))}
+                            style={{ fontSize: 12, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, boxSizing: "border-box", color: "#212121" }}
+                          />
+                        )}
+                      </div>
+                      <textarea
+                        value={comments[item.key] ?? ""}
+                        onChange={e => setComments(p => ({ ...p, [item.key]: e.target.value }))}
+                        rows={1}
+                        placeholder="Comments (shared across all employees)…"
+                        style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: "#212121" }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      <button
+        onClick={onAddEmployee}
+        disabled={!canAddEmployee}
+        style={{ width: "100%", padding: "10px", border: `2px dashed ${canAddEmployee ? BRAND : "#c0c0c0"}`, borderRadius: 6, background: "none", color: canAddEmployee ? BRAND : "#c0c0c0", fontWeight: 700, cursor: canAddEmployee ? "pointer" : "not-allowed" }}>
+        + Add Employee
+      </button>
     </div>
   );
 }
@@ -2285,6 +2444,25 @@ function SurveyPrepApp() {
   const [hasDraft, setHasDraft] = useState(!!draft);
   const [savedAt, setSavedAt] = useState(draft?.savedAt ?? null);
   const [savedVisits, setSavedVisits] = useState(loadVisits);
+  // Pull this specialist's in-progress visits from Firestore once on load and
+  // merge them into the localStorage-seeded list — this is what makes a visit
+  // saved on one device (e.g. an iPad) show up under "Load" on another (e.g.
+  // a desktop) after signing in there. Firestore wins for any id present in
+  // both; anything local-only (not yet synced, e.g. saved while offline)
+  // still shows up.
+  useEffect(() => {
+    loadVisitsFromFirestore()
+      .then(remoteVisits => {
+        setSavedVisits(local => {
+          const remoteIds = new Set(remoteVisits.map(v => v.id));
+          const merged = [...remoteVisits, ...local.filter(v => !remoteIds.has(v.id))]
+            .sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
+          try { localStorage.setItem(VISITS_KEY, JSON.stringify(merged.slice(0, 20))); } catch {}
+          return merged;
+        });
+      })
+      .catch(() => {}); // offline, or not yet signed in — local-only view still works
+  }, []);
   const [pdfHistory, setPdfHistory]   = useState(loadPdfHistory);
   const [showVisits, setShowVisits] = useState(false);
   const [showPdfReminder, setShowPdfReminder] = useState(false);
@@ -2326,6 +2504,10 @@ function SurveyPrepApp() {
   const [personnelAnswers, setPersonnelAnswers] = useState({});
   const [personnelDates, setPersonnelDates] = useState({});
   const [personnelComments, setPersonnelComments] = useState({});
+  // Sheet names (in order) that actually carry Personnel Records slots in the
+  // uploaded file — used to find the next free (sheetName, col) when a
+  // specialist adds an employee that wasn't already listed on the file.
+  const [personnelSheetNames, setPersonnelSheetNames] = useState([]);
 
   // Tab-level comments for PST Home Visit, PAP Setup, Ventilator Home Visit
   const [tabComments, setTabComments] = useState({ pst: "", clinician: "", vent: "" });
@@ -2576,12 +2758,23 @@ function SurveyPrepApp() {
         }
       }
 
-      const ns = {}, nc = {};
-      allSections.forEach(sec => sec.items.forEach(item => { ns[item.key] = null; nc[item.key] = ""; }));
-
       setOp541Sections(allSections);
-      setOp541States(ns);
-      setOp541Comments(nc);
+      // Re-uploading the same file (e.g. after loading a visit synced from
+      // another device, where the original file bytes aren't available) must
+      // not wipe answers already entered — item.key is assigned deterministically
+      // by parse order, so it lines up across uploads of the same file and any
+      // existing answer/comment for that key is kept; only genuinely new items
+      // (key not seen before) start blank.
+      setOp541States(prev => {
+        const ns = {};
+        allSections.forEach(sec => sec.items.forEach(item => { ns[item.key] = prev[item.key] ?? null; }));
+        return ns;
+      });
+      setOp541Comments(prev => {
+        const nc = {};
+        allSections.forEach(sec => sec.items.forEach(item => { nc[item.key] = prev[item.key] ?? ""; }));
+        return nc;
+      });
       setOp541FileName(file.name);
 
       if (skippedSheets.length > 0) {
@@ -2595,7 +2788,7 @@ function SurveyPrepApp() {
 
   async function exportUpdatedOp541() {
     if (!op541BufferBytes) {
-      alert("The original OP 541 file is not available in this session.\n\nPlease re-upload the file, fill in your responses, then use this export.");
+      alert("The original OP 541 file isn't in this browser session (this happens after loading a visit that was saved on another device — the file itself isn't synced, only your answers).\n\nUse \"Change file\" above to re-upload the same OP 541 file, then export again. Your existing answers and comments will be kept.");
       return;
     }
     if (op541Sections.length === 0) {
@@ -2628,7 +2821,7 @@ function SurveyPrepApp() {
 
   async function exportUpdatedOp541t() {
     if (!op541tBufferBytes) {
-      alert("The original OP 541T file is not available in this session.\n\nPlease re-upload the file, fill in your responses, then use this export.");
+      alert("The original OP 541T file isn't in this browser session (this happens after loading a visit that was saved on another device — the file itself isn't synced, only your answers).\n\nUse \"Change file\" above to re-upload the same OP 541T file, then export again. Your existing answers and comments will be kept.");
       return;
     }
     if (op541tSections.length === 0) {
@@ -2640,7 +2833,7 @@ function SurveyPrepApp() {
       const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(
         op541tBufferBytes, op541tSections, op541tStates, op541tComments,
         buildVehicleWrites(op541tSections, op541VehicleInfo, { name: { row: 2, col: 1 }, num: { row: 3, col: 1 } }),
-        buildPersonnelWrites(personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments)
+        buildPersonnelResponseSheetRows(personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments)
       );
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
@@ -2663,6 +2856,45 @@ function SurveyPrepApp() {
     }
   }
 
+  // Adds a new employee card, assigning it the next free (sheetName, col) slot
+  // across whichever Personnel Records sheet(s) actually exist in the uploaded
+  // file (checked in file order, so "Personnel Records" fills before
+  // "Additional Personnel Records"). Name/Job Title/Hire Date start blank —
+  // the specialist types them in, same as any employee not already on file.
+  function addPersonnelEmployee() {
+    const used = new Set(personnelSlots.map(s => `${s.sheetName}|${s.col}`));
+    for (const sheetName of personnelSheetNames) {
+      for (const col of PERSONNEL_EMPLOYEE_COLS) {
+        const k = `${sheetName}|${col}`;
+        if (!used.has(k)) {
+          setPersonnelSlots(prev => [...prev, { sheetName, col, name: "", jobTitle: "", hireDate: "" }]);
+          return;
+        }
+      }
+    }
+    const max = personnelSheetNames.length * PERSONNEL_EMPLOYEE_COLS.length;
+    alert(`This file has room for ${max} employees across ${personnelSheetNames.join(" / ") || "its Personnel Records sheet(s)"}, and all slots are filled.`);
+  }
+
+  function removePersonnelEmployee(slot) {
+    const sid = `${slot.sheetName}|${slot.col}`;
+    setPersonnelSlots(prev => prev.filter(s => `${s.sheetName}|${s.col}` !== sid));
+    setPersonnelAnswers(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => { if (k.endsWith(`|${sid}`)) delete next[k]; });
+      return next;
+    });
+    setPersonnelDates(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => { if (k.endsWith(`|${sid}`)) delete next[k]; });
+      return next;
+    });
+  }
+
+  function updatePersonnelSlot(sheetName, col, field, value) {
+    setPersonnelSlots(prev => prev.map(s => (s.sheetName === sheetName && s.col === col) ? { ...s, [field]: value } : s));
+  }
+
   async function handleOp541tUpload(file) {
     try {
       const buf = await file.arrayBuffer();
@@ -2671,18 +2903,20 @@ function SurveyPrepApp() {
       const allSections = [];
       const skippedSheets = [];
       let globalIdx = 0;
-      let personnelSlots = [];
-      let personnelItems = null;
+      let parsedPersonnelSlots = [];
+      let parsedPersonnelItems = null;
+      const parsedPersonnelSheetNames = [];
 
       for (const sheetName of wb.SheetNames) {
         if (sheetName === "Formula") continue;
 
         if (sheetName === "Personnel Records" || sheetName === "Additional Personnel Records") {
+          parsedPersonnelSheetNames.push(sheetName);
           const ws = wb.Sheets[sheetName];
           const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
           const parsed = parsePersonnelSheet(rows, sheetName);
-          personnelSlots = personnelSlots.concat(parsed.slots);
-          if (!personnelItems && parsed.items.length > 0) personnelItems = parsed.items;
+          parsedPersonnelSlots = parsedPersonnelSlots.concat(parsed.slots);
+          if (!parsedPersonnelItems && parsed.items.length > 0) parsedPersonnelItems = parsed.items;
           continue;
         }
 
@@ -2753,23 +2987,51 @@ function SurveyPrepApp() {
 
       // Remove empty sections
       const filtered = allSections.filter(s => s.items.length > 0);
-      const ns = {}, nc = {};
-      filtered.forEach(sec => sec.items.forEach(item => { ns[item.key] = null; nc[item.key] = ""; }));
 
       setOp541tSections(filtered);
-      setOp541tStates(ns);
-      setOp541tComments(nc);
+      // Re-uploading the same file (e.g. after loading a visit synced from
+      // another device, where the original file bytes aren't available) must
+      // not wipe answers already entered — see the matching comment in
+      // handleOp541Upload above.
+      setOp541tStates(prev => {
+        const ns = {};
+        filtered.forEach(sec => sec.items.forEach(item => { ns[item.key] = prev[item.key] ?? null; }));
+        return ns;
+      });
+      setOp541tComments(prev => {
+        const nc = {};
+        filtered.forEach(sec => sec.items.forEach(item => { nc[item.key] = prev[item.key] ?? ""; }));
+        return nc;
+      });
       setOp541tFileName(file.name);
 
-      setPersonnelSlots(personnelSlots);
-      setPersonnelItems(personnelItems || []);
+      // Merge parsed Personnel Records slots with whatever's already in state
+      // (from this session, or restored from a saved/synced visit) instead of
+      // replacing wholesale — otherwise re-uploading the file after loading a
+      // visit on a new device would silently discard any employee added via
+      // "+ Add Employee" and every specialist-entered field/answer, since none
+      // of that lives in the uploaded file to be re-parsed.
+      const existingBySid = new Map(personnelSlots.map(s => [`${s.sheetName}|${s.col}`, s]));
+      parsedPersonnelSlots.forEach(ps => {
+        const sid = `${ps.sheetName}|${ps.col}`;
+        if (!existingBySid.has(sid)) existingBySid.set(sid, ps);
+      });
+      const mergedSlots = Array.from(existingBySid.values());
+      const mergedItems = parsedPersonnelItems || personnelItems;
+
+      setPersonnelSlots(mergedSlots);
+      setPersonnelItems(mergedItems);
+      setPersonnelSheetNames(prevNames => {
+        const merged = new Set([...prevNames, ...parsedPersonnelSheetNames]);
+        return Array.from(merged);
+      });
       const pa = {}, pd = {}, pc = {};
-      (personnelItems || []).forEach(item => {
-        pc[item.key] = item.comment || "";
-        personnelSlots.forEach(slot => {
-          const slotId = `${slot.sheetName}|${slot.col}`;
-          if (item.answerType === "yn") pa[`${item.key}|${slotId}`] = null;
-          else pd[`${item.key}|${slotId}`] = "";
+      mergedItems.forEach(item => {
+        pc[item.key] = personnelComments[item.key] ?? (item.comment || "");
+        mergedSlots.forEach(slot => {
+          const key = `${item.key}|${slot.sheetName}|${slot.col}`;
+          if (item.answerType === "yn") pa[key] = personnelAnswers[key] ?? null;
+          else pd[key] = personnelDates[key] ?? "";
         });
       });
       setPersonnelAnswers(pa);
@@ -2793,7 +3055,7 @@ function SurveyPrepApp() {
     setForm(b);
     setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({}); setOp541BufferBytes(null);
     setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName(""); setOp541tBufferBytes(null);
-    setPersonnelSlots([]); setPersonnelItems([]); setPersonnelAnswers({}); setPersonnelDates({}); setPersonnelComments({});
+    setPersonnelSlots([]); setPersonnelItems([]); setPersonnelAnswers({}); setPersonnelDates({}); setPersonnelComments({}); setPersonnelSheetNames([]);
     setTabComments({ pst: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
     setCurrentVisitId(null); setVisitFinalized(false);
@@ -2801,7 +3063,7 @@ function SurveyPrepApp() {
     setAdditionalComments("");
   }
 
-  function saveProgress() {
+  async function saveProgress() {
     // Reuse the existing visit ID so repeated saves update in place rather than creating duplicates
     const id = currentVisitId || `visit_${meta.location?.replace(/\s+/g,"_") || "unknown"}_${Date.now()}`;
     const visit = {
@@ -2811,14 +3073,19 @@ function SurveyPrepApp() {
       meta, states, comments,
       op541Sections, op541States, op541Comments, op541FileName, op541VehicleInfo,
       op541tSections, op541tStates, op541tComments, op541tFileName,
-      personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments,
+      personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       tabComments, tabPatientInfo, additionalComments,
     };
     saveVisitToStorage(visit);
     // Trend data is NOT written here — use "Finalize Visit" to commit to trend tracking
     setSavedVisits(loadVisits());
     setCurrentVisitId(id);
-    alert(`Visit saved: ${visit.label}`);
+    try {
+      await saveVisitToFirestore(visit);
+      alert(`Visit saved: ${visit.label}`);
+    } catch {
+      alert(`Visit saved on this device: ${visit.label}\n\nCould not sync to the cloud, so it won't show up on another device yet — check your connection and save again once you're back online.`);
+    }
   }
 
   async function finalizeVisit() {
@@ -2865,6 +3132,7 @@ function SurveyPrepApp() {
     setPersonnelAnswers(visit.personnelAnswers ?? {});
     setPersonnelDates(visit.personnelDates ?? {});
     setPersonnelComments(visit.personnelComments ?? {});
+    setPersonnelSheetNames(visit.personnelSheetNames ?? []);
     setTabComments(visit.tabComments ?? { pst: "", clinician: "", vent: "" });
     setTabPatientInfo(visit.tabPatientInfo ?? { pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments(visit.additionalComments ?? "");
@@ -2877,6 +3145,7 @@ function SurveyPrepApp() {
     deleteVisitFromStorage(id);
     deleteTrendVisit(id);
     setSavedVisits(loadVisits());
+    deleteVisitFromFirestore(id).catch(() => {}); // best-effort — it's already gone locally either way
   }
 
   function generateOutputs() {
@@ -3128,7 +3397,19 @@ function SurveyPrepApp() {
     setPdfHistory(loadPdfHistory());
     const backupOk = downloadBackupFile(snapshot, "Rotech_Backup");
     if (!backupOk) alert("Warning: automatic backup download failed. Please make sure to save the PDF from the print dialog.");
+
+    // Browsers suggest document.title as the default filename in the
+    // "Save as PDF" print dialog — swap it in just for the print, then
+    // restore it, so the suggested name actually reflects this visit
+    // instead of the app's static page title.
+    const loc = meta.location || "Unknown Location";
+    const dateStr = (meta.date || "").replace(/\//g, "-");
+    const prevTitle = document.title;
+    document.title = `${loc} - Survey Prep Visit Overview${dateStr ? ` - ${dateStr}` : ""}`;
+    const restoreTitle = () => { document.title = prevTitle; window.removeEventListener("afterprint", restoreTitle); };
+    window.addEventListener("afterprint", restoreTitle);
     window.print();
+    setTimeout(restoreTitle, 5000); // fallback in case afterprint doesn't fire
   }
 
   function copyText(txt) {
@@ -3608,11 +3889,12 @@ function SurveyPrepApp() {
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      {op541BufferBytes && (
-                        <button onClick={exportUpdatedOp541} style={{ fontSize: 12, padding: "5px 12px", background: "#1a6e35", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
-                          ⬇ Export Updated OP 541
-                        </button>
-                      )}
+                      <button
+                        onClick={exportUpdatedOp541}
+                        title={op541BufferBytes ? undefined : "The original file isn't in this browser session (e.g. after loading a saved visit on a new device) — click to see how to bring it back"}
+                        style={{ fontSize: 12, padding: "5px 12px", background: op541BufferBytes ? "#1a6e35" : "#9e9e9e", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                        ⬇ Export Updated OP 541
+                      </button>
                       <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
                         Change file
                         <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
@@ -3772,11 +4054,12 @@ function SurveyPrepApp() {
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      {op541tBufferBytes && (
-                        <button onClick={exportUpdatedOp541t} style={{ fontSize: 12, padding: "5px 12px", background: "#1a6e35", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
-                          ⬇ Export Updated OP 541T
-                        </button>
-                      )}
+                      <button
+                        onClick={exportUpdatedOp541t}
+                        title={op541tBufferBytes ? undefined : "The original file isn't in this browser session (e.g. after loading a saved visit on a new device) — click to see how to bring it back"}
+                        style={{ fontSize: 12, padding: "5px 12px", background: op541tBufferBytes ? "#1a6e35" : "#9e9e9e", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                        ⬇ Export Updated OP 541T
+                      </button>
                       <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
                         Change file
                         <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
@@ -3890,6 +4173,10 @@ function SurveyPrepApp() {
                         setDates={setPersonnelDates}
                         comments={personnelComments}
                         setComments={setPersonnelComments}
+                        onAddEmployee={addPersonnelEmployee}
+                        onRemoveEmployee={removePersonnelEmployee}
+                        onUpdateSlot={updatePersonnelSlot}
+                        canAddEmployee={personnelSlots.length < personnelSheetNames.length * PERSONNEL_EMPLOYEE_COLS.length}
                       />
                     )}
                   </div>

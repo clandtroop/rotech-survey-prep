@@ -36,7 +36,8 @@ const SECTION_TO_CHECKLIST_CATEGORY = {
   site: "Binders",
   jc: "Binders",
   sds: "Warehouse",
-  pst: "PST Visits",
+  pstSetup: "PST Visits",
+  pstMaintenance: "PST Visits",
   clinician: "PST Visits",
   vent: "PST Visits",
 };
@@ -1052,7 +1053,7 @@ async function writeTrendData(visitId, meta, locations, sections, states, commen
         }
       });
       // Tab-level comments for PST / PAP / Vent
-      if (["pst", "clinician", "vent"].includes(sec.id) && tabComments[sec.id]) {
+      if (["pstSetup", "pstMaintenance", "clinician", "vent"].includes(sec.id) && tabComments[sec.id]) {
         records.push({ ...base, section: sec.label, formRef: sec.ref, itemText: "Visit Notes", comment: tabComments[sec.id], visitType: "note" });
       }
     });
@@ -1193,35 +1194,69 @@ const SECTIONS = [
     ]
   },
   {
-    id: "pst", label: "PST Home Visit", ref: "Form JC 426",
+    id: "pstSetup", label: "PST Visit — Setup", ref: "Form JC 426 (Setup)",
+    banner: "BEST PRACTICE - Evaluate home prior to equipment placement",
     items: [
-      { text: "All equipment, supplies, and tanks secured in vehicle" },
-      { text: "Testing equipment, gloves, Madawipes, hand gel, non-clear bags and red tags on vehicle" },
-      { text: "Complete dosing instructions printed on delivery ticket (liter flow, route, duration)", note: "e.g. 2lpm NC Continuous" },
-      { text: "Patient information not visible in vehicle" },
-      { text: "Vehicle locked and secured when unattended (windows up, all doors locked)" },
-      { text: "Hand gel applied prior to entering patient's home" },
-      { text: "Back-up tank assembled to take into home" },
-      { text: '"No Smoking" sign(s) posted at entrance to home', note: "Required if oxygen is in the home" },
-      { text: "Correct patient confirmed using two patient identifiers" },
-      { text: "Patient instructed on portable/back-up system per order; conserving device cycling verified" },
-      { text: "Hand gel used between clean and dirty tasks; gloves changed appropriately" },
-      { text: "Concentrator plugged in and minimum run times observed per OP 609" },
-      { text: "Portable liquid oxygen or gaseous systems checked" },
-      { text: "Back-up tanks verified and patient ability to operate confirmed (AMA on file if refused)", note: "Back-up tanks must have RHI 600 tag" },
-      { text: "Cylinder storage safe — not in closets, not freestanding, 15 ft from heat/flame" },
-      { text: "Concentrator oxygen percentage analyzed, minimum run time observed" },
-      { text: "Oxygen flow checked at end of longest tubing" },
-      { text: "Concentrator alarm checked; patient/caregiver can hear alarm" },
-      { text: "Concentrator setting verified against current order" },
-      { text: "Function, cleanliness, and location label checked on all Rotech equipment" },
-      { text: "Patient asked about changing disposable supplies and cleaning filters", note: "Cannula every 2 weeks, tubing every 90 days" },
-      { text: "OP 511 or CL 307 fully completed; open flames/heat sources addressed", note: "Concentrator % MUST be on these forms" },
-      { text: "Supplies and serial/lot numbers documented on delivery ticket", note: "Cylinder lot numbers must be included" },
-      { text: "Patient internet access confirmed; Rotech website reviewed; RHI 1080 card provided" },
-      { text: "All paperwork complete (BL 401, patient survey, COPD assessment)" },
-      { text: "Testing equipment cleaned before returning to bag or vehicle; gloves worn with Madawipes" },
-      { text: "Hand gel used at completion of home visit" },
+      { text: "All equipment, supplies, and tanks secured in vehicle." },
+      { text: "Testing equipment, gloves, Madawipes, hand gel, non-clear bags and red tags on the vehicle." },
+      { text: "Complete dosing instructions are printed on the delivery ticket.", note: "Must include liter flow, route of delivery, and duration (2 lpm NC Continuous)." },
+      { text: "Patient information is not visible in the vehicle." },
+      { text: "Vehicle is locked and secured when unattended.", note: "Windows must be up and all doors locked." },
+      { text: "Hand gel applied prior to entering patient's home." },
+      { text: "Confirm correct patient utilizing two patient identifiers (name, DOB, address, etc.).", note: "Verify patient's name before entering the home." },
+      { text: "Back-up tank assembled to take into the home (cylinder, stand, regulator, supplies). Must obtain an AMA if patient refuses backup system.", note: "If continuous patient, be sure they have enough oxygen in their tank to last through the setup. If not on oxygen upon arrival, place patient on backup system." },
+      { text: "Return to the vehicle for equipment that needs to be setup or swapped out." },
+      { text: "Hand gel used between clean and dirty (e.g., home and vehicle); if gloves are used, gloves are changed between clean and dirty, and hand gel used between glove changes.", note: "*Trips between home and vehicle *Between glove changes *Remove all dirty items (filters and supplies) > hand gel > place new items" },
+      { text: "Test outlet to ensure proper grounding. Use circuit tester.", note: "If there are no grounded outlets in the home, educate the patient on the need to have a grounded outlet installed, document this on the CL 307 - Initial Plan of Care and proceed with setup." },
+      { text: "Plug in and turn on the concentrator to start run time." },
+      { text: "Concentrator alarm checked by unplugging unit from power source; verify patient/caregiver can hear alarm.", note: "Observe minimum run times (Refer to OP 603 - Oxygen Concentrator Specifications)." },
+      { text: "Deliver and instruct patient on use of portable gaseous system, portable liquid oxygen, portable concentrator and/or backup system as necessary per order, and conserving device cycling. Also discuss Equipment Safety Instructions.", note: "Verbally ask \"Can you hear the alarm?\" Educate patient why they might possibly hear an alarm (ex: power outage, equipment failure, etc.). If patient cannot hear the alarm, ask if there's someone in the home who can hear it or move to a different room that is closer to patient. If patient is hearing impaired, show them to look for visual cues such as light on the concentrator." },
+      { text: "Instruct patient on cylinder storage for safety and security.", note: "Return demonstration is required to show you that the patient knows how to work their portable and backup systems. Verify completion of POC by utilizing SmartCheck Analyzer. Must flag backup system with \"Backup Equipment Only\" tag (RHI 600)." },
+      { text: "Verified concentrator setting matches current order. Patient must set liter flow as prescribed by physician.", note: "Oxygen cylinders must NOT be stored in closets, left freestanding, placed within 15 feet of a heat source or open flame, or stored in the trunk of the car. If issues are identified, correct issue, provide education to the patient and document education on CL 307 - Initial Plan of Care." },
+      { text: "Analyzed concentrator oxygen percentage, observing minimum run time (Refer to OP 603 - Oxygen Concentrator Specifications).", note: "Educate patient on their prescription, how to set the flow for their prescription, and have them set equipment to prescribed liter flow. (Non-clinicians cannot set or adjust liter flow.)" },
+      { text: "Oxygen flow checked at the end of longest tubing.", note: "Observe minimum run times (OP 603)." },
+      { text: "Educate patient on operation of equipment and changing disposable supplies and cleaning filter(s). Verify patient's ability to operate equipment.", note: "Be sure the patient is aware to change cannula every 2 weeks, tubing every 30 days, and humidifier bottles every 30 days. External filters and/or air intake vents must be cleaned weekly." },
+      { text: "Completed all sections of Initial Plan of Care (CL 307). Pay attention to the surroundings in the home (fireplaces, cigarettes/vapes, lighters, ash trays, candles, stoves, or heaters). Educate to keep 15 ft. away from any open flames or heat source. Document issue and education.", note: "Each question on the CL 307 Initial Plan of Care, include PCP, Pulmonologist, Emergency Contact, and Power Company, must be discussed with the patient. Educate on any issue identified. Document issue and education provided. The concentration % of the concentrator MUST be on these forms." },
+      { text: "\"No Smoking\" sign(s) left for patient to hang at entrance to home.", note: "If oxygen is in the home, \"No Smoking\" sign is required. Signage alerts first responders that there is oxygen in the home." },
+      { text: "Checked the function, cleanliness, and location label on all Rotech equipment." },
+      { text: "Concentrator, Regulator, Portable System, Conserving Device, Tanks (including backup tank), and Supplies (serial, model, and/or lot numbers) documented on delivery.", note: "Document all equipment, supplies, and cylinders delivered. Cylinder lot numbers must match on Delivery Ticket, Initial Plan of Care, and Lot Tank Form." },
+      { text: "Patient internet access confirmed; instructed to visit www.rotech.com, review what is available on website and provide Rotech Paperless Card (RHI 1080) with all new setups (printed booklets provided if no internet access).", note: "Verbally ask the patient \"Do you have access to the internet?\" If no internet access, be prepared to give the patient printed copies of the RHI 1000 Patient Information Booklet and RHI 1001 Home Medical Equipment Booklet. If initial setup, provide the RHI 1080 card." },
+      { text: "Ensure ALL paperwork is completed before leaving the home. (Delivery Ticket, Initial Plan of Care, Payment Authorization, etc.)" },
+      { text: "Testing equipment cleaned prior to placing back in bag or vehicle; gloves must be worn when using Madawipes.", note: "Gloves must be worn when using any Msda products. Clean analyzer, flow pen, circuit tester, and tablet before placing in bag or vehicle." },
+      { text: "Used hand gel upon completion of home visit." },
+    ]
+  },
+  {
+    id: "pstMaintenance", label: "PST Visit — Maintenance", ref: "Form JC 426 (Maintenance)",
+    banner: "BEST PRACTICE - Evaluate home prior to equipment placement",
+    items: [
+      { text: "All equipment, supplies, and tanks secured in vehicle." },
+      { text: "Testing equipment, gloves, Madawipes, hand gel, non-clear bags and red tags on the vehicle." },
+      { text: "Complete dosing instructions are printed on the maintenance or exchange ticket.", note: "Must include liter flow, route of delivery, and duration (2 lpm NC Continuous)." },
+      { text: "Patient information is not visible in the vehicle." },
+      { text: "Vehicle is locked and secured when unattended.", note: "Windows must be up and all doors locked." },
+      { text: "Hand gel applied prior to entering patient's home." },
+      { text: "\"No Smoking\" sign(s) posted at entrance to home.", note: "If oxygen is in the home, \"No Smoking\" sign is required. Signage alerts first responders that there is oxygen in the home." },
+      { text: "Confirm correct patient utilizing two patient identifiers (name, DOB, address, etc.).", note: "Verify patient's name before entering the home." },
+      { text: "Gloves used if equipment/supplies are visibly contaminated.", note: "It is Rotech's policy (2.5.1) to observe Standard Precautions — wear gloves when coming in contact with equipment and/or supplies that are visibly contaminated. If the home is clean and tidy and the equipment is not visibly contaminated, gloves are not required. Practice good hand gel hygiene." },
+      { text: "Instructed patient to use portable or back-up system as necessary per order; verified conserving device cycling.", note: "Be sure the patient knows how to work through the maintenance. This is a good opportunity for the patient to show you they know how to work their portable and backup systems." },
+      { text: "Checked portable liquid oxygen, gaseous system, or portable concentrator (conserving device, POC) and patient's ability to operate.", note: "If patient has a POC unit, check the concentration % utilizing the SmartCheck analyzer and record on the OP 511 Equipment Maintenance Form." },
+      { text: "Turn on the concentrator if it is not already running.", note: "Observe minimum run times (OP 603)." },
+      { text: "Concentrator alarm checked by unplugging unit from power source; verify patient/caregiver can hear alarm.", note: "Verbally ask \"Can you hear the alarm?\" If patient cannot hear the alarm, ask if there's someone in the home who can hear it or move to a different room that is closer to the concentrator. If patient is hearing impaired, show them to look for visual cues such as light on the concentrator." },
+      { text: "Verified back-up only tanks and patient's ability to operate (AMA on file if patient refuses back-up).", note: "Back-up tanks must be tagged with a \"Back-up Equipment Only\" tag (RHI 600)." },
+      { text: "Identified cylinder storage for safety and security, address as necessary.", note: "Oxygen cylinders must NOT be stored in closets, left freestanding, placed within 15 feet of a heat source or open flame, or stored in the trunk of the car. If issues are identified, correct issue, provide education to the patient and document education on OP 511 Equipment Maintenance Record." },
+      { text: "Analyzed concentrator oxygen percentage, observing minimum run times and concentration (OP 603)." },
+      { text: "Hand gel used between clean and dirty (e.g., home and vehicle); if gloves are used, gloves are changed between clean and dirty, and hand gel used between glove changes.", note: "*Trips between home and vehicle *Between glove changes *Remove all dirty items (filters and supplies) > hand gel > place new items" },
+      { text: "Verified concentrator setting matches current order, address as necessary.", note: "If the concentrator is not set to the prescription you have on file, contact the location, leave the liter flow as-is. Let the LCM know you will need an updated prescription. If the prescription is correct, have patient adjust to correct liter flow. PATIENT MUST MAKE ALL CHANGES TO LITER FLOW, PST CANNOT." },
+      { text: "Oxygen flow checked at the end of longest tubing.", note: "Use flow pen to check this, not an analyzer with flow built in." },
+      { text: "Checked the function, cleanliness, and location label on all Rotech equipment.", note: "All equipment must have a location label on it." },
+      { text: "Asked patient about changing disposable supplies and cleaning filter(s).", note: "Be sure the patient is aware to change cannula every 2 weeks, tubing every 30 days, humidifier bottles every 30 days." },
+      { text: "Completed all sections of the Equipment Maintenance Record (OP 511). Pay attention to the surroundings in the home (fireplaces, cigarettes/vapes, lighters, ash trays, candles, stoves, or heaters). Educate to keep 15 ft. away from any open flames or heat source. Document issue and education.", note: "All 16 questions on the Safety Assessment of the OP 511 Equipment Maintenance Record must be discussed with the patient. Educate on any issue identified. Document issue and education provided. The concentration % of the concentrator MUST be on these forms." },
+      { text: "If fire risk is identified, a PE 662 High-Risk Smoking & Education Packet must be provided to the patient.", note: "Back page must be signed by the patient and returned to the location to be scanned into the EMR." },
+      { text: "Supplies and cylinder/lot numbers documented on delivery ticket.", note: "Document all supplies and cylinders delivered. Cylinder lot numbers must be on Delivery Ticket and the Lot Tank Form." },
+      { text: "Ensure ALL paperwork is filled out completely before leaving the home. (BL 401, COPD assessment, and \"Are You Tired of Being Tired?\")" },
+      { text: "Testing equipment cleaned prior to placing back in bag or vehicle; gloves must be worn when using Madawipes.", note: "Gloves must be worn when using any Msda products. Clean analyzer, flow pen, circuit tester, and tablet before placing in bag or vehicle." },
+      { text: "Used hand gel upon completion of home visit." },
     ]
   },
   {
@@ -2560,10 +2595,10 @@ function SurveyPrepApp() {
   const [personnelSheetNames, setPersonnelSheetNames] = useState(() => draft?.personnelSheetNames ?? []);
 
   // Tab-level comments for PST Home Visit, PAP Setup, Ventilator Home Visit
-  const [tabComments, setTabComments] = useState(() => draft?.tabComments ?? { pst: "", clinician: "", vent: "" });
+  const [tabComments, setTabComments] = useState(() => draft?.tabComments ?? { pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
   const setTabComment = (id, val) => setTabComments(prev => ({ ...prev, [id]: val }));
   // Patient info (Global ID + Current RX) per PST/PAP/Vent tab
-  const [tabPatientInfo, setTabPatientInfo] = useState(() => draft?.tabPatientInfo ?? { pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
+  const [tabPatientInfo, setTabPatientInfo] = useState(() => draft?.tabPatientInfo ?? { pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
   const setTabPatient = (id, field, val) => setTabPatientInfo(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }));
   // Additional comments shown at bottom of report
   const [additionalComments, setAdditionalComments] = useState(() => draft?.additionalComments ?? "");
@@ -2671,7 +2706,7 @@ function SurveyPrepApp() {
         if (states[key] === "yes" && !comments[key]) return [{ text: item.text }];
         return [];
       });
-      const isPSTTab = ["pst", "clinician", "vent"].includes(sec.id);
+      const isPSTTab = ["pstSetup", "pstMaintenance", "clinician", "vent"].includes(sec.id);
       return {
         label: sec.label, ref: sec.ref, ...stats, issues, observations, compliantItems,
         tabComment: isPSTTab ? (tabComments[sec.id] || null) : null,
@@ -3123,10 +3158,10 @@ function SurveyPrepApp() {
     setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({}); setOp541BufferBytes(null);
     setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName(""); setOp541tBufferBytes(null);
     setPersonnelSlots([]); setPersonnelItems([]); setPersonnelAnswers({}); setPersonnelDates({}); setPersonnelComments({}); setPersonnelSheetNames([]);
-    setTabComments({ pst: "", clinician: "", vent: "" });
+    setTabComments({ pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
     setCurrentVisitId(null); setVisitFinalized(false);
-    setTabPatientInfo({ pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
+    setTabPatientInfo({ pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments("");
   }
 
@@ -3200,8 +3235,8 @@ function SurveyPrepApp() {
     setPersonnelDates(visit.personnelDates ?? {});
     setPersonnelComments(visit.personnelComments ?? {});
     setPersonnelSheetNames(visit.personnelSheetNames ?? []);
-    setTabComments(visit.tabComments ?? { pst: "", clinician: "", vent: "" });
-    setTabPatientInfo(visit.tabPatientInfo ?? { pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
+    setTabComments(visit.tabComments ?? { pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
+    setTabPatientInfo(visit.tabPatientInfo ?? { pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments(visit.additionalComments ?? "");
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null); setOp541tBufferBytes(null);
     setVisitFinalized(false);
@@ -3689,7 +3724,7 @@ function SurveyPrepApp() {
                         const compliantItems = items.flatMap((item, ii) =>
                           snapStates[`${si}-${ii}`] === "yes" && !snapComments[`${si}-${ii}`]
                             ? [{ text: item.text }] : []);
-                        const isPSTTab = ["pst", "clinician", "vent"].includes(sec.id);
+                        const isPSTTab = ["pstSetup", "pstMaintenance", "clinician", "vent"].includes(sec.id);
                         return {
                           label: sec.label, ref: sec.ref, yes, no, na, pending, total: items.length,
                           issues, observations, compliantItems,
@@ -3825,6 +3860,11 @@ function SurveyPrepApp() {
           {!isExtraTab && (
             <div style={{ padding: "16px 24px" }}>
               <div style={{ fontSize: 11, color: "#9e9e9e", marginBottom: 12 }}>{sec.ref}</div>
+              {sec.banner && (
+                <div style={{ background: BRAND, color: "#fff", padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, marginBottom: 14, letterSpacing: "0.02em" }}>
+                  {sec.banner}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
                 {[["yes", "Compliant"], ["no", "Issue found"], ["na", "N/A"]].map(([v, l]) => (
                   <button key={v} onClick={() => sec.items.forEach((_, ii) => setState(`${activeTab}-${ii}`, v))}
@@ -3891,7 +3931,7 @@ function SurveyPrepApp() {
               })}
 
               {/* Tab-level comments for PST, PAP Setup, Vent */}
-              {["pst", "clinician", "vent"].includes(sec.id) && (
+              {["pstSetup", "pstMaintenance", "clinician", "vent"].includes(sec.id) && (
                 <div style={{ marginTop: 12, padding: "14px 16px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8 }}>
                   {/* Global ID + Current RX */}
                   <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>

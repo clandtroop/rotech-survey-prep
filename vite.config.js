@@ -6,7 +6,12 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      // "prompt" instead of "autoUpdate" — the previous silent-reload-on-update
+      // behavior was wiping specialists' in-progress OP 541/541T answers when
+      // an update landed mid-visit. The app now shows an UpdateBanner (see
+      // App.jsx) and reloads only when the specialist explicitly taps it.
+      registerType: "prompt",
+      injectRegister: false,
       base: "/rotech-survey-prep/",
       scope: "/rotech-survey-prep/",
       workbox: {

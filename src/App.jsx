@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
+import { useRegisterSW } from "virtual:pwa-register/react";
 import { db, auth } from "./firebase";
 import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, where, orderBy, limit, writeBatch } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
@@ -421,8 +422,14 @@ function downloadBackupFile(snapshot, prefix) {
   }
 }
 
-function saveDraft(meta, states, comments) {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ meta, states, comments, savedAt: new Date().toISOString() })); } catch {}
+// Continuous local autosave of the ENTIRE working visit (not just the core
+// checklist) — this is what protects against the app's own PWA update
+// silently reloading the page mid-visit (see UpdateBanner) and against
+// accidental tab closes. It's separate from "Save Progress" (an explicit,
+// named, cross-device checkpoint synced to Firestore) — this is a single
+// always-current local safety net that needs no action from the specialist.
+function saveDraft(data) {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...data, savedAt: new Date().toISOString() })); } catch {}
 }
 function loadDraft() {
   try { const r = localStorage.getItem(DRAFT_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
@@ -2317,15 +2324,52 @@ function TrendTracker() {
   );
 }
 
+// Shows a banner instead of silently reloading when a new version is
+// deployed — the previous "autoUpdate" behavior reloaded the page the moment
+// it detected an update, with no warning, which wiped whatever a specialist
+// had open mid-visit before they'd clicked "Save Progress." Answers are now
+// autosaved continuously (see the draft effect in SurveyPrepApp) so an
+// update is no longer destructive even if tapped immediately, but a prompt
+// is still better than an unannounced reload.
+function UpdateBanner() {
+  const {
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    // The browser only checks for a new service worker on its own schedule
+    // (roughly once a day) — for a home-screen PWA that's rarely fully
+    // closed, that's too slow to matter. Poll explicitly while the app is
+    // open so the banner shows up within the hour instead of the next day.
+    onRegisteredSW(swUrl, registration) {
+      if (!registration) return;
+      setInterval(() => registration.update(), 60 * 60 * 1000);
+    },
+  });
+
+  if (!needRefresh) return null;
+
+  return (
+    <div style={{ position: "sticky", top: 0, zIndex: 1000, background: "#7a4a00", color: "#fff", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+      <span>A new version of Survey Prep is available.</span>
+      <button onClick={() => updateServiceWorker(true)} style={{ padding: "6px 14px", fontSize: 12, fontWeight: 700, background: "#fff", color: "#7a4a00", border: "none", borderRadius: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
+        Update Now
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const checklistVisitId = new URLSearchParams(window.location.search).get("checklist");
   if (checklistVisitId) {
     return <ChecklistView visitId={checklistVisitId} />;
   }
   return (
-    <AuthGate>
-      <SurveyPrepApp />
-    </AuthGate>
+    <>
+      <UpdateBanner />
+      <AuthGate>
+        <SurveyPrepApp />
+      </AuthGate>
+    </>
   );
 }
 
@@ -2469,7 +2513,10 @@ function SurveyPrepApp() {
   const [checklistLink, setChecklistLink] = useState("");
   const [checklistLinkCopied, setChecklistLinkCopied] = useState(false);
   const [checklistLinkLoading, setChecklistLinkLoading] = useState(false);
-  const [currentVisitId, setCurrentVisitId] = useState(null);
+  // Restored from the draft too — otherwise a silent reload would forget
+  // which saved visit is "current," and the next "Save Progress" click would
+  // create a stray duplicate entry instead of updating the right one.
+  const [currentVisitId, setCurrentVisitId] = useState(() => draft?.currentVisitId ?? null);
   const [visitFinalized, setVisitFinalized] = useState(false);
 
   // Fail-safe: the browser print dialog never tells JS whether the user actually
@@ -2480,43 +2527,46 @@ function SurveyPrepApp() {
     return () => window.removeEventListener("afterprint", handler);
   }, []);
 
-  // OP 541 state
-  const [op541Sections, setOp541Sections] = useState([]);
-  const [op541States, setOp541States] = useState({});
-  const [op541Comments, setOp541Comments] = useState({});
-  const [op541FileName, setOp541FileName] = useState("");
-  const [op541VehicleInfo, setOp541VehicleInfo] = useState({}); // { sheetLabel: { pstName, vehicleNum } }
-  const [op541BufferBytes, setOp541BufferBytes] = useState(null); // original file bytes for write-back export
+  // OP 541 state — seeded from the local draft (see the big autosave effect
+  // below) so a silent app reload mid-visit doesn't lose Y/N answers, only
+  // the raw uploaded file bytes (op541BufferBytes), which are never
+  // persisted anywhere and always require a re-upload to restore.
+  const [op541Sections, setOp541Sections] = useState(() => draft?.op541Sections ?? []);
+  const [op541States, setOp541States] = useState(() => draft?.op541States ?? {});
+  const [op541Comments, setOp541Comments] = useState(() => draft?.op541Comments ?? {});
+  const [op541FileName, setOp541FileName] = useState(() => draft?.op541FileName ?? "");
+  const [op541VehicleInfo, setOp541VehicleInfo] = useState(() => draft?.op541VehicleInfo ?? {}); // { sheetLabel: { pstName, vehicleNum } }
+  const [op541BufferBytes, setOp541BufferBytes] = useState(null); // original file bytes for write-back export — never persisted
 
   // OP 541T state
-  const [op541tSections, setOp541tSections] = useState([]);
-  const [op541tStates, setOp541tStates] = useState({});
-  const [op541tComments, setOp541tComments] = useState({});
-  const [op541tFileName, setOp541tFileName] = useState("");
-  const [op541tBufferBytes, setOp541tBufferBytes] = useState(null); // original file bytes for write-back export
+  const [op541tSections, setOp541tSections] = useState(() => draft?.op541tSections ?? []);
+  const [op541tStates, setOp541tStates] = useState(() => draft?.op541tStates ?? {});
+  const [op541tComments, setOp541tComments] = useState(() => draft?.op541tComments ?? {});
+  const [op541tFileName, setOp541tFileName] = useState(() => draft?.op541tFileName ?? "");
+  const [op541tBufferBytes, setOp541tBufferBytes] = useState(null); // original file bytes for write-back export — never persisted
 
   // Personnel Records Review state — employees are columns, not rows (see
   // parsePersonnelSheet). personnelSlots covers both "Personnel Records" and
   // "Additional Personnel Records" sheets combined; personnelAnswers/Dates are
   // keyed by `${item.key}|${slot.sheetName}|${slot.col}`.
-  const [personnelSlots, setPersonnelSlots] = useState([]);
-  const [personnelItems, setPersonnelItems] = useState([]);
-  const [personnelAnswers, setPersonnelAnswers] = useState({});
-  const [personnelDates, setPersonnelDates] = useState({});
-  const [personnelComments, setPersonnelComments] = useState({});
+  const [personnelSlots, setPersonnelSlots] = useState(() => draft?.personnelSlots ?? []);
+  const [personnelItems, setPersonnelItems] = useState(() => draft?.personnelItems ?? []);
+  const [personnelAnswers, setPersonnelAnswers] = useState(() => draft?.personnelAnswers ?? {});
+  const [personnelDates, setPersonnelDates] = useState(() => draft?.personnelDates ?? {});
+  const [personnelComments, setPersonnelComments] = useState(() => draft?.personnelComments ?? {});
   // Sheet names (in order) that actually carry Personnel Records slots in the
   // uploaded file — used to find the next free (sheetName, col) when a
   // specialist adds an employee that wasn't already listed on the file.
-  const [personnelSheetNames, setPersonnelSheetNames] = useState([]);
+  const [personnelSheetNames, setPersonnelSheetNames] = useState(() => draft?.personnelSheetNames ?? []);
 
   // Tab-level comments for PST Home Visit, PAP Setup, Ventilator Home Visit
-  const [tabComments, setTabComments] = useState({ pst: "", clinician: "", vent: "" });
+  const [tabComments, setTabComments] = useState(() => draft?.tabComments ?? { pst: "", clinician: "", vent: "" });
   const setTabComment = (id, val) => setTabComments(prev => ({ ...prev, [id]: val }));
   // Patient info (Global ID + Current RX) per PST/PAP/Vent tab
-  const [tabPatientInfo, setTabPatientInfo] = useState({ pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
+  const [tabPatientInfo, setTabPatientInfo] = useState(() => draft?.tabPatientInfo ?? { pst: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
   const setTabPatient = (id, field, val) => setTabPatientInfo(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }));
   // Additional comments shown at bottom of report
-  const [additionalComments, setAdditionalComments] = useState("");
+  const [additionalComments, setAdditionalComments] = useState(() => draft?.additionalComments ?? "");
 
   const setState = useCallback((key, val) => {
     setForm(prev => ({ ...prev, states: { ...prev.states, [key]: prev.states[key] === val ? null : val } }));
@@ -2526,11 +2576,28 @@ function SurveyPrepApp() {
     setForm(prev => ({ ...prev, comments: { ...prev.comments, [key]: val } }));
   }, []);
 
-  // Auto-save draft on any change
+  // Auto-save the whole working visit on any change — covers every tab, not
+  // just the core checklist, so an unannounced app update (see UpdateBanner)
+  // or an accidental tab close can't silently erase OP 541/541T or Personnel
+  // Records answers before the specialist gets a chance to "Save Progress."
+  // The one thing this can't protect is the raw uploaded file bytes
+  // (op541BufferBytes/op541tBufferBytes) — those were never persisted by
+  // design and always need a re-upload, which now safely merges instead of
+  // wiping (see handleOp541Upload/handleOp541tUpload).
   useEffect(() => {
-    saveDraft(meta, states, comments);
+    saveDraft({
+      meta, states, comments,
+      op541Sections, op541States, op541Comments, op541FileName, op541VehicleInfo,
+      op541tSections, op541tStates, op541tComments, op541tFileName,
+      personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
+      tabComments, tabPatientInfo, additionalComments, currentVisitId,
+    });
     setSavedAt(new Date().toISOString());
-  }, [meta, states, comments, tabComments, op541VehicleInfo]);
+  }, [meta, states, comments,
+      op541Sections, op541States, op541Comments, op541FileName, op541VehicleInfo,
+      op541tSections, op541tStates, op541tComments, op541tFileName,
+      personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
+      tabComments, tabPatientInfo, additionalComments, currentVisitId]);
 
   function getSectionStats(si) {
     let yes = 0, no = 0, na = 0, pending = 0;

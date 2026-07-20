@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/rotech-survey-prep/sw.js', { scope: '/rotech-survey-prep/' })})}

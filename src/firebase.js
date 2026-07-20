@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -21,4 +21,21 @@ const app = initializeApp(firebaseConfig);
 // the target database doesn't exist, so it looked like it worked until the
 // session/cache reset and the phantom data vanished.
 export const db = getFirestore(app, "surveyprep");
-export const auth = getAuth(app);
+
+// Sign-ins never expire on their own — Firebase keeps sessions alive
+// indefinitely by refreshing tokens, as long as its stored credentials
+// survive in the browser. Specialists getting signed out "after a short
+// timeout" is the browser evicting site storage (Safari on iPads deletes
+// script-writable storage after ~7 days without a visit, and any browser
+// may evict under storage pressure). Two defenses:
+//   1. Pin auth to IndexedDB (localStorage fallback) explicitly.
+//   2. Ask the browser to mark this origin's storage as persistent, which
+//      exempts it from automatic eviction. Granted silently for installed
+//      PWAs on iOS/Android; best-effort elsewhere.
+export const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+});
+
+if (navigator.storage?.persist) {
+  navigator.storage.persist().catch(() => {});
+}

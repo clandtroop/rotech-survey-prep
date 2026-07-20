@@ -15,6 +15,9 @@ const ACCENT = "#2e6da4";
 // firestore.rules, which enforces this server-side.
 const ADMIN_EMAILS = ["tasmith@rotech.com", "cody.landtroop@rotech.com"];
 
+// How long without an explicit "Save Progress" before the reminder pops up.
+const SAVE_REMINDER_MS = 30 * 60 * 1000;
+
 const DRAFT_KEY       = "rotech_survey_draft";
 const VISITS_KEY      = "rotech_saved_visits";
 const TREND_KEY       = "rotech_trend_data";
@@ -2700,6 +2703,28 @@ function SurveyPrepApp() {
   const [hasDraft, setHasDraft] = useState(!!draft);
   const [savedAt, setSavedAt] = useState(draft?.savedAt ?? null);
   const [savedVisits, setSavedVisits] = useState(loadVisits);
+
+  // Floating Save Progress button — the header's Save button scrolls out of
+  // view on long checklists, so surface a fixed one once it's off-screen.
+  const [showFloatingSave, setShowFloatingSave] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShowFloatingSave(window.scrollY > 200);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Pop a reminder every 30 minutes without an explicit "Save Progress" —
+  // the continuous draft autosave only protects this device; the explicit
+  // save is what syncs to the cloud. The clock resets on save or dismiss.
+  const [showSaveReminder, setShowSaveReminder] = useState(false);
+  const saveReminderAnchor = useRef(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (Date.now() - saveReminderAnchor.current >= SAVE_REMINDER_MS) setShowSaveReminder(true);
+    }, 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
   // Pull this specialist's in-progress visits from Firestore once on load and
   // merge them into the localStorage-seeded list — this is what makes a visit
   // saved on one device (e.g. an iPad) show up under "Load" on another (e.g.
@@ -3359,6 +3384,8 @@ function SurveyPrepApp() {
     // Trend data is NOT written here — use "Finalize Visit" to commit to trend tracking
     setSavedVisits(loadVisits());
     setCurrentVisitId(id);
+    saveReminderAnchor.current = Date.now();
+    setShowSaveReminder(false);
     try {
       await saveVisitToFirestore(visit);
       alert(`Visit saved: ${visit.label}`);
@@ -4717,6 +4744,36 @@ function SurveyPrepApp() {
               style={{ width: "100%", fontSize: 13, padding: "8px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
           </div>
 
+        </div>
+      )}
+
+      {/* Floating Save Progress — stays reachable once the header scrolls away */}
+      {view === "form" && showFloatingSave && (
+        <button className="no-print" onClick={saveProgress}
+          style={{ position: "fixed", bottom: 22, right: 22, zIndex: 1100, padding: "13px 22px", fontSize: 15, fontWeight: 700, background: BRAND, color: "#fff", border: "none", borderRadius: 999, cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.35)" }}>
+          💾 Save Progress
+        </button>
+      )}
+
+      {/* 30-minute save reminder */}
+      {showSaveReminder && (
+        <div className="no-print" style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 10, padding: "26px 24px", width: 380, maxWidth: "100%", boxShadow: "0 18px 40px rgba(0,0,0,0.35)", textAlign: "center" }}>
+            <div style={{ fontSize: 34, marginBottom: 8 }}>💾</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: BRAND, marginBottom: 6 }}>Don't forget to save!</div>
+            <div style={{ fontSize: 13, color: "#616161", lineHeight: 1.5, marginBottom: 18 }}>
+              It's been 30 minutes since your progress was last saved to the cloud. Save Progress syncs this visit so it can't be lost and shows up on your other devices.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={saveProgress} style={{ padding: "9px 18px", fontSize: 13, fontWeight: 700, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+                💾 Save Progress
+              </button>
+              <button onClick={() => { saveReminderAnchor.current = Date.now(); setShowSaveReminder(false); }}
+                style={{ padding: "9px 18px", fontSize: 13, background: "#fff", color: "#616161", border: "1px solid #bdbdbd", borderRadius: 6, cursor: "pointer" }}>
+                Remind me later
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

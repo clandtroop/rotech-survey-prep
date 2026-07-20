@@ -9,10 +9,11 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile 
 const BRAND = "#1a3a5c";
 const ACCENT = "#2e6da4";
 
-// Admins allowed to add/edit/delete Location Roster entries (everyone else,
-// any signed-in specialist, gets read-only access). Must be kept in sync with
-// the matching allowlist in firestore.rules, which enforces this server-side.
-const ROSTER_ADMIN_EMAILS = ["tasmith@rotech.com", "cody.landtroop@rotech.com"];
+// Admins allowed to add/edit/delete Location Roster entries and Policy
+// Revision Dates (everyone else, any signed-in specialist, gets read-only
+// access). Must be kept in sync with the matching allowlist in
+// firestore.rules, which enforces this server-side.
+const ADMIN_EMAILS = ["tasmith@rotech.com", "cody.landtroop@rotech.com"];
 
 const DRAFT_KEY       = "rotech_survey_draft";
 const VISITS_KEY      = "rotech_saved_visits";
@@ -1179,7 +1180,7 @@ const SECTIONS = [
       { text: "Tab 2 — FDA 001 — monthly emergency lighting / exit sign checks (as applicable)" },
       { text: "Tab 3 — Incidents: Policy 2.4.1, OP 518, RM 1202, copies of all incidents" },
       { text: "Tab 4 — Complaints: Policy 2.1.29, OP 522, OP 564, OP 566, copies of all complaints" },
-      { text: "Tab 5 — Facility Safety Inspection OP 512 (Jan & July) with fire drill record" },
+      { text: "Tab 5 — Policy 2.2.1, Facility Safety Inspection OP 512 (Jan & July) with fire drill record" },
       { text: "Tab 5 — Policy 2.2.4 and maintenance/calibration docs for all instrumentation", note: "Self-calibrating analyzer FDA 025, O2 analyzer FDA 003, annual calibration records" },
     ]
   },
@@ -1194,68 +1195,68 @@ const SECTIONS = [
     ]
   },
   {
-    id: "pstSetup", label: "PST Visit — Setup", ref: "Form JC 426 (Setup)",
+    id: "pstSetup", label: "PST Visit — Setup", ref: "Form JC 426 (Setup) — Rev. 2026.06.29",
     banner: "BEST PRACTICE - Evaluate home prior to equipment placement",
     items: [
-      { text: "All equipment, supplies, and tanks secured in vehicle." },
+      { text: "ALL equipment, supplies, and tanks secured in vehicle." },
       { text: "Testing equipment, gloves, Madawipes, hand gel, non-clear bags and red tags on the vehicle." },
-      { text: "Complete dosing instructions are printed on the delivery ticket.", note: "Must include liter flow, route of delivery, and duration (2 lpm NC Continuous)." },
+      { text: "Complete dosing instructions are printed on the delivery ticket.", note: "Must include liter flow, route of delivery, and duration (2 lpm NC continuous)." },
       { text: "Patient information is not visible in the vehicle." },
       { text: "Vehicle is locked and secured when unattended.", note: "Windows must be up and all doors locked." },
       { text: "Hand gel applied prior to entering patient's home." },
       { text: "Confirm correct patient utilizing two patient identifiers (name, DOB, address, etc.).", note: "Verify patient's name before entering the home." },
-      { text: "Back-up tank assembled to take into the home (cylinder, stand, regulator, supplies). Must obtain an AMA if patient refuses backup system.", note: "If continuous patient, be sure they have enough oxygen in their tank to last through the setup. If not on oxygen upon arrival, place patient on backup system." },
+      { text: "Back-up tank assembled to take in the home (cylinder, stand, regulator, supplies). Must obtain an AMA if patient refuses backup system.", note: "If continuous patient, be sure they have enough oxygen in their tank to last through the setup. If not on oxygen upon arrival, place patient on backup system." },
       { text: "Return to the vehicle for equipment that needs to be setup or swapped out." },
-      { text: "Hand gel used between clean and dirty (e.g., home and vehicle); if gloves are used, gloves are changed between clean and dirty, and hand gel used between glove changes.", note: "*Trips between home and vehicle *Between glove changes *Remove all dirty items (filters and supplies) > hand gel > place new items" },
-      { text: "Test outlet to ensure proper grounding. Use circuit tester.", note: "If there are no grounded outlets in the home, educate the patient on the need to have a grounded outlet installed, document this on the CL 307 - Initial Plan of Care and proceed with setup." },
-      { text: "Plug in and turn on the concentrator to start run time." },
-      { text: "Concentrator alarm checked by unplugging unit from power source; verify patient/caregiver can hear alarm.", note: "Observe minimum run times (Refer to OP 603 - Oxygen Concentrator Specifications)." },
-      { text: "Deliver and instruct patient on use of portable gaseous system, portable liquid oxygen, portable concentrator and/or backup system as necessary per order, and conserving device cycling. Also discuss Equipment Safety Instructions.", note: "Verbally ask \"Can you hear the alarm?\" Educate patient why they might possibly hear an alarm (ex: power outage, equipment failure, etc.). If patient cannot hear the alarm, ask if there's someone in the home who can hear it or move to a different room that is closer to patient. If patient is hearing impaired, show them to look for visual cues such as light on the concentrator." },
-      { text: "Instruct patient on cylinder storage for safety and security.", note: "Return demonstration is required to show you that the patient knows how to work their portable and backup systems. Verify completion of POC by utilizing SmartCheck Analyzer. Must flag backup system with \"Backup Equipment Only\" tag (RHI 600)." },
-      { text: "Verified concentrator setting matches current order. Patient must set liter flow as prescribed by physician.", note: "Oxygen cylinders must NOT be stored in closets, left freestanding, placed within 15 feet of a heat source or open flame, or stored in the trunk of the car. If issues are identified, correct issue, provide education to the patient and document education on CL 307 - Initial Plan of Care." },
-      { text: "Analyzed concentrator oxygen percentage, observing minimum run time (Refer to OP 603 - Oxygen Concentrator Specifications).", note: "Educate patient on their prescription, how to set the flow for their prescription, and have them set equipment to prescribed liter flow. (Non-clinicians cannot set or adjust liter flow.)" },
-      { text: "Oxygen flow checked at the end of longest tubing.", note: "Observe minimum run times (OP 603)." },
-      { text: "Educate patient on operation of equipment and changing disposable supplies and cleaning filter(s). Verify patient's ability to operate equipment.", note: "Be sure the patient is aware to change cannula every 2 weeks, tubing every 30 days, and humidifier bottles every 30 days. External filters and/or air intake vents must be cleaned weekly." },
-      { text: "Completed all sections of Initial Plan of Care (CL 307). Pay attention to the surroundings in the home (fireplaces, cigarettes/vapes, lighters, ash trays, candles, stoves, or heaters). Educate to keep 15 ft. away from any open flames or heat source. Document issue and education.", note: "Each question on the CL 307 Initial Plan of Care, include PCP, Pulmonologist, Emergency Contact, and Power Company, must be discussed with the patient. Educate on any issue identified. Document issue and education provided. The concentration % of the concentrator MUST be on these forms." },
+      { text: "Hand gel used between clean and dirty (e.g., home and vehicle); if gloves are used, gloves are changed between clean and dirty, and hand gel used between glove changes.", note: "* Trips between home and vehicle  * Between glove changes  * Remove all dirty items (filters and supplies) > hand gel > place new items" },
+      { text: "Test outlet to ensure proper grounding. Use circuit tester.", note: "If there are no grounded outlets in the home, educate the patient on the need to have a grounded outlet installed, document this on the CL 307 Initial Plan of Care and proceed with setup." },
+      { text: "Plug in and turn on the concentrator to start run time.", note: "Observe minimum run times (Refer to OP 609 - Oxygen Concentrator Specifications)." },
+      { text: "Concentrator alarm checked by unplugging unit from power source; verify patient/caregiver can hear alarm.", note: "Verbally ask \"Can you hear the alarm?\" Educate patient why they might possibly hear an alarm, (ex: power outage, equipment failure, etc.) If patient cannot hear the alarm, ask if there is someone in the home who can hear it or move to a different room that is closer to patient. If patient is hearing impaired, show them to look for visual cues such as lights on the concentrator." },
+      { text: "Deliver and instruct patient on use of portable gaseous system, portable liquid oxygen, portable concentrator and/or back-up system as necessary per order, and verify conserving device cycling. Also discuss Equipment Safety Instructions.", note: "Return demonstration is required to show you that the patient knows how to work their portable and backup systems. Verify concentration of POC by utilizing SmartCheck Analyzer. Must flag backup system with \"Backup Equipment Only\" tag (RHI 600)." },
+      { text: "Instruct patient on cylinder storage for safety and security.", note: "Oxygen cylinders must NOT be stored in closets, left freestanding, placed within 15 feet of a heat source or open flame or stored in the trunk of the car. If issues are identified, correct issue, provide education to the patient and document education on CL 307 - Initial Plan of Care." },
+      { text: "Verified concentrator setting matches current order. Patient must set liter flow as prescribed by physician.", note: "Educate patient on their prescription, how to set the flow for their prescription, and have them set equipment to prescribed liter flow. (Non-clinicians cannot set or adjust liter flow)." },
+      { text: "Analyzed concentrator oxygen percentage, observing minimum run time (Refer to OP 609 - Oxygen Concentrator Specifications).", note: "Observe minimum run times (OP 609)." },
+      { text: "Oxygen flow checked at the end of longest tubing.", note: "Must use flow pen to check this, not an analyzer with flow built in." },
+      { text: "Educate patient on operation of equipment and changing disposable supplies and cleaning filter(s). Verify patient's ability to operate equipment.", note: "Be sure the patient is aware to change cannula every 2 weeks, tubing every 90 days, and humidifier bottles every 30 days. External filters and/or air intake vents must be cleaned weekly." },
+      { text: "Completed all sections of Initial Plan of Care (CL 307). Pay attention to the surroundings in the home: fireplaces, cigarettes/vapes, lighters, ash trays, candles, stoves, or heaters. Educate to keep 15 ft. away from any open flames or heat source. Document issue and education.", note: "Each question on the CL 307 Initial Plan of Care, to include PCP, Pulmonologist, Emergency Contact, and Power Company, must be discussed with the patient. Educate on any issue identified. Document issue and education provided. The concentration % of the concentrator MUST be on these forms. Be sure to document \"Alarm Audible to Patient\". If patient has POC, ensure to check the concentration % of it and record on the CL 307." },
       { text: "\"No Smoking\" sign(s) left for patient to hang at entrance to home.", note: "If oxygen is in the home, \"No Smoking\" sign is required. Signage alerts first responders that there is oxygen in the home." },
-      { text: "Checked the function, cleanliness, and location label on all Rotech equipment." },
-      { text: "Concentrator, Regulator, Portable System, Conserving Device, Tanks (including backup tank), and Supplies (serial, model, and/or lot numbers) documented on delivery.", note: "Document all equipment, supplies, and cylinders delivered. Cylinder lot numbers must match on Delivery Ticket, Initial Plan of Care, and Lot Tank Form." },
-      { text: "Patient internet access confirmed; instructed to visit www.rotech.com, review what is available on website and provide Rotech Paperless Card (RHI 1080) with all new setups (printed booklets provided if no internet access).", note: "Verbally ask the patient \"Do you have access to the internet?\" If no internet access, be prepared to give the patient printed copies of the RHI 1000 Patient Information Booklet and RHI 1001 Home Medical Equipment Booklet. If initial setup, provide the RHI 1080 card." },
-      { text: "Ensure ALL paperwork is completed before leaving the home. (Delivery Ticket, Initial Plan of Care, Payment Authorization, etc.)" },
-      { text: "Testing equipment cleaned prior to placing back in bag or vehicle; gloves must be worn when using Madawipes.", note: "Gloves must be worn when using any Msda products. Clean analyzer, flow pen, circuit tester, and tablet before placing in bag or vehicle." },
+      { text: "Checked the function, cleanliness and location label on all Rotech equipment." },
+      { text: "Concentrator, Regulator, Portable System, Conserving Device, Tanks (including backup tank), and Supplies (serial, model, and/or lot numbers) documented on delivery ticket.", note: "Document all equipment, supplies, and cylinders delivered. Cylinder lot numbers must be on Delivery ticket and Lot Tank Form. Number of cylinders must match on Delivery Ticket, Initial Plan of Care, and Lot Tank Form." },
+      { text: "Patient internet access confirmed; instructed to visit www.rotech.com, review what is available on website and provide Rotech Paperless Contact Card (RHI 1080) with all new setups (printed booklets provided if no internet access).", note: "Verbally ask the patient \"Do you have access to the internet?\" If no internet access, be prepared to give the patient printed copies of the RHI 1000 Patient Information Booklet and RHI 1001 Home Medical Equipment Booklet. If initial set up, provide with the RHI 1080 card." },
+      { text: "Ensure ALL paperwork is filled out completely before leaving the home. (Delivery Ticket, Initial Plan of Care, Payment Authorization, etc.)." },
+      { text: "Testing equipment cleaned prior to placing back into bag or vehicle; gloves must be worn when using Madawipes.", note: "Gloves must be worn when using any Mada products. Clean analyzer, flow pen, circuit tester and tablet before placing in bag or vehicle." },
       { text: "Used hand gel upon completion of home visit." },
     ]
   },
   {
-    id: "pstMaintenance", label: "PST Visit — Maintenance", ref: "Form JC 426 (Maintenance)",
+    id: "pstMaintenance", label: "PST Visit — Maintenance", ref: "Form JC 426 (Maintenance) — Rev. 2026.06.29",
     banner: "BEST PRACTICE - Evaluate home prior to equipment placement",
     items: [
-      { text: "All equipment, supplies, and tanks secured in vehicle." },
+      { text: "ALL equipment, supplies, and tanks secured in vehicle." },
       { text: "Testing equipment, gloves, Madawipes, hand gel, non-clear bags and red tags on the vehicle." },
-      { text: "Complete dosing instructions are printed on the maintenance or exchange ticket.", note: "Must include liter flow, route of delivery, and duration (2 lpm NC Continuous)." },
+      { text: "Complete dosing instructions are printed on the maintenance or exchange ticket.", note: "Must include liter flow, route of delivery, and duration (2 lpm NC continuous)." },
       { text: "Patient information is not visible in the vehicle." },
       { text: "Vehicle is locked and secured when unattended.", note: "Windows must be up and all doors locked." },
       { text: "Hand gel applied prior to entering patient's home." },
       { text: "\"No Smoking\" sign(s) posted at entrance to home.", note: "If oxygen is in the home, \"No Smoking\" sign is required. Signage alerts first responders that there is oxygen in the home." },
       { text: "Confirm correct patient utilizing two patient identifiers (name, DOB, address, etc.).", note: "Verify patient's name before entering the home." },
-      { text: "Gloves used if equipment/supplies are visibly contaminated.", note: "It is Rotech's policy (2.5.1) to observe Standard Precautions — wear gloves when coming in contact with equipment and/or supplies that are visibly contaminated. If the home is clean and tidy and the equipment is not visibly contaminated, gloves are not required. Practice good hand gel hygiene." },
-      { text: "Instructed patient to use portable or back-up system as necessary per order; verified conserving device cycling.", note: "Be sure the patient knows how to work through the maintenance. This is a good opportunity for the patient to show you they know how to work their portable and backup systems." },
-      { text: "Checked portable liquid oxygen, gaseous system, or portable concentrator (conserving device, POC) and patient's ability to operate.", note: "If patient has a POC unit, check the concentration % utilizing the SmartCheck analyzer and record on the OP 511 Equipment Maintenance Form." },
-      { text: "Turn on the concentrator if it is not already running.", note: "Observe minimum run times (OP 603)." },
-      { text: "Concentrator alarm checked by unplugging unit from power source; verify patient/caregiver can hear alarm.", note: "Verbally ask \"Can you hear the alarm?\" If patient cannot hear the alarm, ask if there's someone in the home who can hear it or move to a different room that is closer to the concentrator. If patient is hearing impaired, show them to look for visual cues such as light on the concentrator." },
-      { text: "Verified back-up only tanks and patient's ability to operate (AMA on file if patient refuses back-up).", note: "Back-up tanks must be tagged with a \"Back-up Equipment Only\" tag (RHI 600)." },
-      { text: "Identified cylinder storage for safety and security, address as necessary.", note: "Oxygen cylinders must NOT be stored in closets, left freestanding, placed within 15 feet of a heat source or open flame, or stored in the trunk of the car. If issues are identified, correct issue, provide education to the patient and document education on OP 511 Equipment Maintenance Record." },
-      { text: "Analyzed concentrator oxygen percentage, observing minimum run times and concentration (OP 603)." },
-      { text: "Hand gel used between clean and dirty (e.g., home and vehicle); if gloves are used, gloves are changed between clean and dirty, and hand gel used between glove changes.", note: "*Trips between home and vehicle *Between glove changes *Remove all dirty items (filters and supplies) > hand gel > place new items" },
-      { text: "Verified concentrator setting matches current order, address as necessary.", note: "If the concentrator is not set to the prescription you have on file, contact the location, leave the liter flow as-is. Let the LCM know you will need an updated prescription. If the prescription is correct, have patient adjust to correct liter flow. PATIENT MUST MAKE ALL CHANGES TO LITER FLOW, PST CANNOT." },
-      { text: "Oxygen flow checked at the end of longest tubing.", note: "Use flow pen to check this, not an analyzer with flow built in." },
-      { text: "Checked the function, cleanliness, and location label on all Rotech equipment.", note: "All equipment must have a location label on it." },
-      { text: "Asked patient about changing disposable supplies and cleaning filter(s).", note: "Be sure the patient is aware to change cannula every 2 weeks, tubing every 30 days, humidifier bottles every 30 days." },
-      { text: "Completed all sections of the Equipment Maintenance Record (OP 511). Pay attention to the surroundings in the home (fireplaces, cigarettes/vapes, lighters, ash trays, candles, stoves, or heaters). Educate to keep 15 ft. away from any open flames or heat source. Document issue and education.", note: "All 16 questions on the Safety Assessment of the OP 511 Equipment Maintenance Record must be discussed with the patient. Educate on any issue identified. Document issue and education provided. The concentration % of the concentrator MUST be on these forms." },
+      { text: "Gloves used if equipment/supplies are visibly contaminated.", note: "It is Rotech's policy (2.3.1) to observe Standard Precautions - wear gloves when coming in contact with equipment and/or supplies that are visibly contaminated. If the home is clean and tidy and the equipment is not visibly contaminated, gloves are not required. Practice good hand gel hygiene." },
+      { text: "Instructed patient to use portable or back-up system as necessary per order, and verified conserving device cycling.", note: "Be sure patient has enough oxygen in their tank to last through the maintenance. This is a good opportunity for the patient to show you they know how to work their portable and backup systems." },
+      { text: "Checked portable liquid oxygen, gaseous systems, or portable concentrator. (Conserving device, POC, regulator) and patient's ability to operate.", note: "If patient has POC, check the concentration % utilizing the SmartCheck analyzer and record on the OP 511 Equipment Maintenance Form." },
+      { text: "Turn on the concentrator if it is not already running.", note: "Observe minimum run times (OP 609)." },
+      { text: "Concentrator alarm checked by unplugging unit from power source; verify patient/caregiver can hear alarm.", note: "Verbally ask \"Can you hear the alarm?\" If patient cannot hear the alarm, ask if there is someone in the home who can hear it or move to a different room that is closer to patient. If patient is hearing impaired, show them to look for visual cues such as lights on the concentrator." },
+      { text: "Verified back-up only tanks and patient's ability to operate (AMA on file if patient refuses back-up).", note: "Back-up tanks must be tagged with a Back-up Equipment Only tag (RHI 600)." },
+      { text: "Identified cylinder storage for safety and security, address as necessary.", note: "Oxygen cylinders must NOT be stored in closets, left freestanding, placed within 15 feet of a heat source or open flame or stored in the trunk of the car. If issues are identified, correct issue, provide education to the patient and document education on OP 511 Equipment Maintenance Record." },
+      { text: "Analyzed concentrator oxygen percentage, observing minimum run time (OP 609 Oxygen Concentrator Specifications).", note: "Observe minimum run times and concentration (OP 609)." },
+      { text: "Hand gel used between clean and dirty (e.g., home and vehicle); if gloves are used, gloves are changed between clean and dirty, and hand gel used between glove changes.", note: "* Trips between home and vehicle  * Between glove changes  * Remove all dirty items (filters and supplies) > hand gel > place new items" },
+      { text: "Verified concentrator setting matches current order, address as necessary.", note: "If the concentrator is not set to the prescription we have on file (dosing instructions), ask patient why it is set differently than the prescription. If they state there has been a change in the prescription, leave the liter flow as is. Let the LCM know we will need to get an updated prescription. If the prescription is correct, have patient adjust to correct liter flow. PATIENT MUST MAKE ALL CHANGES TO LITER FLOW, PST CANNOT ADJUST." },
+      { text: "Oxygen flow checked at the end of longest tubing.", note: "Must use flow pen to check this, not an analyzer with flow built in." },
+      { text: "Checked the function, cleanliness and location label on all Rotech equipment.", note: "All equipment must have a location label on it." },
+      { text: "Asked patient about changing disposable supplies and cleaning filter(s).", note: "Be sure the patient is aware to change cannula every 2 weeks, tubing every 90 days, humidifier bottles every 30 days and filters per manufacturer guidelines. External filters and/or air intake vents must be cleaned weekly." },
+      { text: "Completed all sections of Equipment Maintenance Record (OP 511). Pay attention to the surroundings in the home: fireplaces, cigarettes/vapes, lighters, ash trays, candles, stoves, or heaters. Educate to keep 15 ft. away from any open flames or heat source. Document issue and education.", note: "All 16 questions on the Safety Assessment of the OP 511 Equipment Maintenance Record must be discussed with the patient. Educate on any issue identified. Document issue and education provided. The concentration % of the concentrator MUST be on these forms." },
       { text: "If fire risk is identified, a PE 662 High-Risk Smoking & Education Packet must be provided to the patient.", note: "Back page must be signed by the patient and returned to the location to be scanned into the EMR." },
-      { text: "Supplies and cylinder/lot numbers documented on delivery ticket.", note: "Document all supplies and cylinders delivered. Cylinder lot numbers must be on Delivery Ticket and the Lot Tank Form." },
-      { text: "Ensure ALL paperwork is filled out completely before leaving the home. (BL 401, COPD assessment, and \"Are You Tired of Being Tired?\")" },
-      { text: "Testing equipment cleaned prior to placing back in bag or vehicle; gloves must be worn when using Madawipes.", note: "Gloves must be worn when using any Msda products. Clean analyzer, flow pen, circuit tester, and tablet before placing in bag or vehicle." },
+      { text: "Supplies and serial/lot numbers documented on delivery ticket.", note: "Document all supplies and cylinders delivered. Cylinder lot numbers must be on Delivery Ticket and the Lot Tank Form." },
+      { text: "Ensure ALL paperwork is filled out completely before leaving the home. (BL 401, COPD assessment and \"Are You Tired of Being Tired?\")" },
+      { text: "Testing equipment MUST be cleaned prior to placing back into bag or vehicle; gloves must be worn when using Madawipes.", note: "Gloves must be worn when using any Mada products. Clean analyzer, flow pen, circuit tester and tablet before placing in bag or vehicle." },
       { text: "Used hand gel upon completion of home visit." },
     ]
   },
@@ -1336,11 +1337,15 @@ const STATUS_COLORS = {
 };
 
 // ─── POLICY REVISION DATES ────────────────────────────────────────────────────
-// Update the date strings below whenever a policy is revised.
-// Format: "MM.DD.YYYY" — appears as a tooltip badge on checklist items
-//         and in the Policy Dates reference tab.
+// Seed/fallback data only — the live values now live in the Firestore
+// "policyDates" collection and are editable by admins from the Policy Dates
+// tab (no code changes/redeploys needed for a routine date update anymore).
+// This object is what an admin's "Load starting policy dates" button writes
+// into Firestore the first time, and what the app falls back to if Firestore
+// is unreachable. Format: "MM.DD.YYYY" — appears as a tooltip badge on
+// checklist items and in the Policy Dates reference tab.
 // ─────────────────────────────────────────────────────────────────────────────
-const POLICY_DATES = {
+const POLICY_DATES_SEED = {
   // Binder 1 — Morning Meeting
   "Policy 1.1.25": { name: "Morning Meetings",                          rev: "01.01.2026" },
   
@@ -1356,16 +1361,17 @@ const POLICY_DATES = {
   // Binder 4 — JC / Operations
   "Policy 1.1.22": { name: "Performance Improvement Program",           rev: "01.01.2025" },
   "Policy 1.1.2":  { name: "Scope of Service",                         rev: "05.22.2026" },
+  "Policy 2.2.1":  { name: "Environmental Safety",                      rev: "01.01.2026" },
   "Policy 2.2.2":  { name: "Emergency Preparedness",                   rev: "11.17.2025" },
   "Policy 2.4.13": { name: "Fire Prevention",                           rev: "01.01.2026" },
   "Policy 2.4.1":  { name: "Incidents",                                 rev: "01.01.2026" },
   "Policy 2.2.4":  { name: "Instrumentation Maintenance & Calibration", rev: "03.17.2026" },
 };
 
-// Returns all POLICY_DATES keys found anywhere in the given text string
+// Returns all policyDates keys found anywhere in the given text string
 // Uses word-boundary check so "Policy 1.1.2" won't match inside "Policy 1.1.22"
-function getPolicyMatches(text) {
-  return Object.keys(POLICY_DATES).filter(key => {
+function getPolicyMatches(text, policyDates) {
+  return Object.keys(policyDates).filter(key => {
     const idx = text.indexOf(key);
     if (idx === -1) return false;
     const after = text[idx + key.length];
@@ -1491,9 +1497,30 @@ function ChecklistView({ visitId }) {
   );
 }
 
-function PolicyDateSearch() {
+// In-app editor for the company-wide Policy Revision Dates (Firestore
+// "policyDates" collection), replacing the old code-only workflow where an
+// admin had to edit POLICY_DATES_SEED in App.jsx and wait for a redeploy.
+// Mirrors LocationRoster's admin-allowlist + audit-log pattern.
+function PolicyDatesPanel({ policyDates, onReload }) {
+  const isAdmin = ADMIN_EMAILS.includes(auth.currentUser?.email);
   const [query, setQuery] = useState("");
-  const entries = Object.entries(POLICY_DATES);
+  const [editingKey, setEditingKey] = useState(null); // policy # being edited, or "new"
+  const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [showChanges, setShowChanges] = useState(false);
+  const [auditEntries, setAuditEntries] = useState([]);
+
+  useEffect(() => {
+    if (!showChanges) return;
+    const q = fsQuery(collection(db, "auditLog"), orderBy("at", "desc"), limit(50));
+    const unsub = onSnapshot(q, snap => {
+      setAuditEntries(snap.docs.map(d => d.data()).filter(e => e.collection === "policyDates"));
+    }, () => setAuditEntries([]));
+    return () => unsub();
+  }, [showChanges]);
+
+  const entries = Object.entries(policyDates).sort(([a], [b]) => a.localeCompare(b));
   const filtered = query.trim()
     ? entries.filter(([key, val]) =>
         key.toLowerCase().includes(query.toLowerCase()) ||
@@ -1502,26 +1529,155 @@ function PolicyDateSearch() {
       )
     : entries;
 
+  function startEdit(key, val) { setEditingKey(key); setDraft({ key, name: val.name, rev: val.rev }); }
+  function startNew() { setEditingKey("new"); setDraft({ key: "", name: "", rev: "" }); }
+  function cancelEdit() { setEditingKey(null); setDraft(null); }
+
+  async function saveEdit() {
+    if (!draft.key.trim() || !draft.name.trim() || !draft.rev.trim()) { alert("Policy #, Name, and Last Revised are all required."); return; }
+    setSaving(true);
+    try {
+      const key = draft.key.trim();
+      const ref = doc(db, "policyDates", key);
+      const existing = await getDoc(ref);
+      const after = { name: draft.name.trim(), rev: draft.rev.trim() };
+      await setDoc(ref, after);
+      await logAudit("policyDates", key, existing.exists() ? "update" : "create", existing.exists() ? existing.data() : null, after);
+      await onReload();
+      cancelEdit();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removePolicy(key) {
+    if (!window.confirm(`Remove ${key} from the Policy Dates list?`)) return;
+    const ref = doc(db, "policyDates", key);
+    const existing = await getDoc(ref);
+    await deleteDoc(ref);
+    await logAudit("policyDates", key, "delete", existing.exists() ? existing.data() : null, null);
+    await onReload();
+  }
+
+  // One-time bootstrap for a fresh/empty Firestore collection — only adds
+  // policies that aren't already there, so it's safe to click more than once
+  // and never overwrites an admin's live edits.
+  async function loadMissingDefaults() {
+    const missing = Object.entries(POLICY_DATES_SEED).filter(([key]) => !policyDates[key]);
+    if (missing.length === 0) { alert("Nothing to load — every default policy is already in the list."); return; }
+    if (!window.confirm(`Add ${missing.length} default polic${missing.length !== 1 ? "ies" : "y"} not currently in the list? Existing entries won't be touched.`)) return;
+    setSeeding(true);
+    try {
+      const batch = writeBatch(db);
+      missing.forEach(([key, val]) => batch.set(doc(db, "policyDates", key), val));
+      await batch.commit();
+      await logAudit("policyDates", "*", "load-defaults", null, { count: missing.length });
+      await onReload();
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%", boxSizing: "border-box" };
+  const cols = isAdmin ? "140px 1fr 130px 90px" : "140px 1fr 130px";
+
   return (
     <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontSize: 12, color: "#9e9e9e" }}>
+          {entries.length} polic{entries.length !== 1 ? "ies" : "y"}{isAdmin ? " — edits apply immediately for all specialists" : " — read-only (contact an admin to request changes)"}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {isAdmin && (
+            <button onClick={loadMissingDefaults} disabled={seeding} title="Add any built-in default policies that aren't in this list yet" style={{ padding: "7px 14px", fontSize: 12, background: "#fff", color: "#e65100", border: "1px solid #e65100", borderRadius: 6, cursor: "pointer", fontWeight: 600, opacity: seeding ? 0.7 : 1 }}>
+              {seeding ? "Loading…" : "Load missing defaults"}
+            </button>
+          )}
+          <button onClick={() => setShowChanges(v => !v)} style={{ padding: "7px 14px", fontSize: 12, background: showChanges ? BRAND : "#fff", color: showChanges ? "#fff" : "#616161", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+            {showChanges ? "Hide" : "Show"} Recent Changes
+          </button>
+          {isAdmin && (
+            <button onClick={startNew} style={{ padding: "7px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+              + Add Policy
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showChanges && (
+        <div style={{ background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 8, marginBottom: 14, overflow: "hidden" }}>
+          <div style={{ padding: "8px 14px", fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e0e0e0" }}>
+            Recent Changes
+          </div>
+          {auditEntries.length === 0 ? (
+            <div style={{ padding: 14, fontSize: 13, color: "#9e9e9e" }}>No changes recorded yet.</div>
+          ) : (
+            <div style={{ maxHeight: 260, overflowY: "auto" }}>
+              {auditEntries.map((e, i) => {
+                const isBulk = e.action === "load-defaults";
+                const label = isBulk ? `${e.after?.count ?? "?"} default polic${e.after?.count !== 1 ? "ies" : "y"} loaded` : (e.action === "delete" ? e.before?.name : e.after?.name);
+                const actionColor = e.action === "delete" ? "#c62828" : e.action === "create" ? "#2e7d32" : "#e65100";
+                return (
+                  <div key={i} style={{ padding: "8px 14px", fontSize: 12, borderTop: i > 0 ? "1px solid #f0f0f0" : "none", display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <div>
+                      <span style={{ fontWeight: 700, color: actionColor, textTransform: "uppercase", marginRight: 6 }}>{e.action}</span>
+                      <span style={{ color: "#424242" }}>{isBulk ? label : `${e.docId}${label ? ` — ${label}` : ""}`}</span>
+                    </div>
+                    <div style={{ color: "#9e9e9e", whiteSpace: "nowrap" }}>
+                      {e.user || e.userEmail || "unknown"} · {e.at ? new Date(e.at).toLocaleString("en-US") : "—"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       <input
         value={query} onChange={e => setQuery(e.target.value)}
         placeholder="Search by policy #, name, or date…"
         style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 6, marginBottom: 14, boxSizing: "border-box", outline: "none", color: "#212121" }}
       />
+
+      {editingKey && (
+        <div style={{ background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, marginBottom: 10 }}>{editingKey === "new" ? "New policy" : `Editing ${editingKey}`}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8, marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Policy #</div>
+              <input value={draft.key} disabled={editingKey !== "new"} placeholder="Policy 2.2.1" onChange={e => setDraft(d => ({ ...d, key: e.target.value }))} style={inputStyle} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Name</div>
+              <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={inputStyle} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Last Revised</div>
+              <input value={draft.rev} placeholder="MM.DD.YYYY" onChange={e => setDraft(d => ({ ...d, rev: e.target.value }))} style={inputStyle} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={saveEdit} disabled={saving} style={{ padding: "6px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>{saving ? "Saving…" : "Save"}</button>
+            <button onClick={cancelEdit} style={{ padding: "6px 14px", fontSize: 12, background: "#fff", border: "1px solid #e0e0e0", borderRadius: 5, cursor: "pointer", color: "#616161" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       <div style={{ border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden" }}>
         {/* Header row */}
-        <div style={{ display: "grid", gridTemplateColumns: "140px 1fr 130px", background: "#1a3a5c", color: "#fff", padding: "9px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+        <div style={{ display: "grid", gridTemplateColumns: cols, background: "#1a3a5c", color: "#fff", padding: "9px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
           <div>Policy #</div>
           <div>Name</div>
           <div style={{ textAlign: "center" }}>Last Revised</div>
+          {isAdmin && <div></div>}
         </div>
         {filtered.length === 0 && (
           <div style={{ padding: "24px", textAlign: "center", color: "#9e9e9e", fontSize: 13 }}>No policies match "{query}"</div>
         )}
         {filtered.map(([key, val], i) => (
           <div key={key} style={{
-            display: "grid", gridTemplateColumns: "140px 1fr 130px",
+            display: "grid", gridTemplateColumns: cols,
             padding: "9px 14px", fontSize: 13, alignItems: "center",
             background: i % 2 === 0 ? "#fff" : "#f8f9fa",
             borderTop: "1px solid #f0f0f0"
@@ -1533,6 +1689,12 @@ function PolicyDateSearch() {
                 {val.rev}
               </span>
             </div>
+            {isAdmin && (
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <button onClick={() => startEdit(key, val)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 4, cursor: "pointer" }}>Edit</button>
+                <button onClick={() => removePolicy(key)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #ffcdd2", color: "#c62828", borderRadius: 4, cursor: "pointer" }}>✕</button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -1681,7 +1843,7 @@ async function logAudit(collectionName, docId, action, before, after) {
 }
 
 function LocationRoster({ locations, onReload }) {
-  const isAdmin = ROSTER_ADMIN_EMAILS.includes(auth.currentUser?.email);
+  const isAdmin = ADMIN_EMAILS.includes(auth.currentUser?.email);
   const [query, setQuery] = useState("");
   const [editingLawson, setEditingLawson] = useState(null); // lawson being edited, or "new"
   const [draft, setDraft] = useState(null);
@@ -2511,6 +2673,21 @@ function SurveyPrepApp() {
     }).catch(() => {});
   }, []);
   useEffect(() => { reloadLocations(); }, [reloadLocations]);
+
+  // Policy Revision Dates — starts from the code-level seed (POLICY_DATES_SEED)
+  // so badges/the reference tab never look empty, then gets replaced by
+  // whatever's actually in Firestore once it loads (admins edit there now,
+  // not in code — see PolicyDatesPanel).
+  const [policyDates, setPolicyDates] = useState(POLICY_DATES_SEED);
+  const reloadPolicyDates = useCallback(() => {
+    return getDocs(collection(db, "policyDates")).then(snap => {
+      if (snap.empty) return; // collection not bootstrapped yet — keep the seed showing
+      const obj = {};
+      snap.docs.forEach(d => { obj[d.id] = d.data(); });
+      setPolicyDates(obj);
+    }).catch(() => {});
+  }, []);
+  useEffect(() => { reloadPolicyDates(); }, [reloadPolicyDates]);
   const [activeTab, setActiveTab] = useState(0);
   const [{ states, comments }, setForm] = useState(() => {
     if (draft?.states) return { states: draft.states, comments: draft.comments ?? {} };
@@ -3890,17 +4067,17 @@ function SurveyPrepApp() {
                           <div style={{ fontSize: 13, lineHeight: 1.5, color: "#212121" }}>{item.text}</div>
                           {item.note && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3, lineHeight: 1.4 }}>{item.note}</div>}
                           {(() => {
-                            const matches = getPolicyMatches(item.text);
+                            const matches = getPolicyMatches(item.text, policyDates);
                             if (!matches.length) return null;
                             return (
                               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
                                 {matches.map(key => (
-                                  <span key={key} title={`${POLICY_DATES[key].name} — Rev: ${POLICY_DATES[key].rev}`} style={{
+                                  <span key={key} title={`${policyDates[key].name} — Rev: ${policyDates[key].rev}`} style={{
                                     fontSize: 10, padding: "2px 7px", borderRadius: 10,
                                     background: "#e8eef4", color: BRAND, border: "1px solid #c5d5e8",
                                     cursor: "default", fontWeight: 600, letterSpacing: "0.02em"
                                   }}>
-                                    📋 {key} · Rev {POLICY_DATES[key].rev}
+                                    📋 {key} · Rev {policyDates[key].rev}
                                   </span>
                                 ))}
                               </div>
@@ -4297,12 +4474,11 @@ function SurveyPrepApp() {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: BRAND, marginBottom: 4 }}>Policy Revision Reference</div>
                 <div style={{ fontSize: 12, color: "#757575" }}>
-                  Dates are set in <code style={{ background: "#f5f5f5", padding: "1px 5px", borderRadius: 3 }}>POLICY_DATES</code> at the top of <code style={{ background: "#f5f5f5", padding: "1px 5px", borderRadius: 3 }}>App.jsx</code> — update the <code style={{ background: "#f5f5f5", padding: "1px 5px", borderRadius: 3 }}>rev:</code> value for any policy and it will reflect here and on the checklist badges automatically.
+                  Admins can add, edit, or remove policies directly below — changes apply immediately for every specialist and reflect on the checklist badges automatically. No code changes or redeploys needed.
                 </div>
               </div>
 
-              {/* Search */}
-              <PolicyDateSearch />
+              <PolicyDatesPanel policyDates={policyDates} onReload={reloadPolicyDates} />
             </div>
           )}
           {/* Issue Trends tab content */}

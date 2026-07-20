@@ -30,10 +30,20 @@ service cloud.firestore {
 
     // Company-wide location roster. Read is open to any signed-in specialist
     // (needed for the Lawson # picker etc.), but writes are restricted to a
-    // small admin allowlist — must be kept in sync with ROSTER_ADMIN_EMAILS
+    // small admin allowlist — must be kept in sync with ADMIN_EMAILS
     // in App.jsx. Added after the roster was found wiped twice with no
     // record of who or when.
     match /locations/{lawson} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.token.email in ['tasmith@rotech.com', 'cody.landtroop@rotech.com'];
+    }
+
+    // Company-wide Policy Revision Dates reference. Read is open to any
+    // signed-in specialist (drives the checklist badges + reference tab);
+    // writes are restricted to the same admin allowlist as locations —
+    // must be kept in sync with ADMIN_EMAILS in App.jsx.
+    match /policyDates/{policyKey} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
                    && request.auth.token.email in ['tasmith@rotech.com', 'cody.landtroop@rotech.com'];

@@ -496,7 +496,8 @@ function buildChecklistItems(visit) {
   const { states = {}, comments = {}, op541Sections = [], op541States = {}, op541Comments = {},
           op541tSections = [], op541tStates = {}, op541tComments = {},
           op541VehicleInfo = {},
-          personnelSlots = [], personnelItems = [], personnelAnswers = {}, personnelComments = {} } = visit;
+          personnelSlots = [], personnelItems = [], personnelAnswers = {}, personnelComments = {},
+          jc427Slots = [], jc427Items = [], jc427Answers = {}, jc427Dates = {}, jc427Comments = {} } = visit;
 
   SECTIONS.forEach((sec, si) => {
     const category = SECTION_TO_CHECKLIST_CATEGORY[sec.id];
@@ -554,6 +555,28 @@ function buildChecklistItems(visit) {
       const key = `${item.key}|${slot.sheetName}|${slot.col}`;
       if (personnelAnswers[key] === "no") {
         items.push({ id: `i${n++}`, category: "Personnel", subheader: slot.name, text: item.text, comment: personnelComments[item.key] || "", done: false });
+      }
+    });
+  });
+
+  // JC 427: "No" answers, plus expired (red) or expiring-soon (yellow)
+  // competency/date items — unlike OP 541T's FDA dates, JC 427 has a real
+  // 3-year/6-month-warning ruleset (ported from the Semi Annual app), so
+  // there's a clean signal to surface here.
+  jc427Items.forEach(item => {
+    jc427Slots.forEach(slot => {
+      const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+      const subheader = slot.name || `Employee (col ${slot.col})`;
+      if (item.answerType === "yn") {
+        if (jc427Answers[key] === "no") {
+          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: item.text, comment: jc427Comments[item.id] || "", done: false });
+        }
+      } else {
+        const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+        if (status === "red" || status === "yellow") {
+          const label = status === "red" ? "EXPIRED" : "Expires within 6 months";
+          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: `${item.text} — ${label}`, comment: jc427Comments[item.id] || "", done: false });
+        }
       }
     });
   });
@@ -689,6 +712,52 @@ function setInlineStringValue(doc, cellEl, value) {
   tEl.appendChild(doc.createTextNode(value));
   isEl.appendChild(tEl);
   cellEl.appendChild(isEl);
+}
+
+// Appends a new solid-fill entry to an existing styles.xml <fills> table,
+// returning its fillId. Always appends rather than searching for a matching
+// existing fill — simpler, and styles.xml only grows by at most 2 entries
+// per export (one red, one yellow), reused via the cache in
+// ensureHighlightCellXf below rather than re-added per cell.
+function ensureFill(stylesDoc, hex6) {
+  const ns = stylesDoc.documentElement.namespaceURI;
+  const fillsEl = stylesDoc.getElementsByTagName("fills")[0];
+  const newIndex = fillsEl.getElementsByTagName("fill").length;
+  const fillEl = stylesDoc.createElementNS(ns, "fill");
+  const patternEl = stylesDoc.createElementNS(ns, "patternFill");
+  patternEl.setAttribute("patternType", "solid");
+  const fgEl = stylesDoc.createElementNS(ns, "fgColor");
+  fgEl.setAttribute("rgb", "00" + hex6);
+  const bgEl = stylesDoc.createElementNS(ns, "bgColor");
+  bgEl.setAttribute("rgb", "00" + hex6);
+  patternEl.appendChild(fgEl);
+  patternEl.appendChild(bgEl);
+  fillEl.appendChild(patternEl);
+  fillsEl.appendChild(fillEl);
+  fillsEl.setAttribute("count", String(newIndex + 1));
+  return newIndex;
+}
+
+// Clones the cell's CURRENT cellXf (preserving its number format, font,
+// border, and alignment — everything the template's own designer already
+// set for that cell) and appends a new cellXf with only the fill swapped to
+// the given fillId. Memoized per (baseStyleIndex, fillId) pair via `cache` so
+// re-highlighting many cells with the same starting style + color reuses one
+// new cellXf instead of bloating styles.xml with a near-duplicate per cell.
+function ensureHighlightCellXf(stylesDoc, baseStyleIndex, fillId, cache) {
+  const key = `${baseStyleIndex}|${fillId}`;
+  if (cache.has(key)) return cache.get(key);
+  const cellXfsEl = stylesDoc.getElementsByTagName("cellXfs")[0];
+  const xfs = cellXfsEl.getElementsByTagName("xf");
+  const baseXf = xfs[baseStyleIndex] || xfs[0];
+  const newXf = baseXf.cloneNode(true);
+  newXf.setAttribute("fillId", String(fillId));
+  newXf.setAttribute("applyFill", "1");
+  const newIndex = xfs.length;
+  cellXfsEl.appendChild(newXf);
+  cellXfsEl.setAttribute("count", String(newIndex + 1));
+  cache.set(key, newIndex);
+  return newIndex;
 }
 
 // Resolves sheet names (e.g. "Binder_1") to their internal zip paths
@@ -879,6 +948,119 @@ async function addNewWorksheetFromRows(zip, parser, serializer, sheetName, rows)
   zip.file(wbPath, serializer.serializeToString(wbDoc));
 }
 
+// Attaches native Excel cell notes (the classic red-corner-hover kind, not
+// the newer "threaded comments") to specific cells on one worksheet. This is
+// a legacy, VML-based mechanism with three moving parts per sheet: a
+// comments{N}.xml part (the actual text), a vmlDrawing{N}.vml part (draws the
+// little popup box), and a <legacyDrawing> element added to the worksheet
+// itself pointing at the VML part via that sheet's own _rels file (which may
+// not exist yet — printer-settings-only sheets typically don't have one).
+// `sheetDoc` is mutated in place (adding <legacyDrawing>); the caller is
+// responsible for re-serializing it into the zip afterward.
+async function addLegacyCommentsToSheet(zip, parser, serializer, sheetPath, sheetDoc, notes) {
+  const SS_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+  const PKG_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
+  const R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+  const nextPartIndex = (prefix, ext) => {
+    const nums = Object.keys(zip.files)
+      .map(p => new RegExp(`^xl/(?:drawings/)?${prefix}(\\d+)\\.${ext}$`).exec(p))
+      .filter(Boolean).map(m => parseInt(m[1], 10));
+    return (nums.length ? Math.max(...nums) : 0) + 1;
+  };
+  const commentsIdx = nextPartIndex("comments", "xml");
+  const vmlIdx = nextPartIndex("vmlDrawing", "vml");
+  const commentsPath = `xl/comments${commentsIdx}.xml`;
+  const vmlPath = `xl/drawings/vmlDrawing${vmlIdx}.vml`;
+
+  // ── comments{N}.xml ──
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const commentsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<comments xmlns="${SS_NS}"><authors><author>Rotech Survey Prep</author></authors><commentList>` +
+    notes.map(n => `<comment ref="${n.address}" authorId="0"><text><r><t>${esc(n.text)}</t></r></text></comment>`).join("") +
+    `</commentList></comments>`;
+  zip.file(commentsPath, commentsXml);
+
+  // ── vmlDrawing{N}.vml — one v:shape per noted cell ──
+  const shapes = notes.map((n, i) => {
+    const m = n.address.match(/^([A-Z]+)(\d+)$/);
+    const col = colLettersToNum(m[1]) - 1; // 0-indexed, VML convention
+    const row = parseInt(m[2], 10) - 1;    // 0-indexed
+    return `<v:shape id="_x0000_s${1000 + i}" type="#_x0000_t202" style='position:absolute;margin-left:59pt;margin-top:1pt;width:104pt;height:60pt;z-index:${i + 1};visibility:hidden' fillcolor="#ffffe1" o:insetmode="auto">` +
+      `<v:fill color2="#ffffe1"/><v:shadow on="t" color="black" obscured="t"/><v:path o:connecttype="none"/>` +
+      `<v:textbox style='mso-direction-alt:auto'><div style='text-align:left'></div></v:textbox>` +
+      `<x:ClientData ObjectType="Note"><x:MoveWithCells/><x:SizeWithCells/>` +
+      `<x:Anchor>${col + 1}, 15, ${row}, 2, ${col + 3}, 15, ${row + 4}, 4</x:Anchor>` +
+      `<x:AutoFill>False</x:AutoFill><x:Row>${row}</x:Row><x:Column>${col}</x:Column></x:ClientData>` +
+      `</v:shape>`;
+  }).join("");
+  const vmlXml = `<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">` +
+    `<o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="1"/></o:shapelayout>` +
+    `<v:shapetype id="_x0000_t202" coordsize="21600,21600" o:spt="202" path="m,l,21600r21600,l21600,xe">` +
+    `<v:stroke joinstyle="miter"/><v:path gradientshapeok="t" o:connecttype="rect"/></v:shapetype>` +
+    shapes + `</xml>`;
+  zip.file(vmlPath, vmlXml);
+
+  // ── the sheet's own _rels file — may not exist yet ──
+  const sheetFileName = sheetPath.split("/").pop(); // e.g. "sheet2.xml"
+  const sheetRelsPath = `xl/worksheets/_rels/${sheetFileName}.rels`;
+  let relsDoc;
+  const existingRelsStr = zip.file(sheetRelsPath) ? await zip.file(sheetRelsPath).async("string") : null;
+  if (existingRelsStr) {
+    relsDoc = parser.parseFromString(existingRelsStr, "application/xml");
+    assertParsedOk(relsDoc, sheetRelsPath);
+  } else {
+    relsDoc = parser.parseFromString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${PKG_REL_NS}"></Relationships>`, "application/xml");
+  }
+  const relEls = relsDoc.getElementsByTagName("Relationship");
+  let maxRid = 0;
+  for (let i = 0; i < relEls.length; i++) {
+    const m = /^rId(\d+)$/.exec(relEls[i].getAttribute("Id"));
+    if (m) maxRid = Math.max(maxRid, parseInt(m[1], 10));
+  }
+  const relsRoot = relsDoc.documentElement;
+  const commentsRid = `rId${maxRid + 1}`;
+  const vmlRid = `rId${maxRid + 2}`;
+  const commentsRel = relsDoc.createElementNS(PKG_REL_NS, "Relationship");
+  commentsRel.setAttribute("Id", commentsRid);
+  commentsRel.setAttribute("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments");
+  commentsRel.setAttribute("Target", `../comments${commentsIdx}.xml`);
+  relsRoot.appendChild(commentsRel);
+  const vmlRel = relsDoc.createElementNS(PKG_REL_NS, "Relationship");
+  vmlRel.setAttribute("Id", vmlRid);
+  vmlRel.setAttribute("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing");
+  vmlRel.setAttribute("Target", `../drawings/vmlDrawing${vmlIdx}.vml`);
+  relsRoot.appendChild(vmlRel);
+  zip.file(sheetRelsPath, serializer.serializeToString(relsDoc));
+
+  // ── <legacyDrawing> on the worksheet itself, referencing the VML part ──
+  // Must come after everything else in CT_Worksheet's element sequence — the
+  // safest legal position is appended last, unless an <extLst> is present,
+  // which must stay the final child.
+  const extLst = sheetDoc.getElementsByTagName("extLst")[0];
+  const legacyDrawingEl = sheetDoc.createElementNS(SS_NS, "legacyDrawing");
+  legacyDrawingEl.setAttributeNS(R_NS, "r:id", vmlRid);
+  if (extLst) sheetDoc.documentElement.insertBefore(legacyDrawingEl, extLst);
+  else sheetDoc.documentElement.appendChild(legacyDrawingEl);
+
+  // ── [Content_Types].xml — register the new comments part + the vml extension ──
+  const ctPath = "[Content_Types].xml";
+  const ctDoc = parser.parseFromString(await zip.file(ctPath).async("string"), "application/xml");
+  assertParsedOk(ctDoc, ctPath);
+  const hasVmlDefault = Array.from(ctDoc.getElementsByTagName("Default")).some(el => el.getAttribute("Extension") === "vml");
+  if (!hasVmlDefault) {
+    const vmlDefault = ctDoc.createElementNS(ctDoc.documentElement.namespaceURI, "Default");
+    vmlDefault.setAttribute("Extension", "vml");
+    vmlDefault.setAttribute("ContentType", "application/vnd.openxmlformats-officedocument.vmlDrawing");
+    ctDoc.documentElement.appendChild(vmlDefault);
+  }
+  const commentsOverride = ctDoc.createElementNS(ctDoc.documentElement.namespaceURI, "Override");
+  commentsOverride.setAttribute("PartName", "/" + commentsPath);
+  commentsOverride.setAttribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml");
+  ctDoc.documentElement.appendChild(commentsOverride);
+  zip.file(ctPath, serializer.serializeToString(ctDoc));
+}
+
 // Writes on-site Y/N/N/A answers + comments into the ORIGINAL uploaded
 // workbook by patching only the specific cells that changed (see comment
 // block above). Items without a known write target (item.cOnSite == null)
@@ -887,13 +1069,14 @@ async function addNewWorksheetFromRows(zip, parser, serializer, sheetName, rows)
 // personnelResponseRows (if non-empty) gets appended as a brand-new
 // "Accreditation Specialist Responses" sheet rather than patched into the
 // original Personnel Records cells — see addNewWorksheetFromRows above.
-async function writeBackToOriginalWorkbook(bufferBytes, sections, states, comments, vehicleWrites = [], personnelResponseRows = []) {
+async function writeBackToOriginalWorkbook(bufferBytes, sections, states, comments, vehicleWrites = [], personnelResponseRows = [], jc427Writes = []) {
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(bufferBytes.buffer ?? bufferBytes);
 
   const neededSheetNames = new Set();
   sections.forEach(sec => sec.items.forEach(item => { if (item.cOnSite != null) neededSheetNames.add(item.sheetName); }));
   vehicleWrites.forEach(vw => neededSheetNames.add(vw.sheetName));
+  jc427Writes.forEach(w => neededSheetNames.add(w.sheetName));
 
   const parser = new DOMParser();
   const serializer = new XMLSerializer();
@@ -959,11 +1142,66 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     }
   });
 
+  // JC 427 competency dates can carry a baked-in highlight color (see
+  // buildJC427Writes) — load+mutate styles.xml lazily, only if at least one
+  // write actually needs it, since this is the only write path that ever
+  // touches cell styling.
+  const needsStyles = jc427Writes.some(w => w.style);
+  let stylesDoc = null;
+  const highlightFillIds = {};
+  const highlightXfCache = new Map();
+  if (needsStyles) {
+    const stylesXmlStr = await zip.file("xl/styles.xml").async("string");
+    stylesDoc = parser.parseFromString(stylesXmlStr, "application/xml");
+    assertParsedOk(stylesDoc, "xl/styles.xml");
+    highlightFillIds.red = ensureFill(stylesDoc, "FFEBEE");
+    highlightFillIds.yellow = ensureFill(stylesDoc, "FFF9C4");
+  }
+
+  // Cell notes (native Excel red-corner comments) collected per sheet here,
+  // then attached once at the end via addLegacyCommentsToSheet — that call
+  // mutates each sheet's `doc` further (adding a <legacyDrawing> element), so
+  // it has to happen before docs are serialized into the zip below.
+  const notesBySheet = {};
+
+  jc427Writes.forEach(w => {
+    const path = sheetPaths[w.sheetName];
+    const doc = path && docs[path];
+    if (!doc) return;
+    const sheetDataEl = doc.getElementsByTagName("sheetData")[0];
+    if (!sheetDataEl) return;
+    const rowNum = w.rowIdx + 1;
+    const colNum = w.col + 1;
+    const address = numToColLetters(colNum) + rowNum;
+    const cellEl = getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, rowNum), address, colNum);
+    if (w.style && stylesDoc) {
+      const baseStyleIndex = parseInt(cellEl.getAttribute("s"), 10) || 0;
+      const newXfIndex = ensureHighlightCellXf(stylesDoc, baseStyleIndex, highlightFillIds[w.style], highlightXfCache);
+      cellEl.setAttribute("s", String(newXfIndex));
+    }
+    setInlineStringValue(doc, cellEl, w.value);
+    cellsWritten++;
+    if (w.note) {
+      (notesBySheet[w.sheetName] ??= []).push({ address, text: w.note });
+    }
+  });
+
+  for (const [sheetName, notes] of Object.entries(notesBySheet)) {
+    const path = sheetPaths[sheetName];
+    const doc = docs[path];
+    if (!doc || notes.length === 0) continue;
+    await addLegacyCommentsToSheet(zip, parser, serializer, path, doc, notes);
+  }
+
   Object.entries(docs).forEach(([path, doc]) => {
     const serialized = serializer.serializeToString(doc);
     const xml = serialized.startsWith("<?xml") ? serialized : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${serialized}`;
     zip.file(path, xml);
   });
+
+  if (stylesDoc) {
+    zip.file("xl/styles.xml", serializer.serializeToString(stylesDoc));
+  }
 
   let sheetsWritten = Object.keys(docs).length;
   if (personnelResponseRows.length > 0) {
@@ -1029,7 +1267,7 @@ function parsePersonnelSheet(rows, sheetName) {
   return { slots, items };
 }
 
-async function writeTrendData(visitId, meta, locations, sections, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments, personnelSlots = [], personnelItems = [], personnelAnswers = {}, personnelComments = {}) {
+async function writeTrendData(visitId, meta, locations, sections, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments, personnelSlots = [], personnelItems = [], personnelAnswers = {}, personnelComments = {}, jc427Slots = [], jc427Items = [], jc427Answers = {}, jc427Dates = {}, jc427Comments = {}) {
   try {
     // Remove any prior records for this visitId so re-saves don't duplicate
     const existing = loadTrendData().filter(r => r.visitId !== visitId);
@@ -1093,6 +1331,26 @@ async function writeTrendData(visitId, meta, locations, sections, states, commen
       });
     });
 
+    // JC 427 — "No" answers, plus expired/expiring-soon competency dates
+    // (real 3-year/6-month ruleset, unlike OP 541T's FDA dates).
+    jc427Items.forEach(item => {
+      jc427Slots.forEach(slot => {
+        const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+        const who = slot.name || `Employee (col ${slot.col})`;
+        if (item.answerType === "yn") {
+          if (jc427Answers[key] === "no") {
+            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: item.text, comment: jc427Comments[item.id] || "", visitType: "jc427" });
+          }
+        } else {
+          const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+          if (status === "red" || status === "yellow") {
+            const label = status === "red" ? "EXPIRED" : "Expires within 6 months";
+            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: `${item.text} — ${label}`, comment: jc427Comments[item.id] || "", visitType: "jc427" });
+          }
+        }
+      });
+    });
+
     // Write a summary record even if no issues (for clean visit tracking)
     if (records.length === 0) {
       records.push({ ...base, section: "_summary", formRef: "", itemText: "_clean", comment: "", visitType: "summary" });
@@ -1118,6 +1376,283 @@ async function deleteTrendVisit(visitId) {
     localStorage.setItem(TREND_KEY, JSON.stringify(loadTrendData().filter(r => r.visitId !== visitId)));
     await deleteDoc(doc(db, TRENDS_COLLECTION, visitId));
   } catch {}
+}
+
+// ─── JC 427 — Personnel Records Review ──────────────────────────────────────
+// Item content ported from the "Semi Annual" app's JC427Form.jsx (repo
+// clandtroop/rotech-semiannual) — that app submits straight to Firestore with
+// no spreadsheet involved; this tab adapts the same content to this app's
+// bundled-template + write-back pattern instead. The real blank template
+// ships with this app (public/JC427_Template.xlsx) rather than being
+// uploaded per visit, since there's no location self-audit data in it to
+// compare against — nothing an upload would add over a bundled copy. The
+// sheet's own category banner text differs slightly from that app's category
+// labels (the sheet calls the first block "Personnel Record", the app calls
+// it "Onboarding Documents") — banner text is only used below to locate each
+// section in the template; the app's own labels are what's shown in the UI.
+// Two items are DATE fields here even though JC427Form.jsx codes them as a
+// plain Complete/Incomplete/N/A select — confirmed with the user against the
+// real spreadsheet's own row text ("date only; blank if NA") and, for the
+// N95 item, that same app's own instructions text (which contradicts its own
+// form code on this one item).
+const JC427_TEMPLATE_PATH = "/rotech-survey-prep/JC427_Template.xlsx";
+const JC427_PERSONNEL_SECTIONS = [
+  { category: "Onboarding Documents", sheetBanner: "personnel record", items: [
+    { id: "welcome_email", text: "Welcome to Rotech (Okay to Hire) Email", note: "Applicable to employees hired after 2017" },
+    { id: "job_description", text: "Job Description" },
+    { id: "general_orientation", text: "General Orientation (HR 548)" },
+    { id: "professional_licensure", text: "Professional Licensure" },
+    { id: "drivers_license", text: "Driver's License" },
+    { id: "policy_acknowledgment", text: "Policy Acknowledgment / Computer Password Confidentiality" },
+  ]},
+  { category: "Training", sheetBanner: "training", items: [
+    { id: "mandatory_annual", text: "Mandatory Annual In-Services (SE 800)" },
+    { id: "storage_distribution", text: "Storage and Distribution Training (FDA 019)", answerType: "date", note: "Date only — initial & every 3 years" },
+    { id: "manufacturing_facility", text: "Manufacturing Facility Orientation (FDA 021)", note: "Only for locations manufacturing liquid oxygen (curbside filling)" },
+    { id: "hazard_communication", text: "RM 1234 Hazard Communication Program Training", note: "Record with RM 1238 PPE Hazard Assessment attached (job description specific)" },
+  ]},
+  { category: "Performance Review", sheetBanner: "performance review", items: [
+    { id: "employee_review", text: "Employee Performance Review" },
+  ]},
+  { category: "Medical Record", sheetBanner: "medical record", items: [
+    { id: "hepatitis_b", text: "Hepatitis B Test or OP 515 Hepatitis B Vaccination Statement" },
+    { id: "tb_test", text: "TB Test/Risk Assessment" },
+    { id: "n95_fit_test", text: "Annual N95 Mask Fit Testing", answerType: "date", note: "For \"at risk\" employees — date only, blank if N/A" },
+    { id: "respirator_clearance", text: "Confirmation of Medical Clearance for Respirator Use from 3M", note: "For initial fit testing after 2/1/2022" },
+  ]},
+];
+
+const JC427_NON_CLINICAL_COMPETENCIES = {
+  category: "Non-Clinical Competency Assessments", sheetBanner: "non-clinical competency assessments",
+  comment: "Employees MUST complete online competencies, pertaining to their job responsibilities, on Docebo: My Training Not Completed - or use search tool. Completed Competency Assessment (SE form) and certificate are to be placed in employee file.",
+  items: [
+    { id: "aspirator", text: "Aspirator / Suction (SE 816)" },
+    { id: "cpm", text: "Continuous Passive Motion - CPM (SE 904)" },
+    { id: "pap_device", text: "PAP Device (SE 811)" },
+    { id: "pap_mask", text: "PAP Mask Fitting (SE 851)" },
+    { id: "high_pressure_cylinder", text: "High Pressure Cylinder (SE 805)" },
+    { id: "hospital_bed", text: "Hospital Bed & Trapeze (SE 807)" },
+    { id: "liquid_oxygen", text: "Liquid Oxygen (SE 809)" },
+    { id: "lymphedema_pump", text: "Lymphedema Pump (SE 856)" },
+    { id: "nebulizer_nc", text: "Nebulizer (SE 812)" },
+    { id: "negative_pressure_wound", text: "Negative Pressure Wound Care System (SE 903)" },
+    { id: "oxygen_analyzer", text: "Oxygen Analyzer (SE 801)" },
+    { id: "oxygen_concentrator", text: "Oxygen Concentrator (SE 803)" },
+    { id: "oxygen_concentrator_maintenance", text: "Oxygen Concentrator Maintenance", note: "Requires certificate only" },
+    { id: "oxygen_conserving_device_nc", text: "Oxygen Conserving Device (SE 814)" },
+    { id: "patient_lift", text: "Patient Lift (SE 818)" },
+    { id: "field_poc_repair", text: "Field POC Repair & Maintenance Competency", note: "Requires certificate only" },
+    { id: "power_wheelchair", text: "Power Wheelchair (SE 862)" },
+    { id: "scooter", text: "Scooter (SE 863)" },
+    { id: "warehouse_equipment_cleaning", text: "Warehouse Equipment Cleaning (SE 855)" },
+    { id: "wheelchair_nc", text: "Wheelchair (SE 824)" },
+  ],
+};
+
+const JC427_CLINICAL_COMPETENCIES = {
+  category: "Clinical Competency Assessments", sheetBanner: "clinical competency assessment (cca) online trainings:",
+  comment: "Clinicians MUST complete online competencies, pertaining to their job responsibilities, on Docebo: My Training Not Completed - or use search tool. Completed certificates are to be placed in employee file.",
+  items: [
+    { id: "afflovest", text: "AffloVest" },
+    { id: "airvo2", text: "Airvo 2" },
+    { id: "astral_ventilator", text: "Astral Ventilator" },
+    { id: "attention_to_detail", text: "Attention to Detail" },
+    { id: "breas_vivo", text: "Breas VIVO 45LS/50 Ventilator" },
+    { id: "cough_assist", text: "Cough Assist (BiWaze)" },
+    { id: "cpap_bipap", text: "CPAP & BIPAP" },
+    { id: "infant_monitor", text: "Infant Monitor" },
+    { id: "invasive_ventilator", text: "Invasive Ventilator" },
+    { id: "ltv_ventilator", text: "LTV Ventilator" },
+    { id: "luisa_ventilator", text: "Luisa Ventilator" },
+    { id: "mpv", text: "Mouthpiece Ventilation (MPV)" },
+    { id: "nebulizer_c", text: "Nebulizer" },
+    { id: "oxygen_c", text: "Oxygen" },
+    { id: "oxygen_conserving_device_c", text: "Oxygen Conserving Device" },
+    { id: "pediatric_ventilator", text: "Pediatric Ventilator Management" },
+    { id: "pulse_oximetry", text: "Pulse Oximetry" },
+    { id: "respiratory_assist_device", text: "Respiratory Assist Device" },
+    { id: "trilogy_evo", text: "Trilogy EVO Ventilator" },
+    { id: "vocsn_ventilator", text: "VOCSN Ventilator (based on location)" },
+    { id: "virtual_ventilator_visit", text: "Virtual Ventilator Visit" },
+    { id: "vivo2_bipap_st", text: "VIVO2 - BiPAP ST" },
+    { id: "other1", text: "Other", editableLabel: true },
+    { id: "other2", text: "Other", editableLabel: true },
+  ],
+};
+
+// Flat canonical item list, in real-sheet order, each tagged with its
+// category/sheetBanner (for locating rows) and answerType ("yn" default).
+const JC427_ALL_ITEMS = [
+  ...JC427_PERSONNEL_SECTIONS.flatMap(sec => sec.items.map(it => ({ ...it, category: sec.category, sheetBanner: sec.sheetBanner, answerType: it.answerType || "yn" }))),
+  ...JC427_NON_CLINICAL_COMPETENCIES.items.map(it => ({ ...it, category: JC427_NON_CLINICAL_COMPETENCIES.category, sheetBanner: JC427_NON_CLINICAL_COMPETENCIES.sheetBanner, answerType: "date" })),
+  ...JC427_CLINICAL_COMPETENCIES.items.map(it => ({ ...it, category: JC427_CLINICAL_COMPETENCIES.category, sheetBanner: JC427_CLINICAL_COMPETENCIES.sheetBanner, answerType: "date" })),
+];
+
+const JC427_CATEGORY_ORDER = ["Onboarding Documents", "Training", "Performance Review", "Medical Record", "Non-Clinical Competency Assessments", "Clinical Competency Assessments"];
+
+// Reference-only instructions, shown in a modal — ported verbatim.
+const JC427_INSTRUCTIONS = [
+  { title: "Welcome to Rotech (Okay to Hire) Email (applicable to employees hired after 2017)", body: "Must have a copy of \"Okay to hire\" email. Check LCM and AM email.\n\nIf email cannot be located:\n- Check ICIMS\n- Search by Requisition the employee was hired under\n- Email (may have to go to \"More\")\n- Shares (these are emails that have been sent to hiring managers)\n- Look for \"Cleared for hire\" or \"Welcome\" email - print email for employee file\n\nIf email cannot be located in ICIMS, answer \"N\"." },
+  { title: "Job Description", body: "Print from ICIMS." },
+  { title: "Printing New Hire Documents from ICIMS", body: "1. Click on the Employee\n2. Click on Forms\n3. Click on Download - two boxes pop up with arrows in between them." },
+  { title: "General Orientation (HR 548)", body: "Review all policies on HR 548 with employee. Date and initial policies/processes as they are reviewed. Once completed, employee and manager must sign and date." },
+  { title: "Professional Licensure", body: "Must have copy of current license for all clinicians." },
+  { title: "Driver's License", body: "Required for ALL location employees at time of hire and every 3 years." },
+  { title: "Policy Acknowledgment / Computer Password Confidentiality", body: "Print from ICIMS." },
+  { title: "Mandatory Annual In-Services (SE 800)", body: "SE 800 is required annually for all employees." },
+  { title: "Storage and Distribution Training (FDA 019)", body: "ENTER DATE ONLY (Initial & every 3 years). Required for ALL location employees at time of hire and every 3 years." },
+  { title: "Manufacturing Facility Orientation (FDA 021)", body: "Only for those locations manufacturing liquid oxygen (curbside filling)." },
+  { title: "RM 1234 Hazard Communication Program Training", body: "Record with RM 1238 PPE Hazard Assessment attached (job description specific)." },
+  { title: "Employee Performance Review", body: "Print employee reviews. Be sure employee has signed off on review (green check mark on bottom of last page)." },
+  { title: "Hepatitis B Test or OP 515 Hepatitis B Vaccination Statement", body: "Print from ICIMS - If employee accepts, must have proof of vaccination. If employee no longer wants vaccine, a new form (OP 515) must be signed, refusing the vaccine series.\n\nMEDICAL INFORMATION MUST BE KEPT IN SEPARATE FILE." },
+  { title: "TB Test / Risk Assessment", body: "KY employees: TB test and risk assessment at hire & annually. Complete KY 641 annually.\nIL, MD, NC and PA employees: TB test at hire only.\nWA employees: TB test and risk assessment at hire & annually. Complete WA 641 annually." },
+  { title: "Annual N95 Mask Fit Testing", body: "Required for all \"at risk\" employees (PST, CST and RT) at hire and annually. Date only; leave blank if N/A." },
+  { title: "Confirmation of Medical Clearance for Respirator Use (3M)", body: "Medical Clearance documentation is required prior to fit testing (for initial fit testing after 2/1/2022)." },
+  { title: "Non-Clinical Competency Assessments", body: "Employees MUST complete online competencies, pertaining to their job responsibilities, on Docebo: My Training Not Completed - or use search tool. Completed Competency Assessment (SE form) and certificate are to be placed in employee file.\n\nNON-CLINICAL COMPETENCIES ARE NOT REQUIRED FOR CLINICIANS." },
+  { title: "Clinical Competency Assessment (CCA) Online Trainings", body: "Clinicians MUST complete online competencies, pertaining to their job responsibilities, on Docebo: My Training Not Completed - or use search tool. Completed certificates are to be placed in employee file." },
+  { title: "File Requirements", body: "ALL employees MUST have a Personnel file and a SEPARATE Medical File.\nEmployees transfilling or curbside filling liquid oxygen MUST have a SEPARATE FDA File." },
+];
+
+// Competency/date items are valid for 3 years from the entered date, with a
+// 6-month "expiring soon" warning window — ported from the Semi Annual app's
+// getExpirationStatus. Returns null (no date entered), "red" (expired),
+// "yellow" (expiring within 6 months), or "green" (current).
+function getJC427ExpirationStatus(dateStr) {
+  if (!dateStr) return null;
+  const entered = new Date(`${dateStr}T00:00:00`);
+  if (isNaN(entered.getTime())) return null;
+  const expiration = new Date(entered);
+  expiration.setFullYear(expiration.getFullYear() + 3);
+  const warningStart = new Date(expiration);
+  warningStart.setMonth(warningStart.getMonth() - 6);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (today > expiration) return "red";
+  if (today >= warningStart) return "yellow";
+  return "green";
+}
+
+// Parses the real JC 427 "PERSONNEL RECORDS REVIEW" sheet by locating known
+// label/category text rather than hardcoded row numbers — row positions
+// weren't certain from a PDF render the way they were for OP 541T's real XML,
+// so each item's row is found by matching its exact text. Column layout is
+// confirmed, though: A = item label, B = a blank bordered spacer (no header
+// text), employee slots start at C, ending wherever "Total" is found in the
+// header row right after the first ("Personnel Record") banner. If a
+// category banner or an item's exact text isn't found, that section/item is
+// skipped rather than guessed at.
+function parseJC427Sheet(rows, sheetName) {
+  const norm = s => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+  let employeeNameRow = -1, jobTitleRow = -1, hireDateRow = -1;
+  let totalCol = -1, commentsCol = -1;
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const a = norm(row[0]);
+    if (a === "employee" && employeeNameRow === -1) employeeNameRow = r;
+    if (a === "job title" && jobTitleRow === -1) jobTitleRow = r;
+    if (a === "hire date" && hireDateRow === -1) hireDateRow = r;
+    for (let c = 1; c < row.length; c++) {
+      const v = norm(row[c]);
+      if (v === "total" && totalCol === -1) totalCol = c;
+      if (v === "comments" && commentsCol === -1) commentsCol = c;
+    }
+  }
+  if (employeeNameRow === -1 || totalCol === -1) {
+    return { ok: false, slots: [], items: [] };
+  }
+
+  // Column A is the item label, column B is a blank bordered spacer (no
+  // header text of its own) — confirmed against the real file — so employee
+  // slots start at column C (0-indexed 2), not immediately after the label.
+  const employeeCols = [];
+  for (let c = 2; c < totalCol; c++) employeeCols.push(c);
+
+  const nameRow = rows[employeeNameRow] || [];
+  const slots = employeeCols
+    .map(col => ({ sheetName, col, name: String(nameRow[col] || "").trim(), jobTitle: "", hireDate: "" }))
+    .filter(s => s.name);
+
+  // Locate each category's banner row (first match only, in document order).
+  const categoryBanners = [...new Set(JC427_ALL_ITEMS.map(it => it.sheetBanner))];
+  const bannerRow = {};
+  categoryBanners.forEach(banner => {
+    for (let r = 0; r < rows.length; r++) {
+      if (norm((rows[r] || [])[0]).startsWith(banner)) { bannerRow[banner] = r; break; }
+    }
+  });
+
+  const items = [];
+  categoryBanners.forEach((banner, bi) => {
+    const startRow = bannerRow[banner];
+    if (startRow === undefined) return; // section not found in this file
+    const laterRows = categoryBanners.slice(bi + 1).map(b => bannerRow[b]).filter(r => r !== undefined);
+    const endRow = laterRows.length ? Math.min(...laterRows) : rows.length;
+    let cursor = startRow + 1;
+    JC427_ALL_ITEMS.filter(it => it.sheetBanner === banner).forEach(it => {
+      let rowIdx = -1;
+      for (let r = cursor; r < endRow; r++) {
+        if (norm((rows[r] || [])[0]).startsWith(norm(it.text))) { rowIdx = r; break; }
+      }
+      if (rowIdx === -1) return; // item text not found — skip rather than guess
+      items.push({ ...it, rowIdx, comment: String((rows[rowIdx] || [])[commentsCol] ?? "").trim() });
+      cursor = rowIdx + 1;
+    });
+  });
+
+  return { ok: true, slots, items, employeeNameRow, jobTitleRow, hireDateRow, commentsCol, employeeCols };
+}
+
+// Builds the flat list of cell writes for JC 427 — mirrors buildVehicleWrites/
+// the old personnel write-back: Name/Job Title/Hire Date per slot's column,
+// each item's answer (Y/N/N/A, or a date string) per (item, employee), and
+// each item's comment (shared across employees, one Comments column per row).
+// Competency/date answers additionally carry a `style` ("red"/"yellow"/null)
+// baked in from getJC427ExpirationStatus at export time — a snapshot of what
+// the specialist saw color-coded in the app during this visit, not a live
+// formula (dates are stored as plain text, and this app has been burned by
+// conditional-formatting complexity before). Any answer cell whose item has
+// a comment also carries a `note` — the same shared comment text as a native
+// Excel cell note (red-corner hover), in addition to the plain-text Comments
+// column write below.
+function buildJC427Writes(slots, items, answers, dates, comments, meta) {
+  const writes = [];
+  const sheetNames = [...new Set(slots.map(s => s.sheetName))];
+
+  slots.forEach(slot => {
+    if (slot.name) writes.push({ sheetName: slot.sheetName, rowIdx: meta.employeeNameRow, col: slot.col, value: slot.name });
+    if (slot.jobTitle && meta.jobTitleRow != null) writes.push({ sheetName: slot.sheetName, rowIdx: meta.jobTitleRow, col: slot.col, value: slot.jobTitle });
+    if (slot.hireDate && meta.hireDateRow != null) writes.push({ sheetName: slot.sheetName, rowIdx: meta.hireDateRow, col: slot.col, value: slot.hireDate });
+  });
+
+  items.forEach(item => {
+    const commentVal = (comments[item.id] || "").trim();
+    slots.forEach(slot => {
+      const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+      if (item.answerType === "yn") {
+        const val = answers[key];
+        const text = val === "yes" ? "Y" : val === "no" ? "N" : val === "na" ? "N/A" : "";
+        if (text) writes.push({ sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: text, note: commentVal || null });
+      } else {
+        const val = (dates[key] || "").trim();
+        if (val) {
+          const status = getJC427ExpirationStatus(usDateToIso(val));
+          writes.push({
+            sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: val,
+            style: (status === "red" || status === "yellow") ? status : null,
+            note: commentVal || null,
+          });
+        }
+      }
+    });
+    if (commentVal && meta.commentsCol != null) {
+      sheetNames.forEach(sheetName => {
+        writes.push({ sheetName, rowIdx: item.rowIdx, col: meta.commentsCol, value: commentVal });
+      });
+    }
+  });
+
+  return writes;
 }
 
 const SECTIONS = [
@@ -1396,7 +1931,7 @@ function ChecklistQrCode({ value }) {
 // Standalone follow-up checklist page, opened via ?checklist=<visitId>. Used by
 // both the location manager (checking items off) and the accreditation
 // specialist (watching live progress) — no auth, the visit ID is the secret.
-const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Vehicles", "PST Visits", "Personnel", "Binders"];
+const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Vehicles", "PST Visits", "Personnel", "Personnel Records (JC 427)", "Binders"];
 
 function ChecklistView({ visitId }) {
   const [doc_, setDoc_] = useState(undefined); // undefined = loading, null = not found
@@ -2138,6 +2673,146 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
   );
 }
 
+// Card-per-employee layout for JC 427, ported from the Semi Annual app's
+// JC427Form.jsx (see the constants above it). Date items get the same
+// 3-year/6-month-warning red/yellow/green coloring that app uses; per-item
+// comments are shared across employees (one Comments column per row in the
+// real file, same convention as OP 541T's Personnel Records).
+const JC427_STATUS_BG     = { red: "#ffebee", yellow: "#fff9c4", green: "#e8f5e9" };
+const JC427_STATUS_BORDER = { red: "#ef9a9a", yellow: "#fff59d", green: "#a5d6a7" };
+
+function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments, onAddEmployee, onRemoveEmployee, onUpdateSlot, canAddEmployee }) {
+  const slotId = s => `${s.sheetName}|${s.col}`;
+  const groups = JC427_CATEGORY_ORDER
+    .map(cat => ({ cat, items: items.filter(it => it.category === cat) }))
+    .filter(g => g.items.length > 0);
+  const [showInstructions, setShowInstructions] = useState(false);
+
+  const fieldStyle = { width: "100%", fontSize: 13, padding: "6px 8px", border: "1px solid #e0e0e0", borderRadius: 4, boxSizing: "border-box", color: "#212121" };
+  const labelStyle = { fontSize: 11, color: "#616161", marginBottom: 4, fontWeight: 600 };
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 12, borderRadius: 6 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: "0.04em" }}>JC 427 — Personnel Records Review</div>
+        <button onClick={() => setShowInstructions(true)} style={{ fontSize: 11, background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 5, padding: "4px 10px", cursor: "pointer" }}>
+          📖 View Instructions
+        </button>
+      </div>
+
+      <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 6, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#7a5c00", textAlign: "center" }}>
+        ALL employees MUST have a Personnel File and a SEPARATE Medical File. Employees transfilling or curbside filling liquid oxygen MUST have a SEPARATE FDA File.
+      </div>
+
+      {slots.map((s, idx) => {
+        const sid = slotId(s);
+        return (
+          <div key={sid} style={{ border: `2px solid ${BRAND}`, borderRadius: 8, padding: 16, marginBottom: 16, background: "#fff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, color: BRAND, fontSize: 14 }}>Employee {idx + 1}{s.name ? `: ${s.name}` : ""}</div>
+              <button onClick={() => onRemoveEmployee(s)} style={{ fontSize: 11, color: "#c62828", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                Remove
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+              <label style={{ flex: "2 1 220px" }}>
+                <div style={labelStyle}>Name</div>
+                <input value={s.name} onChange={e => onUpdateSlot(s.sheetName, s.col, "name", e.target.value)} style={fieldStyle} />
+              </label>
+              <label style={{ flex: "2 1 220px" }}>
+                <div style={labelStyle}>Job Title</div>
+                <input value={s.jobTitle} onChange={e => onUpdateSlot(s.sheetName, s.col, "jobTitle", e.target.value)} style={fieldStyle} />
+              </label>
+              <label style={{ flex: "1 1 160px" }}>
+                <div style={labelStyle}>Hire Date</div>
+                <input value={s.hireDate} onChange={e => onUpdateSlot(s.sheetName, s.col, "hireDate", e.target.value)} placeholder="MM/DD/YYYY" style={fieldStyle} />
+              </label>
+            </div>
+
+            {groups.map(({ cat, items: catItems }) => (
+              <div key={cat} style={{ background: "#e8f5e9", border: "1px solid #c8e6c9", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, color: "#2e7d32", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{cat}</div>
+                {catItems.map(item => {
+                  const key = `${item.id}|${sid}`;
+                  const dateVal = dates[key] || "";
+                  const status = item.answerType === "date" ? getJC427ExpirationStatus(usDateToIso(dateVal)) : null;
+                  return (
+                    <div key={item.id} style={{ padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                        <div style={{ fontSize: 12, color: "#212121", flex: 1 }}>
+                          {item.text}
+                          {item.note && <div style={{ fontSize: 10, color: "#9e9e9e", fontStyle: "italic", marginTop: 2 }}>{item.note}</div>}
+                        </div>
+                        {item.answerType === "yn" ? (
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {["yes", "no", "na"].map(v => {
+                              const sc = STATUS_COLORS[v];
+                              const active = answers[key] === v;
+                              return (
+                                <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))}
+                                  style={{ width: 40, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? sc.border : "#e0e0e0"}`, background: active ? sc.bg : "#fff", color: active ? sc.text : "#9e9e9e" }}>
+                                  {sc.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <input
+                            type="date"
+                            value={usDateToIso(dateVal)}
+                            onChange={e => setDates(p => ({ ...p, [key]: isoToUsDate(e.target.value) }))}
+                            style={{
+                              fontSize: 12, padding: "4px 6px", borderRadius: 4, boxSizing: "border-box", color: "#212121",
+                              border: `1px solid ${status ? JC427_STATUS_BORDER[status] : "#e0e0e0"}`,
+                              background: status ? JC427_STATUS_BG[status] : "#fff",
+                            }}
+                          />
+                        )}
+                      </div>
+                      <textarea
+                        value={comments[item.id] ?? ""}
+                        onChange={e => setComments(p => ({ ...p, [item.id]: e.target.value }))}
+                        rows={1}
+                        placeholder="Comments (shared across all employees)…"
+                        style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: "#212121" }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      <button
+        onClick={onAddEmployee}
+        disabled={!canAddEmployee}
+        style={{ width: "100%", padding: "10px", border: `2px dashed ${canAddEmployee ? BRAND : "#c0c0c0"}`, borderRadius: 6, background: "none", color: canAddEmployee ? BRAND : "#c0c0c0", fontWeight: 700, cursor: canAddEmployee ? "pointer" : "not-allowed" }}>
+        + Add Employee
+      </button>
+
+      {showInstructions && (
+        <div onClick={() => setShowInstructions(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, maxWidth: 640, width: "100%", maxHeight: "85vh", overflowY: "auto", padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #e0e0e0", paddingBottom: 10 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#212121" }}>JC 427 Instructions</div>
+              <button onClick={() => setShowInstructions(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#757575", lineHeight: 1 }}>×</button>
+            </div>
+            {JC427_INSTRUCTIONS.map((s, i) => (
+              <div key={i} style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#212121" }}>{s.title}</div>
+                <div style={{ fontSize: 12, color: "#616161", whiteSpace: "pre-line", marginTop: 3 }}>{s.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TrendTracker() {
   const [localData] = useState(loadTrendData);
   const [firestoreRecords, setFirestoreRecords] = useState([]);
@@ -2614,10 +3289,10 @@ function AuthGate({ children }) {
     }
   }
 
-  const cardStyle = { background: "rgb(233, 239, 253)", border: "1px solid #e0e0e0", borderRadius: 10, padding: "32px 28px", width: 320, boxShadow: "0 14px 12px rgba(6, 24, 187, 0.06)" };
+  const cardStyle = { background: "rgb(233, 239, 253)", border: "1px solid #e0e0e0", borderRadius: 10, padding: "32px 28px", width: 320, boxShadow: "0 14px 12px rgba(0, 3, 26, 0.06)" };
   const fieldLabel = { fontSize: 11, color: "#757575", marginBottom: 4 };
   const fieldInput = { width: "100%", padding: "8px 10px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 6, boxSizing: "border-box", color: "#080aaf" };
-  const submitBtn = busy => ({ width: "100%", padding: "9px 0", fontSize: 13, fontWeight: 600, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1 });
+  const submitBtn = busy => ({ width: "100%", padding: "9px 0", fontSize: 13, fontWeight: 600, background: BRAND, color: "#ced1ff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1 });
 
   if (user === undefined) {
     return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#9e9e9e", fontFamily: "system-ui, sans-serif" }}>Loading…</div>;
@@ -2796,6 +3471,65 @@ function SurveyPrepApp() {
   // specialist adds an employee that wasn't already listed on the file.
   const [personnelSheetNames, setPersonnelSheetNames] = useState(() => draft?.personnelSheetNames ?? []);
 
+  // JC 427 Personnel Records Review state — same "employees as columns"
+  // shape as OP 541T's Personnel Records, but the template ships with the
+  // app itself (public/JC427_Template.xlsx) instead of being uploaded per
+  // visit — there's no location self-audit data to compare against, so
+  // there's nothing an upload would add over a bundled copy. Written
+  // directly back into a fresh copy of that template's own cells (see
+  // parseJC427Sheet/buildJC427Writes).
+  const [jc427Slots, setJc427Slots] = useState(() => draft?.jc427Slots ?? []);
+  const [jc427Items, setJc427Items] = useState(() => draft?.jc427Items ?? []);
+  const [jc427Answers, setJc427Answers] = useState(() => draft?.jc427Answers ?? {});
+  const [jc427Dates, setJc427Dates] = useState(() => draft?.jc427Dates ?? {});
+  const [jc427Comments, setJc427Comments] = useState(() => draft?.jc427Comments ?? {});
+  // Sheet names (in order) that actually carry Personnel Records slots in
+  // the template — the real file has a main sheet plus "Additional Page"
+  // overflow sheets (2/3/4), each offering 10 more employee columns, same
+  // convention as OP 541T's Personnel Records + Additional Personnel Records.
+  const [jc427SheetNames, setJc427SheetNames] = useState(() => draft?.jc427SheetNames ?? []);
+  const [jc427Meta, setJc427Meta] = useState(() => draft?.jc427Meta ?? null); // { employeeNameRow, jobTitleRow, hireDateRow, commentsCol, employeeCols }
+  const [jc427BufferBytes, setJc427BufferBytes] = useState(null); // template bytes for write-back export — never persisted, refetched each session
+  const [jc427TemplateStatus, setJc427TemplateStatus] = useState("loading"); // "loading" | "ready" | "error"
+
+  // Fetch + parse the bundled JC 427 template once per session (bytes are
+  // never persisted, same convention as OP 541/541T's uploaded buffers).
+  // Every sheet that parses successfully contributes its own 10 employee
+  // columns; item text/row layout is identical across all of them, so
+  // that's only taken from the first successful sheet. Only sets
+  // items/meta/sheetNames if a draft hadn't already restored them, since the
+  // template's content is static and shouldn't fight with restored state.
+  useEffect(() => {
+    fetch(JC427_TEMPLATE_PATH)
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.arrayBuffer(); })
+      .then(buf => {
+        setJc427BufferBytes(new Uint8Array(buf));
+        const wb = XLSX.read(buf, { type: "array" });
+        let firstParsed = null;
+        const foundSheetNames = [];
+        for (const name of wb.SheetNames) {
+          const ws = wb.Sheets[name];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+          const result = parseJC427Sheet(rows, name);
+          if (!result.ok) continue;
+          foundSheetNames.push(name);
+          if (!firstParsed) firstParsed = result;
+        }
+        if (!firstParsed) throw new Error("template not recognized");
+        if (firstParsed.items.length < JC427_ALL_ITEMS.length) {
+          console.warn(`[JC 427] Bundled template only matched ${firstParsed.items.length} of ${JC427_ALL_ITEMS.length} expected items — some row text may not exactly match what this app expects.`);
+        }
+        setJc427Items(prev => prev.length > 0 ? prev : firstParsed.items);
+        setJc427SheetNames(prev => prev.length > 0 ? prev : foundSheetNames);
+        setJc427Meta(prev => prev || {
+          employeeNameRow: firstParsed.employeeNameRow, jobTitleRow: firstParsed.jobTitleRow, hireDateRow: firstParsed.hireDateRow,
+          commentsCol: firstParsed.commentsCol, employeeCols: firstParsed.employeeCols,
+        });
+        setJc427TemplateStatus("ready");
+      })
+      .catch(() => setJc427TemplateStatus("error"));
+  }, []);
+
   // Tab-level comments for PST Home Visit, PAP Setup, Ventilator Home Visit
   const [tabComments, setTabComments] = useState(() => draft?.tabComments ?? { pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
   const setTabComment = (id, val) => setTabComments(prev => ({ ...prev, [id]: val }));
@@ -2827,6 +3561,7 @@ function SurveyPrepApp() {
       op541Sections, op541States, op541Comments, op541FileName, op541VehicleInfo,
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
+      jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
       tabComments, tabPatientInfo, additionalComments, currentVisitId,
     });
     setSavedAt(new Date().toISOString());
@@ -2834,6 +3569,7 @@ function SurveyPrepApp() {
       op541Sections, op541States, op541Comments, op541FileName, op541VehicleInfo,
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
+      jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
       tabComments, tabPatientInfo, additionalComments, currentVisitId]);
 
   function getSectionStats(si) {
@@ -2863,6 +3599,23 @@ function SurveyPrepApp() {
       if (s && item.locAns && ((item.locAns === "Y" && s === "no") || (item.locAns === "N" && s === "yes"))) mismatch++;
     }));
     return { yes, no, na, pending, mismatch };
+  }
+
+  function getJC427Stats() {
+    let no = 0, expired = 0, expiring = 0;
+    jc427Items.forEach(item => {
+      jc427Slots.forEach(slot => {
+        const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+        if (item.answerType === "yn") {
+          if (jc427Answers[key] === "no") no++;
+        } else {
+          const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+          if (status === "red") expired++;
+          else if (status === "yellow") expiring++;
+        }
+      });
+    });
+    return { no, expired, expiring };
   }
 
   function getAllIssues() {
@@ -3351,6 +4104,80 @@ function SurveyPrepApp() {
     }
   }
 
+  // Adds a new employee card to the JC 427 tab, assigning it the next free
+  // column in the uploaded sheet (up to however many employee columns
+  // parseJC427Sheet actually found — this file has no overflow sheet like
+  // OP 541T's Personnel Records, so it's a hard cap).
+  function addJC427Employee() {
+    if (!jc427Meta) return;
+    const used = new Set(jc427Slots.map(s => `${s.sheetName}|${s.col}`));
+    for (const sheetName of jc427SheetNames) {
+      for (const col of jc427Meta.employeeCols) {
+        const k = `${sheetName}|${col}`;
+        if (!used.has(k)) {
+          setJc427Slots(prev => [...prev, { sheetName, col, name: "", jobTitle: "", hireDate: "" }]);
+          return;
+        }
+      }
+    }
+    const max = jc427SheetNames.length * jc427Meta.employeeCols.length;
+    alert(`This template has room for ${max} employees, and all slots are filled.`);
+  }
+
+  function removeJC427Employee(slot) {
+    const sid = `${slot.sheetName}|${slot.col}`;
+    setJc427Slots(prev => prev.filter(s => `${s.sheetName}|${s.col}` !== sid));
+    setJc427Answers(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => { if (k.endsWith(`|${sid}`)) delete next[k]; });
+      return next;
+    });
+    setJc427Dates(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => { if (k.endsWith(`|${sid}`)) delete next[k]; });
+      return next;
+    });
+  }
+
+  function updateJC427Slot(sheetName, col, field, value) {
+    setJc427Slots(prev => prev.map(s => (s.sheetName === sheetName && s.col === col) ? { ...s, [field]: value } : s));
+  }
+
+  async function exportUpdatedJC427() {
+    if (!jc427BufferBytes) {
+      alert("The JC 427 template hasn't finished loading yet — check your connection and try again in a moment. If this keeps happening, reload the page.");
+      return;
+    }
+    if (jc427Items.length === 0) {
+      alert("No JC 427 data to export.");
+      return;
+    }
+    try {
+      const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(
+        jc427BufferBytes, [], {}, {}, [], [],
+        buildJC427Writes(jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427Meta)
+      );
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const loc = (meta.location || "Location").replace(/\s+/g, "_");
+      a.download = `JC427_${loc}_${meta.date ? meta.date.replace(/\//g, "-") : "completed"}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (cellsWritten === 0) {
+        alert("Downloaded, but no matching answers were written — check that you've entered at least one item on this tab.");
+      } else {
+        alert(`Export complete — wrote ${cellsWritten} value${cellsWritten !== 1 ? "s" : ""} across ${sheetsWritten} sheet${sheetsWritten !== 1 ? "s" : ""}.`);
+      }
+    } catch (err) {
+      console.error("Write-back export failed. Full stack:\n" + (err.stack || err));
+      alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message + "\n\n(Full details logged to the browser console — press F12.)");
+    }
+  }
+
   function startFresh() {
     if (!window.confirm("Clear all data and start a new visit? This cannot be undone.")) return;
     clearDraft();
@@ -3360,6 +4187,10 @@ function SurveyPrepApp() {
     setOp541Sections([]); setOp541States({}); setOp541Comments({}); setOp541FileName(""); setOp541VehicleInfo({}); setOp541BufferBytes(null);
     setOp541tSections([]); setOp541tStates({}); setOp541tComments({}); setOp541tFileName(""); setOp541tBufferBytes(null);
     setPersonnelSlots([]); setPersonnelItems([]); setPersonnelAnswers({}); setPersonnelDates({}); setPersonnelComments({}); setPersonnelSheetNames([]);
+    // jc427Items/SheetName/Meta/BufferBytes describe the bundled template
+    // itself (not per-visit data) and are left alone — only the employees
+    // and their answers reset for the new visit.
+    setJc427Slots([]); setJc427Answers({}); setJc427Dates({}); setJc427Comments({});
     setTabComments({ pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
     setCurrentVisitId(null); setVisitFinalized(false);
@@ -3378,6 +4209,7 @@ function SurveyPrepApp() {
       op541Sections, op541States, op541Comments, op541FileName, op541VehicleInfo,
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
+      jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
       tabComments, tabPatientInfo, additionalComments,
     };
     saveVisitToStorage(visit);
@@ -3401,7 +4233,7 @@ function SurveyPrepApp() {
     }
     if (!window.confirm("Mark this visit as finalized? This will record it in your trend data.\n\nYou can re-finalize after making changes to update the trend entry.")) return;
     try {
-      await writeTrendData(currentVisitId, meta, locations, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments, personnelSlots, personnelItems, personnelAnswers, personnelComments);
+      await writeTrendData(currentVisitId, meta, locations, SECTIONS, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, tabComments, personnelSlots, personnelItems, personnelAnswers, personnelComments, jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments);
       setVisitFinalized(true);
       alert("Visit finalized and recorded in trend data.");
     } catch {
@@ -3411,7 +4243,7 @@ function SurveyPrepApp() {
 
   function generateChecklistLink() {
     if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return; }
-    const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo, personnelSlots, personnelItems, personnelAnswers, personnelComments };
+    const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo, personnelSlots, personnelItems, personnelAnswers, personnelComments, jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments };
     setChecklistLinkLoading(true);
     ensureChecklistDoc(visit, currentVisitId)
       .then(url => setChecklistLink(url))
@@ -3439,9 +4271,17 @@ function SurveyPrepApp() {
     setPersonnelDates(visit.personnelDates ?? {});
     setPersonnelComments(visit.personnelComments ?? {});
     setPersonnelSheetNames(visit.personnelSheetNames ?? []);
+    // jc427Items/SheetName/Meta describe the bundled template itself, always
+    // sourced live from the fetch effect — not restored from the saved visit.
+    setJc427Slots(visit.jc427Slots ?? []);
+    setJc427Answers(visit.jc427Answers ?? {});
+    setJc427Dates(visit.jc427Dates ?? {});
+    setJc427Comments(visit.jc427Comments ?? {});
     setTabComments(visit.tabComments ?? { pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
     setTabPatientInfo(visit.tabPatientInfo ?? { pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments(visit.additionalComments ?? "");
+    // jc427BufferBytes is left alone — it's the bundled template's bytes,
+    // not per-visit data, and stays valid across a visit load.
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null); setOp541tBufferBytes(null);
     setVisitFinalized(false);
     setShowVisits(false);
@@ -3786,11 +4626,12 @@ function SurveyPrepApp() {
 
   const isOp541Tab    = activeTab === SECTIONS.length;
   const isOp541tTab   = activeTab === SECTIONS.length + 1;
-  const isPolicyTab   = activeTab === SECTIONS.length + 2;
-  const isTrendsTab   = activeTab === SECTIONS.length + 3;
-  const isFollowUpTab = activeTab === SECTIONS.length + 4;
-  const isRosterTab   = activeTab === SECTIONS.length + 5;
-  const isExtraTab = isOp541Tab || isOp541tTab || isPolicyTab || isTrendsTab || isFollowUpTab || isRosterTab;
+  const isJc427Tab    = activeTab === SECTIONS.length + 2;
+  const isPolicyTab   = activeTab === SECTIONS.length + 3;
+  const isTrendsTab   = activeTab === SECTIONS.length + 4;
+  const isFollowUpTab = activeTab === SECTIONS.length + 5;
+  const isRosterTab   = activeTab === SECTIONS.length + 6;
+  const isExtraTab = isOp541Tab || isOp541tTab || isJc427Tab || isPolicyTab || isTrendsTab || isFollowUpTab || isRosterTab;
   const sec = isExtraTab ? null : SECTIONS[activeTab];
   const op541Stats  = getOp541Stats();
   const op541tStats = getOp541tStats();
@@ -4085,8 +4926,28 @@ function SurveyPrepApp() {
               {op541tFileName && op541tStats.no === 0 && op541tStats.pending === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
             </button>
 
-            {/* Policy Dates tab */}
+            {/* JC 427 tab */}
             <button onClick={() => setActiveTab(SECTIONS.length + 2)} style={{
+              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
+              border: "none", borderBottom: isJc427Tab ? `2px solid ${BRAND}` : "2px solid transparent",
+              color: isJc427Tab ? BRAND : "#616161", cursor: "pointer", fontWeight: isJc427Tab ? 600 : 400,
+              display: "flex", alignItems: "center", gap: 6
+            }}>
+              JC 427 Personnel
+              {jc427TemplateStatus === "loading" && <span style={{ fontSize: 11, color: "#9e9e9e" }}>Loading…</span>}
+              {jc427TemplateStatus === "error" && <span style={{ fontSize: 11, color: "#c62828" }}>⚠ Load failed</span>}
+              {jc427TemplateStatus === "ready" && (() => { const st = getJC427Stats(); return (
+                <>
+                  {st.no > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{st.no}</span>}
+                  {st.expired > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⏰ {st.expired}</span>}
+                  {st.expiring > 0 && <span style={{ background: "#fff9c4", color: "#7a5c00", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⏰ {st.expiring}</span>}
+                  {st.no === 0 && st.expired === 0 && st.expiring === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
+                </>
+              ); })()}
+            </button>
+
+            {/* Policy Dates tab */}
+            <button onClick={() => setActiveTab(SECTIONS.length + 3)} style={{
               padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
               border: "none", borderBottom: isPolicyTab ? `2px solid ${BRAND}` : "2px solid transparent",
               color: isPolicyTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isPolicyTab ? 600 : 400,
@@ -4095,7 +4956,7 @@ function SurveyPrepApp() {
             </button>
 
             {/* Trends tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 3)} style={{
+            <button onClick={() => setActiveTab(SECTIONS.length + 4)} style={{
               padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
               border: "none", borderBottom: isTrendsTab ? `2px solid ${BRAND}` : "2px solid transparent",
               color: isTrendsTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isTrendsTab ? 600 : 400,
@@ -4104,7 +4965,7 @@ function SurveyPrepApp() {
             </button>
 
             {/* Follow-Up Dashboard tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 4)} style={{
+            <button onClick={() => setActiveTab(SECTIONS.length + 5)} style={{
               padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
               border: "none", borderBottom: isFollowUpTab ? `2px solid ${BRAND}` : "2px solid transparent",
               color: isFollowUpTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isFollowUpTab ? 600 : 400,
@@ -4113,7 +4974,7 @@ function SurveyPrepApp() {
             </button>
 
             {/* Location Roster tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 5)} style={{
+            <button onClick={() => setActiveTab(SECTIONS.length + 6)} style={{
               padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
               border: "none", borderBottom: isRosterTab ? `2px solid ${BRAND}` : "2px solid transparent",
               color: isRosterTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isRosterTab ? 600 : 400,
@@ -4550,6 +5411,62 @@ function SurveyPrepApp() {
                         onRemoveEmployee={removePersonnelEmployee}
                         onUpdateSlot={updatePersonnelSlot}
                         canAddEmployee={personnelSlots.length < personnelSheetNames.length * PERSONNEL_EMPLOYEE_COLS.length}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {/* JC 427 tab content — no upload step; the real template ships
+              with the app (public/JC427_Template.xlsx) and is fetched once
+              per session (see the useEffect near the jc427 state above). */}
+          {isJc427Tab && (
+            <div>
+              {jc427TemplateStatus === "loading" && (
+                <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
+                  <div style={{ fontSize: 14, color: "#616161" }}>Loading JC 427 template…</div>
+                </div>
+              )}
+              {jc427TemplateStatus === "error" && (
+                <div style={{ padding: "64px 24px", textAlign: "center", color: "#616161" }}>
+                  <div style={{ fontSize: 38, marginBottom: 12 }}>⚠</div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: "#c62828", marginBottom: 8 }}>Couldn't load the JC 427 template</div>
+                  <div style={{ fontSize: 13, color: "#757575", maxWidth: 440, margin: "0 auto" }}>
+                    Check your internet connection and reload the page. If this keeps happening, the template file may be missing from the deployment.
+                  </div>
+                </div>
+              )}
+              {jc427TemplateStatus === "ready" && (
+                <div>
+                  <div style={{ padding: "10px 24px", background: "#f8f9fa", borderBottom: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: "#9e9e9e" }}>{jc427Items.length} of {JC427_ALL_ITEMS.length} items recognized</span>
+                    <button
+                      onClick={exportUpdatedJC427}
+                      style={{ fontSize: 12, padding: "5px 12px", background: "#1a6e35", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                      ⬇ Export Updated JC 427
+                    </button>
+                  </div>
+                  <div style={{ padding: "16px 24px" }}>
+                    {jc427Items.length === 0 ? (
+                      <div style={{ padding: "40px 24px", textAlign: "center", color: "#9e9e9e" }}>
+                        Couldn't recognize any items in the bundled template. Contact support.
+                      </div>
+                    ) : (
+                      <JC427Panel
+                        slots={jc427Slots}
+                        items={jc427Items}
+                        answers={jc427Answers}
+                        setAnswers={setJc427Answers}
+                        dates={jc427Dates}
+                        setDates={setJc427Dates}
+                        comments={jc427Comments}
+                        setComments={setJc427Comments}
+                        onAddEmployee={addJC427Employee}
+                        onRemoveEmployee={removeJC427Employee}
+                        onUpdateSlot={updateJC427Slot}
+                        canAddEmployee={!!jc427Meta && jc427Slots.length < jc427SheetNames.length * jc427Meta.employeeCols.length}
                       />
                     )}
                   </div>

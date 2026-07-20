@@ -3736,9 +3736,11 @@ function SurveyPrepApp() {
       const url    = URL.createObjectURL(blob);
       const a      = document.createElement("a");
       const loc    = (meta.location || "Location").replace(/\s+/g, "_");
+      // meta.city is a single free-text "City / State" field (e.g. "Springfield, IL")
+      const city   = (meta.city || "").replace(/[\\/:*?"<>|]/g, "").replace(/,\s*/g, "_").replace(/\s+/g, "_");
       const date   = (meta.date     || "").replace(/\//g, "-");
       a.href     = url;
-      a.download = `FollowUp_${loc}_${date}.xlsx`;
+      a.download = `FollowUp_${loc}${city ? `_${city}` : ""}_${date}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
 

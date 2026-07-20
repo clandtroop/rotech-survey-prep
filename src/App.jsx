@@ -2774,7 +2774,7 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
                         value={comments[item.id] ?? ""}
                         onChange={e => setComments(p => ({ ...p, [item.id]: e.target.value }))}
                         rows={1}
-                        placeholder="Comments (shared across all employees)…"
+                        placeholder="Comments (added as a note on each employee's cell for this item)…"
                         style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: "#212121" }}
                       />
                     </div>

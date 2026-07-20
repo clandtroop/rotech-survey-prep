@@ -3518,53 +3518,71 @@ function SurveyPrepApp() {
         .replace(/&/g, "&amp;").replace(/</g, "&lt;")
         .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-      const strCell = (addr, val) =>
-        `<c r="${addr}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
+      // styleId indexes into the cellXfs table built below — 0 is the plain
+      // default, everything else is one of the named looks (title band,
+      // meta row, column header, bordered data cell, etc).
+      const strCell = (addr, val, styleId = 0) =>
+        `<c r="${addr}" s="${styleId}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
 
       // Build one worksheet XML for a given tab's issues
       // Columns: A=Item Description  B=Corrective Action Status (dropdown)  C=Notes
-      const buildSheetXml = (tabLabel, tabRef, issues) => {
-        const maxRow = issues.length + 3; // header=1, meta=2, col-headers=3, data starts at 4
+      // Row layout: 1=title band, 2-3=visit meta, 4=column headers, 5+=data.
+      // Style ids (the "s" on each <c>) reference the cellXfs table in
+      // stylesXml below: 1=title, 3=meta, 4=column header, 5=data (wrap),
+      // 6=data (centered, for the dropdown). Style id 2 (subtitle band) is
+      // no longer used on a row of its own but stays defined in stylesXml
+      // since renumbering the cellXfs table would require re-indexing every
+      // other style id too.
+      const DATA_START_ROW = 5;
+      const buildSheetXml = (issues) => {
+        const maxRow = issues.length + DATA_START_ROW - 1;
 
-        const headerRow = `<row r="1" spans="1:3">` +
-          strCell("A1", `${tabLabel}  |  ${tabRef}`) +
-          strCell("B1", `Location: ${meta.location || "—"}`) +
-          strCell("C1", `Visit Date: ${meta.date || "—"}`) +
+        const titleRow = `<row r="1" ht="26" customHeight="1" spans="1:3">` +
+          strCell("A1", "Rotech Survey Prep Virtual Follow-Up Tracker", 1) +
+          `<c r="B1" s="1"/><c r="C1" s="1"/>` +
           `</row>`;
 
-        const metaRow = `<row r="2" spans="1:3">` +
-          strCell("A2", `Specialist: ${meta.specialist || "—"}`) +
-          strCell("B2", `City / State: ${meta.city || "—"}`) +
-          strCell("C2", `Export Date: ${new Date().toLocaleDateString("en-US")}`) +
+        const metaRow1 = `<row r="2" spans="1:3">` +
+          strCell("A2", `Location: ${meta.location || "—"}`, 3) +
+          strCell("B2", `Visit Date: ${meta.date || "—"}`, 3) +
+          strCell("C2", `Specialist: ${meta.specialist || "—"}`, 3) +
           `</row>`;
 
-        const colHeaderRow = `<row r="3" spans="1:3">` +
-          strCell("A3", "Item / Finding") +
-          strCell("B3", "Corrected? (Yes / No / Pending)") +
-          strCell("C3", "Notes / Comments") +
+        const metaRow2 = `<row r="3" spans="1:3">` +
+          strCell("A3", `City / State: ${meta.city || "—"}`, 3) +
+          strCell("B3", `Export Date: ${new Date().toLocaleDateString("en-US")}`, 3) +
+          strCell("C3", "Rotech Survey Prep", 3) +
+          `</row>`;
+
+        const colHeaderRow = `<row r="4" ht="20" customHeight="1" spans="1:3">` +
+          strCell("A4", "Item / Finding", 4) +
+          strCell("B4", "Corrected? (Yes / No / Pending)", 4) +
+          strCell("C4", "Notes / Comments", 4) +
           `</row>`;
 
         const dataRows = issues.map((iss, idx) => {
-          const r = idx + 4;
+          const r = idx + DATA_START_ROW;
           const noteText = [iss.comment, iss.mismatch ? "⚠ Mismatch — location self-audit marked compliant" : ""]
             .filter(Boolean).join(" | ");
           return `<row r="${r}" spans="1:3">` +
-            strCell(`A${r}`, iss.text) +
-            `<c r="B${r}" t="inlineStr"><is><t></t></is></c>` +
-            strCell(`C${r}`, noteText) +
+            strCell(`A${r}`, iss.text, 5) +
+            `<c r="B${r}" s="6" t="inlineStr"><is><t></t></is></c>` +
+            strCell(`C${r}`, noteText, 5) +
             `</row>`;
         }).join("");
 
-        // CF: green for Yes, red for No, yellow for Pending — applied to col B data rows
-        const cfSqref = `B4:B${Math.max(maxRow, 203)}`;
+        const mergeCells = `<mergeCells count="1"><mergeCell ref="A1:C1"/></mergeCells>`;
+
+        // CF: green for Yes, red for No, amber for Pending — applied to col B data rows
+        const cfSqref = `B${DATA_START_ROW}:B${Math.max(maxRow, DATA_START_ROW + 199)}`;
         const cf = `<conditionalFormatting sqref="${cfSqref}">` +
-          `<cfRule type="containsText" priority="1" operator="containsText" dxfId="0" text="Yes"><formula>NOT(ISERROR(SEARCH("Yes",B4)))</formula></cfRule>` +
-          `<cfRule type="containsText" priority="2" operator="containsText" dxfId="1" text="No"><formula>NOT(ISERROR(SEARCH("No",B4)))</formula></cfRule>` +
-          `<cfRule type="containsText" priority="3" operator="containsText" dxfId="2" text="Pending"><formula>NOT(ISERROR(SEARCH("Pending",B4)))</formula></cfRule>` +
+          `<cfRule type="containsText" priority="1" operator="containsText" dxfId="0" text="Yes"><formula>NOT(ISERROR(SEARCH("Yes",B${DATA_START_ROW})))</formula></cfRule>` +
+          `<cfRule type="containsText" priority="2" operator="containsText" dxfId="1" text="No"><formula>NOT(ISERROR(SEARCH("No",B${DATA_START_ROW})))</formula></cfRule>` +
+          `<cfRule type="containsText" priority="3" operator="containsText" dxfId="2" text="Pending"><formula>NOT(ISERROR(SEARCH("Pending",B${DATA_START_ROW})))</formula></cfRule>` +
           `</conditionalFormatting>`;
 
         // Data validation: Yes/No/Pending dropdown on col B data rows
-        const dvSqref = `B4:B${Math.max(maxRow, 203)}`;
+        const dvSqref = cfSqref;
         const dv = `<dataValidations count="1">` +
           `<dataValidation sqref="${dvSqref}" showDropDown="0" showInputMessage="1" showErrorMessage="1" allowBlank="1" ` +
           `errorTitle="Invalid Entry" error="Please select &quot;Yes&quot;, &quot;No&quot;, or &quot;Pending&quot;." ` +
@@ -3572,34 +3590,76 @@ function SurveyPrepApp() {
           `type="list"><formula1>"Yes,No,Pending"</formula1></dataValidation>` +
           `</dataValidations>`;
 
-        // Col widths: A=60, B=28, C=40
-        const cols = `<cols><col min="1" max="1" width="60" bestFit="1" customWidth="1"/>` +
-          `<col min="2" max="2" width="28" customWidth="1"/>` +
-          `<col min="3" max="3" width="40" bestFit="1" customWidth="1"/></cols>`;
+        // Col widths: A=58, B=30, C=45
+        const cols = `<cols><col min="1" max="1" width="58" customWidth="1"/>` +
+          `<col min="2" max="2" width="30" customWidth="1"/>` +
+          `<col min="3" max="3" width="45" customWidth="1"/></cols>`;
+
+        // Freeze everything above the data rows so the title/meta/column
+        // headers stay put while scrolling through a long findings list.
+        const frozenRows = DATA_START_ROW - 1;
+        const sheetViews = `<sheetViews><sheetView tabSelected="0" workbookViewId="0">` +
+          `<pane ySplit="${frozenRows}" topLeftCell="A${DATA_START_ROW}" activePane="bottomLeft" state="frozen"/>` +
+          `<selection pane="bottomLeft" activeCell="A${DATA_START_ROW}" sqref="A${DATA_START_ROW}"/>` +
+          `</sheetView></sheetViews>`;
 
         return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
           `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ` +
           `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
-          `<sheetViews><sheetView tabSelected="0" workbookViewId="0"><selection activeCell="A4" sqref="A4"/></sheetView></sheetViews>` +
+          sheetViews +
           cols +
           `<sheetData>` +
-          headerRow + metaRow + colHeaderRow + dataRows +
+          titleRow + metaRow1 + metaRow2 + colHeaderRow + dataRows +
           `</sheetData>` +
+          mergeCells +
           cf + dv +
           `</worksheet>`;
       };
 
-      // ── Build styles.xml with the 3 dxf entries CF needs ──
+      // ── Build styles.xml: brand-colored title/subtitle bands, a shaded
+      // meta row, bordered column headers, and bordered/wrapped data cells —
+      // plus the 3 dxf entries the Corrected? dropdown's conditional
+      // formatting needs. Colors match the app's own STATUS_COLORS palette
+      // for Yes/No so the exported sheet reads consistently with the app.
       const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
         `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
-        `<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>` +
-        `<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>` +
-        `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
+        `<fonts count="5">` +
+          `<font><sz val="11"/><name val="Calibri"/></font>` +
+          `<font><b val="1"/><sz val="14"/><color rgb="00FFFFFF"/><name val="Calibri"/></font>` +
+          `<font><i val="1"/><sz val="10"/><color rgb="00FFFFFF"/><name val="Calibri"/></font>` +
+          `<font><b val="1"/><sz val="10"/><color rgb="001A3A5C"/><name val="Calibri"/></font>` +
+          `<font><b val="1"/><sz val="11"/><color rgb="00FFFFFF"/><name val="Calibri"/></font>` +
+        `</fonts>` +
+        `<fills count="5">` +
+          `<fill><patternFill patternType="none"/></fill>` +
+          `<fill><patternFill patternType="gray125"/></fill>` +
+          `<fill><patternFill patternType="solid"><fgColor rgb="001A3A5C"/><bgColor rgb="001A3A5C"/></patternFill></fill>` +
+          `<fill><patternFill patternType="solid"><fgColor rgb="002E6DA4"/><bgColor rgb="002E6DA4"/></patternFill></fill>` +
+          `<fill><patternFill patternType="solid"><fgColor rgb="00F5F5F5"/><bgColor rgb="00F5F5F5"/></patternFill></fill>` +
+        `</fills>` +
+        `<borders count="2">` +
+          `<border><left/><right/><top/><bottom/><diagonal/></border>` +
+          `<border>` +
+            `<left style="thin"><color rgb="00CCCCCC"/></left>` +
+            `<right style="thin"><color rgb="00CCCCCC"/></right>` +
+            `<top style="thin"><color rgb="00CCCCCC"/></top>` +
+            `<bottom style="thin"><color rgb="00CCCCCC"/></bottom>` +
+            `<diagonal/>` +
+          `</border>` +
+        `</borders>` +
         `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-        `<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>` +
+        `<cellXfs count="7">` +
+          `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` + // 0: default
+          `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" indent="1"/></xf>` + // 1: title band
+          `<xf numFmtId="0" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" indent="1"/></xf>` + // 2: subtitle band
+          `<xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" indent="1"/></xf>` + // 3: meta row
+          `<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>` + // 4: column header
+          `<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>` + // 5: data cell (wrap)
+          `<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>` + // 6: data cell (centered dropdown)
+        `</cellXfs>` +
         `<dxfs count="3">` +
-          `<dxf><font><b val="1"/><color rgb="001B5E20"/></font><fill><patternFill patternType="solid"><fgColor rgb="00C8E6C9"/><bgColor rgb="00C8E6C9"/></patternFill></fill></dxf>` +
-          `<dxf><font><b val="1"/><color rgb="00B71C1C"/></font><fill><patternFill patternType="solid"><fgColor rgb="00FFCDD2"/><bgColor rgb="00FFCDD2"/></patternFill></fill></dxf>` +
+          `<dxf><font><b val="1"/><color rgb="002E7D32"/></font><fill><patternFill patternType="solid"><fgColor rgb="00E8F5E9"/><bgColor rgb="00E8F5E9"/></patternFill></fill></dxf>` +
+          `<dxf><font><b val="1"/><color rgb="00C62828"/></font><fill><patternFill patternType="solid"><fgColor rgb="00FFEBEE"/><bgColor rgb="00FFEBEE"/></patternFill></fill></dxf>` +
           `<dxf><font><b val="1"/><color rgb="00F57F17"/></font><fill><patternFill patternType="solid"><fgColor rgb="00FFF9C4"/><bgColor rgb="00FFF9C4"/></patternFill></fill></dxf>` +
         `</dxfs>` +
         `</styleSheet>`;
@@ -3667,7 +3727,7 @@ function SurveyPrepApp() {
       zip.file("xl/_rels/workbook.xml.rels", wbRelsXml);
       zip.file("xl/styles.xml", stylesXml);
       sheetMeta.forEach((s, i) => {
-        zip.file(`xl/worksheets/sheet${i + 1}.xml`, buildSheetXml(s.label, s.ref, s.issues));
+        zip.file(`xl/worksheets/sheet${i + 1}.xml`, buildSheetXml(s.issues));
       });
 
       // ── Download ──

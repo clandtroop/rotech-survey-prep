@@ -1918,6 +1918,14 @@ function getPolicyMatches(text, policyDates) {
   });
 }
 
+function formatFollowUpTime(timeStr) {
+  if (!timeStr) return "";
+  const [h, m] = timeStr.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+}
+
 function ChecklistQrCode({ value }) {
   const canvasRef = useRef(null);
   useEffect(() => {
@@ -5548,7 +5556,7 @@ function SurveyPrepApp() {
 
           {/* ── HEADER BAND ── */}
           <div style={{ background: BRAND, borderRadius: "6px 6px 0 0", padding: "12px 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
-            <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, letterSpacing: "0.01em" }}>Accreditation Survey Prep Report</div>
+            <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, letterSpacing: "0.01em" }}>Accreditation Survey Prep Overview</div>
           </div>
 
           {/* ── META TABLE ── */}
@@ -5580,7 +5588,7 @@ function SurveyPrepApp() {
                     <span style={{ color: "#7a5c00", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 1 }}>Follow-Up Teams Call Scheduled</span>
                     <strong style={{ color: "#3d2e00", fontSize: 14 }}>
                       {meta.followUpDate ? new Date(meta.followUpDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—"}
-                      {meta.followUpTime ? ` · ${meta.followUpTime}` : ""}
+                      {meta.followUpTime ? ` · ${formatFollowUpTime(meta.followUpTime)}` : ""}
                     </strong>
                   </td>
                 </tr>
@@ -5599,6 +5607,10 @@ function SurveyPrepApp() {
                 <div style={{ fontSize: 11, color: tc, marginTop: 1 }}>{l}</div>
               </div>
             ))}
+          </div>
+
+          <div style={{ fontSize: 12, color: "#5c6b7a", fontStyle: "italic", marginBottom: 20, marginTop: -12 }}>
+            Friendly reminder: please refer back to the Follow-Up Checklist regularly and mark items off as they're completed.
           </div>
 
           {/* ── SECTION DIVIDER ── */}

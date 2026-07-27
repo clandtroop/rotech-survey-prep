@@ -93,11 +93,11 @@ function Icon({ name, size = 16, style }) {
 // Shared form/button chrome. Spread these and override the one or two
 // properties that differ rather than restating the whole block.
 const metaLabel = {
-  display: "block", fontSize: 10.5, fontWeight: 700, color: T.gray600,
+  display: "block", fontSize: 11.5, fontWeight: 700, color: T.gray600,
   textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6,
 };
 const metaField = {
-  width: "100%", padding: "8px 10px", fontSize: 13.5, border: `1.5px solid ${T.gray300}`,
+  width: "100%", padding: "9px 11px", fontSize: 14.5, border: `1.5px solid ${T.gray300}`,
   borderRadius: T.radius, color: T.ink, fontFamily: "inherit", background: T.white,
   boxSizing: "border-box", outline: "none",
 };
@@ -110,6 +110,18 @@ const btnOutline = {
   border: `1.5px solid ${T.blue600}`, borderRadius: T.radius, cursor: "pointer",
   fontFamily: "inherit", whiteSpace: "nowrap",
 };
+
+// What the assessment module is called in the nav, on its dashboard card, and
+// in any CTA pointing at it. Kept in one place so renaming it is a one-line
+// edit — this is NOT the follow-up checklist (ChecklistView), which is a
+// separate artifact shared with managers and keeps its own name.
+const MODULE_LABEL = "Survey Readiness Tool";
+
+// Page widths. The design handoff specced 1160/1320, which leaves a lot of
+// dead margin on a wide monitor and reads as zoomed-out; widened here.
+const WIDTH_DASHBOARD = 1400;
+const WIDTH_FORM      = 1600;
+const WIDTH_REPORT    = 1040;
 
 const BRAND = T.blue600;
 const ACCENT = T.blue400;
@@ -3423,8 +3435,8 @@ function AuthGate({ children }) {
   // Named authCard rather than cardStyle so it doesn't shadow the shared
   // card helper — this one is the narrow centred sign-in panel.
   const authCard = { background: T.white, border: `1px solid ${T.gray200}`, borderTop: `5px solid ${T.blue600}`, borderRadius: T.radiusCard, padding: "32px 28px", width: 340, boxShadow: T.shadowCard };
-  const fieldLabel = { display: "block", fontSize: 10.5, fontWeight: 700, color: T.gray600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 };
-  const fieldInput = { width: "100%", padding: "8px 10px", fontSize: 13.5, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, boxSizing: "border-box", color: T.ink, fontFamily: "inherit", outline: "none" };
+  const fieldLabel = { display: "block", fontSize: 11.5, fontWeight: 700, color: T.gray600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 };
+  const fieldInput = { width: "100%", padding: "9px 11px", fontSize: 14.5, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, boxSizing: "border-box", color: T.ink, fontFamily: "inherit", outline: "none" };
   const submitBtn = busy => ({ width: "100%", padding: "11px 0", fontSize: 14, fontWeight: 700, background: T.blue600, color: T.white, border: "none", borderRadius: T.radius, cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1, fontFamily: "inherit" });
 
   if (user === undefined) {
@@ -4814,7 +4826,7 @@ function SurveyPrepApp() {
 
   const navItems = [
     { key: "dashboard", label: "Dashboard",    icon: "home",            active: view === "dashboard",                     onClick: () => { setView("dashboard"); window.scrollTo({ top: 0 }); } },
-    { key: "form",      label: "Checklist",    icon: "clipboard-list",  active: view === "form" && !REFERENCE_TABS.includes(activeTab), onClick: goChecklist },
+    { key: "form",      label: MODULE_LABEL,   icon: "clipboard-list",  active: view === "form" && !REFERENCE_TABS.includes(activeTab), onClick: goChecklist },
     { key: "report",    label: "Report",       icon: "file-text",       active: view === "report" || view === "email",     onClick: goReport },
     { key: "trends",    label: "Issue Trends", icon: "trending-up",     active: view === "form" && isTrendsTab,            onClick: () => goTab(TAB.trends) },
   ];
@@ -5029,16 +5041,16 @@ function SurveyPrepApp() {
 
       {/* DASHBOARD VIEW — landing screen after auth */}
       {view === "dashboard" && (
-        <div style={{ maxWidth: 1160, margin: "0 auto", padding: "28px 28px 80px" }}>
+        <div style={{ maxWidth: WIDTH_DASHBOARD, margin: "0 auto", padding: "28px 28px 80px" }}>
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.01em" }}>Welcome back, {specialistFirstName}</div>
-            <div style={{ fontSize: 13.5, color: T.gray600, marginTop: 3 }}>Accreditation Survey Prep Dashboard</div>
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.01em" }}>Welcome back, {specialistFirstName}</div>
+            <div style={{ fontSize: 14.5, color: T.gray600, marginTop: 3 }}>Accreditation Survey Prep Dashboard</div>
           </div>
 
           {/* Current visit */}
           <div style={{ ...cardStyle(T.blue600), marginBottom: 20 }}>
             <div style={{ padding: "18px 22px" }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Your Current Visit</div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Your Current Visit</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
                 {[
                   ["Location Name", meta.location],
@@ -5047,8 +5059,8 @@ function SurveyPrepApp() {
                   ["Visit Date",    meta.date],
                 ].map(([label, value]) => (
                   <div key={label}>
-                    <div style={{ fontSize: 10.5, color: T.gray500, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: value ? T.ink : T.gray400 }}>{value || "Not set"}</div>
+                    <div style={{ fontSize: 11.5, color: T.gray500, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: value ? T.ink : T.gray400 }}>{value || "Not set"}</div>
                   </div>
                 ))}
               </div>
@@ -5062,7 +5074,7 @@ function SurveyPrepApp() {
               [allStats.no,      "Issues",    T.errorBg,   T.error],
               [allStats.pending, "Pending",   T.gray100,   T.gray600],
             ].map(([n, label, bg, fg]) => (
-              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, background: bg, color: fg, padding: "6px 14px", borderRadius: T.radiusPill, fontSize: 13, fontWeight: 600 }}>
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, background: bg, color: fg, padding: "6px 14px", borderRadius: T.radiusPill, fontSize: 14, fontWeight: 600 }}>
                 <span>{n}</span><span style={{ fontWeight: 400 }}>{label}</span>
               </div>
             ))}
@@ -5071,23 +5083,23 @@ function SurveyPrepApp() {
           {/* Recent visits */}
           {savedVisits.length > 0 && (
             <div style={{ background: T.white, border: `1px solid ${T.gray200}`, borderRadius: T.radiusCard, overflow: "hidden", boxShadow: T.shadowSoft, marginBottom: 20 }}>
-              <div style={{ padding: "16px 20px 6px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{ padding: "16px 20px 6px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
                 <Icon name="history" size={15} style={{ color: T.gray600 }} />Recent Visits
               </div>
               <div style={{ padding: "6px 12px 12px" }}>
                 {savedVisits.slice(0, 5).map(v => (
                   <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 12px", margin: "2px 0", borderRadius: T.radius }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.label}</div>
-                      <div style={{ fontSize: 11.5, color: T.gray500, marginTop: 2 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.label}</div>
+                      <div style={{ fontSize: 12.5, color: T.gray500, marginTop: 2 }}>
                         Saved {new Date(v.savedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                       <button onClick={() => { loadVisit(v); setView("form"); }}
-                        style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, background: T.blue600, color: T.white, border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>Load</button>
+                        style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, background: T.blue600, color: T.white, border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>Load</button>
                       <button onClick={() => { if (window.confirm("Delete this saved visit?")) deleteVisit(v.id); }} aria-label="Delete saved visit"
-                        style={{ padding: "6px 10px", fontSize: 12, background: T.errorBg, color: T.error, border: `1px solid ${T.errorBorder}`, borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
+                        style={{ padding: "6px 10px", fontSize: 13, background: T.errorBg, color: T.error, border: `1px solid ${T.errorBorder}`, borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
                     </div>
                   </div>
                 ))}
@@ -5099,7 +5111,7 @@ function SurveyPrepApp() {
               spreads to fill instead of leaving empty column gaps. */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
             {[
-              { accent: T.blue600, titleColor: T.blue600,  icon: "clipboard-list", title: "Checklist",            desc: `${SECTIONS.length} binders / visit forms · Morning Meeting through Ventilator Visit`, stat: `${allStats.pending} items pending`,                                    cta: "Continue Assessment", onClick: goChecklist },
+              { accent: T.blue600, titleColor: T.blue600,  icon: "clipboard-list", title: MODULE_LABEL,           desc: `${SECTIONS.length} binders / visit forms · Morning Meeting through Ventilator Visit`, stat: `${allStats.pending} items pending`,                                    cta: "Continue Assessment", onClick: goChecklist },
               { accent: T.success, titleColor: T.success,  icon: "file-text",      title: "Survey Prep Report",   desc: "Generate the visit summary, PDF export, and follow-up checklist link",              stat: `${allStats.no} issues found so far`,                                   cta: "View Report",         onClick: goReport },
               { accent: T.warning, titleColor: T.warning,  icon: "trending-up",    title: "Issue Trend Analysis", desc: "Company-wide recurring issues, top locations, and monthly trend",                   stat: "Across all finalized visits",                                          cta: "View Trends",         onClick: () => goTab(TAB.trends) },
               { accent: T.teal,    titleColor: T.tealDeep, icon: "book-open",      title: "Policy Dates",         desc: "Reference revision dates for policies cited in the checklist",                      stat: `${Object.keys(policyDates).length} policies on file`,                  cta: "View Policy Dates",   onClick: () => goTab(TAB.policy) },
@@ -5109,13 +5121,13 @@ function SurveyPrepApp() {
             ].map(c => (
               <div key={c.title} style={{ ...cardStyle(c.accent), flex: "1 1 260px" }}>
                 <div style={{ padding: 20 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: c.titleColor, marginBottom: 4, display: "flex", alignItems: "center", gap: 7 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: c.titleColor, marginBottom: 4, display: "flex", alignItems: "center", gap: 7 }}>
                     <Icon name={c.icon} size={16} />{c.title}
                   </div>
-                  <div style={{ fontSize: 12.5, color: T.gray600, marginBottom: 4 }}>{c.desc}</div>
-                  <div style={{ fontSize: 11.5, color: T.gray500, marginBottom: 16 }}>{c.stat}</div>
+                  <div style={{ fontSize: 13.5, color: T.gray600, marginBottom: 4 }}>{c.desc}</div>
+                  <div style={{ fontSize: 12.5, color: T.gray500, marginBottom: 16 }}>{c.stat}</div>
                   <button onClick={c.onClick}
-                    style={{ width: "100%", padding: 11, fontSize: 14, fontWeight: 700, background: c.accent, color: T.white, border: "none", borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit" }}>
+                    style={{ width: "100%", padding: 11, fontSize: 15, fontWeight: 700, background: c.accent, color: T.white, border: "none", borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit" }}>
                     {c.cta}
                   </button>
                 </div>
@@ -5130,7 +5142,7 @@ function SurveyPrepApp() {
         <div>
           {/* Visit meta — moved off the header band onto its own card so the
               fields read as editable inputs rather than header chrome. */}
-          <div style={{ maxWidth: 1320, margin: "20px auto 0", padding: "0 28px" }}>
+          <div style={{ maxWidth: WIDTH_FORM, margin: "20px auto 0", padding: "0 28px" }}>
             <div style={cardStyle(T.blue600)}>
               <div style={{ padding: "20px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 18 }}>
                 <div>
@@ -5167,13 +5179,16 @@ function SurveyPrepApp() {
                     {meta.specialist || "—"}
                   </div>
                 </div>
-                <div>
+                {/* Two controls in one cell, so it needs two columns' worth of
+                    room — without the span it wraps onto a row of its own and
+                    strands below the five single-field cells. */}
+                <div style={{ gridColumn: "span 2", minWidth: 0 }}>
                   <div style={metaLabel}>Follow-Up Teams Call Scheduled</div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input type="date" aria-label="Follow-up call date" value={meta.followUpDate} onChange={e => setMeta(p => ({ ...p, followUpDate: e.target.value }))}
-                      style={{ ...metaField, flex: 1 }} />
+                      style={{ ...metaField, flex: "1 1 0", minWidth: 0 }} />
                     <input type="time" aria-label="Follow-up call time" value={meta.followUpTime} onChange={e => setMeta(p => ({ ...p, followUpTime: e.target.value }))}
-                      style={{ ...metaField, flex: 1 }} />
+                      style={{ ...metaField, flex: "1 1 0", minWidth: 0 }} />
                   </div>
                 </div>
               </div>
@@ -5181,7 +5196,7 @@ function SurveyPrepApp() {
           </div>
 
           {/* Unified stat card + visit actions */}
-          <div className="no-print" style={{ maxWidth: 1320, margin: "16px auto 0", padding: "0 28px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div className="no-print" style={{ maxWidth: WIDTH_FORM, margin: "16px auto 0", padding: "0 28px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
             <div style={{ display: "flex", flexWrap: "wrap", background: T.white, border: `1px solid ${T.gray200}`, borderRadius: 10, overflow: "hidden", boxShadow: T.shadowSoft }}>
               {[
                 { n: allStats.yes,     label: "Compliant", icon: "check-circle", bg: T.successBg, fg: T.success },
@@ -5195,8 +5210,8 @@ function SurveyPrepApp() {
                     <Icon name={s.icon} size={16} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 17, fontWeight: 800, color: s.fg, lineHeight: 1.1 }}>{s.n}</div>
-                    <div style={{ fontSize: 11, color: T.gray500, whiteSpace: "nowrap" }}>{s.label}</div>
+                    <div style={{ fontSize: 19, fontWeight: 800, color: s.fg, lineHeight: 1.1 }}>{s.n}</div>
+                    <div style={{ fontSize: 12, color: T.gray500, whiteSpace: "nowrap" }}>{s.label}</div>
                   </div>
                 </div>
               ))}
@@ -5220,11 +5235,11 @@ function SurveyPrepApp() {
           </div>
 
           {/* Tab rail — searchable, each tab carrying its own progress bar */}
-          <div style={{ maxWidth: 1320, margin: "18px auto 0", padding: "0 28px" }}>
+          <div style={{ maxWidth: WIDTH_FORM, margin: "18px auto 0", padding: "0 28px" }}>
             <div style={{ position: "relative", maxWidth: 280, marginBottom: 10 }}>
               <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: T.gray400, pointerEvents: "none" }} />
               <input value={tabSearch} onChange={e => setTabSearch(e.target.value)} placeholder="Search binders…" aria-label="Search binders"
-                style={{ width: "100%", padding: "7px 10px 7px 32px", fontSize: 12.5, border: `1.5px solid ${T.gray300}`, borderRadius: T.radiusPill, fontFamily: "inherit", boxSizing: "border-box", color: T.ink, outline: "none" }} />
+                style={{ width: "100%", padding: "7px 10px 7px 32px", fontSize: 13.5, border: `1.5px solid ${T.gray300}`, borderRadius: T.radiusPill, fontFamily: "inherit", boxSizing: "border-box", color: T.ink, outline: "none" }} />
             </div>
             <div role="tablist" aria-label="Checklist binders" style={{ display: "flex", gap: 6, overflowX: "auto", borderBottom: `1px solid ${T.gray200}` }}>
               {visibleTabs.map(t => {
@@ -5243,7 +5258,7 @@ function SurveyPrepApp() {
                   <div key={t.idx} style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
                     <button role="tab" aria-selected={active} onClick={() => setActiveTab(t.idx)}
                       style={{
-                        padding: "10px 16px", fontSize: 12.5, whiteSpace: "nowrap", background: "none", border: "none",
+                        padding: "10px 16px", fontSize: 13.5, whiteSpace: "nowrap", background: "none", border: "none",
                         borderBottom: active ? `2px solid ${T.blue600}` : "2px solid transparent",
                         color: active ? T.blue600 : T.gray600, cursor: "pointer",
                         fontWeight: active ? 700 : 500, fontFamily: "inherit",
@@ -5262,22 +5277,22 @@ function SurveyPrepApp() {
               })}
             </div>
             {visibleTabs.length === 0 && (
-              <div style={{ padding: "14px 4px", fontSize: 12.5, color: T.gray500 }}>No binders match “{tabSearch}”</div>
+              <div style={{ padding: "14px 4px", fontSize: 13.5, color: T.gray500 }}>No binders match “{tabSearch}”</div>
             )}
           </div>
           {/* Regular section content */}
           {!isExtraTab && (
-            <div style={{ maxWidth: 1320, margin: "0 auto", padding: "20px 28px 80px" }}>
-              <div style={{ fontSize: 11.5, color: T.gray500, marginBottom: 6, fontWeight: 600 }}>{sec.ref}</div>
+            <div style={{ maxWidth: WIDTH_FORM, margin: "0 auto", padding: "20px 28px 80px" }}>
+              <div style={{ fontSize: 12.5, color: T.gray500, marginBottom: 6, fontWeight: 600 }}>{sec.ref}</div>
               {sec.banner && (
-                <div style={{ background: T.blue600, color: T.white, padding: "9px 16px", borderRadius: T.radius, fontSize: 12.5, fontWeight: 700, marginBottom: 16, letterSpacing: "0.02em" }}>
+                <div style={{ background: T.blue600, color: T.white, padding: "9px 16px", borderRadius: T.radius, fontSize: 13.5, fontWeight: 700, marginBottom: 16, letterSpacing: "0.02em" }}>
                   {sec.banner}
                 </div>
               )}
               <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
                 {[["yes", "Compliant"], ["no", "Issue"], ["na", "N/A"]].map(([v, l]) => (
                   <button key={v} onClick={() => sec.items.forEach((_, ii) => setState(`${activeTab}-${ii}`, v))}
-                    style={{ fontSize: 12, padding: "6px 14px", border: `1.5px solid ${STATUS_COLORS[v].text}`, background: STATUS_COLORS[v].bg, color: STATUS_COLORS[v].text, borderRadius: T.radiusPill, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>
+                    style={{ fontSize: 13, padding: "6px 14px", border: `1.5px solid ${STATUS_COLORS[v].text}`, background: STATUS_COLORS[v].bg, color: STATUS_COLORS[v].text, borderRadius: T.radiusPill, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>
                     Mark all {l}
                   </button>
                 ))}
@@ -5296,8 +5311,8 @@ function SurveyPrepApp() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, lineHeight: 1.55, color: T.ink }}>{item.text}</div>
-                          {item.note && <div style={{ fontSize: 12, color: T.gray500, marginTop: 4, lineHeight: 1.5 }}>{item.note}</div>}
+                          <div style={{ fontSize: 15, lineHeight: 1.55, color: T.ink }}>{item.text}</div>
+                          {item.note && <div style={{ fontSize: 13, color: T.gray500, marginTop: 4, lineHeight: 1.5 }}>{item.note}</div>}
                           {(() => {
                             const matches = getPolicyMatches(item.text, policyDates);
                             if (!matches.length) return null;
@@ -5305,7 +5320,7 @@ function SurveyPrepApp() {
                               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
                                 {matches.map(key => (
                                   <span key={key} title={`${policyDates[key].name} — Rev: ${policyDates[key].rev}`} style={{
-                                    fontSize: 10.5, padding: "2px 9px", borderRadius: T.radiusPill,
+                                    fontSize: 11.5, padding: "2px 9px", borderRadius: T.radiusPill,
                                     background: "#dbe8f6", color: T.blue600, border: "1px solid #b3cdec",
                                     cursor: "default", fontWeight: 600, letterSpacing: "0.02em"
                                   }}>
@@ -5319,7 +5334,7 @@ function SurveyPrepApp() {
                         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                           {["yes", "no", "na"].map(v => (
                             <button key={v} onClick={() => setState(key, v)} aria-label={STATUS_COLORS[v].aria} aria-pressed={state === v} style={{
-                              width: 40, height: 34, fontSize: 11.5, fontWeight: 700,
+                              width: 40, height: 34, fontSize: 12.5, fontWeight: 700,
                               border: `1.5px solid ${state === v ? STATUS_COLORS[v].border : T.gray200}`,
                               background: state === v ? STATUS_COLORS[v].bg : T.white,
                               color: state === v ? STATUS_COLORS[v].text : T.gray400,
@@ -5333,7 +5348,7 @@ function SurveyPrepApp() {
                           placeholder={state === "no" ? "Describe the issue and required corrective action…" : "Add observation or note (optional)…"}
                           aria-label={state === "no" ? "Issue description" : "Observation note"}
                           value={comments[key]} onChange={e => setComment(key, e.target.value)} rows={2}
-                          style={{ marginTop: 10, width: "60%", minWidth: 260, fontSize: 12.5, padding: "8px 10px", border: `1.5px solid ${state === "no" ? T.errorBorder : T.successBorder}`, borderRadius: T.radius, resize: "vertical", color: T.ink, background: T.white, boxSizing: "border-box", display: "block", fontFamily: "inherit" }} />
+                          style={{ marginTop: 10, width: "60%", minWidth: 260, fontSize: 13.5, padding: "8px 10px", border: `1.5px solid ${state === "no" ? T.errorBorder : T.successBorder}`, borderRadius: T.radius, resize: "vertical", color: T.ink, background: T.white, boxSizing: "border-box", display: "block", fontFamily: "inherit" }} />
                       )}
                     </div>
                   </div>
@@ -5366,7 +5381,7 @@ function SurveyPrepApp() {
                       />
                     </div>
                   </div>
-                  <label htmlFor={`notes-${sec.id}`} style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.blue600, marginBottom: 7, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <label htmlFor={`notes-${sec.id}`} style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: T.blue600, marginBottom: 7, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Visit Notes / Unable to Complete Reason
                   </label>
                   <textarea
@@ -5375,7 +5390,7 @@ function SurveyPrepApp() {
                     onChange={e => setTabComment(sec.id, e.target.value)}
                     placeholder="Note any reason this visit could not be completed (e.g. patient not available, location closed, PST unavailable) or general visit observations…"
                     rows={3}
-                    style={{ ...metaField, fontSize: 13, padding: "9px 11px", resize: "vertical", background: T.gray50 }}
+                    style={{ ...metaField, fontSize: 14, padding: "9px 11px", resize: "vertical", background: T.gray50 }}
                   />
                 </div>
               )}
@@ -5389,10 +5404,10 @@ function SurveyPrepApp() {
                 <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray600 }}>
                   <div style={{ fontSize: 38, marginBottom: 12 }}>📂</div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>Upload the OP 541 Spreadsheet</div>
-                  <div style={{ fontSize: 13, color: T.gray600, marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
+                  <div style={{ fontSize: 14, color: T.gray600, marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
                     Upload the .xlsx file filled out by the location. Their self-audit answers will appear alongside your on-site Y/N/NA assessment, with mismatches flagged automatically.
                   </div>
-                  <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+                  <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 15, fontWeight: 600 }}>
                     Choose .xlsx File
                     <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
                   </label>
@@ -5412,10 +5427,10 @@ function SurveyPrepApp() {
                       <button
                         onClick={exportUpdatedOp541}
                         title={op541BufferBytes ? undefined : "The original file isn't in this browser session (e.g. after loading a saved visit on a new device) — click to see how to bring it back"}
-                        style={{ fontSize: 12, padding: "5px 12px", background: op541BufferBytes ? T.success : T.gray500, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                        style={{ fontSize: 13, padding: "5px 12px", background: op541BufferBytes ? T.success : T.gray500, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
                         ⬇ Export Updated OP 541
                       </button>
-                      <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
+                      <label style={{ fontSize: 13, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
                         Change file
                         <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
                       </label>
@@ -5434,26 +5449,26 @@ function SurveyPrepApp() {
                       return (
                         <div key={si} style={{ marginBottom: 20 }}>
                           {showSheetHeader && (
-                            <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em", marginTop: si > 0 ? 24 : 0, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                            <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 14, letterSpacing: "0.04em", marginTop: si > 0 ? 24 : 0, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                               <span>{section.sheetLabel}</span>
                               {isVehicleSheet && (
                                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                   <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                    <label style={{ fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" }}>PST Name:</label>
+                                    <label style={{ fontSize: 12, opacity: 0.8, whiteSpace: "nowrap" }}>PST Name:</label>
                                     <input
                                       value={vInfo.pstName}
                                       onChange={e => setVInfo("pstName", e.target.value)}
                                       placeholder="Enter name"
-                                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 130 }}
+                                      style={{ fontSize: 13, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 130 }}
                                     />
                                   </div>
                                   <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                    <label style={{ fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" }}>Vehicle #:</label>
+                                    <label style={{ fontSize: 12, opacity: 0.8, whiteSpace: "nowrap" }}>Vehicle #:</label>
                                     <input
                                       value={vInfo.vehicleNum}
                                       onChange={e => setVInfo("vehicleNum", e.target.value)}
                                       placeholder="Enter #"
-                                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 80 }}
+                                      style={{ fontSize: 13, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 80 }}
                                     />
                                   </div>
                                 </div>
@@ -5461,7 +5476,7 @@ function SurveyPrepApp() {
                             </div>
                           )}
                           {section.label && (
-                            <div style={{ background: T.blue50, padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 12, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            <div style={{ background: T.blue50, padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 13, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                               {section.label}
                             </div>
                           )}
@@ -5477,24 +5492,24 @@ function SurveyPrepApp() {
                                 }}>
                                   <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                      {item.policy && <span style={{ fontSize: 11, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
-                                      <span style={{ fontSize: 13, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
-                                      {item.locComment && <div style={{ fontSize: 11, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
+                                      {item.policy && <span style={{ fontSize: 12, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
+                                      <span style={{ fontSize: 14, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
+                                      {item.locComment && <div style={{ fontSize: 12, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
                                     </div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                                       <span style={{
-                                        fontSize: 11, fontWeight: 700, padding: "4px 9px", borderRadius: 4, whiteSpace: "nowrap",
+                                        fontSize: 12, fontWeight: 700, padding: "4px 9px", borderRadius: 4, whiteSpace: "nowrap",
                                         background: item.locAns === "Y" ? T.successBg : item.locAns === "N" ? T.errorBg : item.locAns ? T.gray100 : T.gray50,
                                         color: item.locAns === "Y" ? T.success : item.locAns === "N" ? T.error : T.gray500,
                                         border: `1px solid ${item.locAns === "Y" ? T.successBorder : item.locAns === "N" ? T.errorBorder : T.gray200}`
                                       }}>
                                         Loc: {item.locAns || "—"}
                                       </span>
-                                      {mismatch && <span title="Mismatch with location self-audit" style={{ color: T.warning, fontSize: 15, fontWeight: 700 }}>⚠</span>}
+                                      {mismatch && <span title="Mismatch with location self-audit" style={{ color: T.warning, fontSize: 16, fontWeight: 700 }}>⚠</span>}
                                       <div style={{ display: "flex", gap: 4 }}>
                                         {["yes", "no", "na"].map(v => (
                                           <button key={v} onClick={() => setOp541States(p => ({ ...p, [item.key]: p[item.key] === v ? null : v }))} aria-label={STATUS_COLORS[v].aria} aria-pressed={s === v} style={{
-                                            width: 40, height: 34, fontSize: 11.5, fontWeight: 700,
+                                            width: 40, height: 34, fontSize: 12.5, fontWeight: 700,
                                             border: `1.5px solid ${s === v ? STATUS_COLORS[v].border : T.gray200}`,
                                             background: s === v ? STATUS_COLORS[v].bg : T.white,
                                             color: s === v ? STATUS_COLORS[v].text : T.gray400,
@@ -5510,7 +5525,7 @@ function SurveyPrepApp() {
                                       value={op541Comments[item.key]}
                                       onChange={e => setOp541Comments(p => ({ ...p, [item.key]: e.target.value }))}
                                       rows={2}
-                                      style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
+                                      style={{ marginTop: 8, width: "50%", fontSize: 13, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
                                   )}
                                 </div>
                               );
@@ -5528,7 +5543,7 @@ function SurveyPrepApp() {
                                   setOp541States(p => ({ ...p, ...update }));
                                 }}
                                 style={{
-                                  marginTop: 8, padding: "5px 14px", fontSize: 11, fontWeight: 600,
+                                  marginTop: 8, padding: "5px 14px", fontSize: 12, fontWeight: 600,
                                   background: allNa ? T.gray100 : T.gray50,
                                   color: allNa ? T.gray600 : T.gray600,
                                   border: `1px solid ${allNa ? T.gray300 : T.gray200}`,
@@ -5555,10 +5570,10 @@ function SurveyPrepApp() {
                 <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray600 }}>
                   <div style={{ fontSize: 38, marginBottom: 12 }}>📂</div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>Upload the OP 541T Transfill Spreadsheet</div>
-                  <div style={{ fontSize: 13, color: T.gray600, marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
+                  <div style={{ fontSize: 14, color: T.gray600, marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
                     Upload the .xlsx file filled out by the transfill location. Their self-audit answers will appear alongside your on-site Y/N/NA assessment, with mismatches flagged automatically.
                   </div>
-                  <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+                  <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 15, fontWeight: 600 }}>
                     Choose .xlsx File
                     <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
                   </label>
@@ -5577,10 +5592,10 @@ function SurveyPrepApp() {
                       <button
                         onClick={exportUpdatedOp541t}
                         title={op541tBufferBytes ? undefined : "The original file isn't in this browser session (e.g. after loading a saved visit on a new device) — click to see how to bring it back"}
-                        style={{ fontSize: 12, padding: "5px 12px", background: op541tBufferBytes ? T.success : T.gray500, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                        style={{ fontSize: 13, padding: "5px 12px", background: op541tBufferBytes ? T.success : T.gray500, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
                         ⬇ Export Updated OP 541T
                       </button>
-                      <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
+                      <label style={{ fontSize: 13, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
                         Change file
                         <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
                       </label>
@@ -5598,26 +5613,26 @@ function SurveyPrepApp() {
                       return (
                         <div key={si} style={{ marginBottom: 20 }}>
                           {showSheetHeader && (
-                            <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em", marginTop: si > 0 ? 24 : 0, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                            <div style={{ background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 8, borderRadius: 6, fontWeight: 700, fontSize: 14, letterSpacing: "0.04em", marginTop: si > 0 ? 24 : 0, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                               <span>{section.sheetLabel}</span>
                               {isVehicleSheet && (
                                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                   <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                    <label style={{ fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" }}>Driver Name:</label>
+                                    <label style={{ fontSize: 12, opacity: 0.8, whiteSpace: "nowrap" }}>Driver Name:</label>
                                     <input
                                       value={vInfo.pstName}
                                       onChange={e => setVInfo("pstName", e.target.value)}
                                       placeholder="Enter name"
-                                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 130 }}
+                                      style={{ fontSize: 13, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 130 }}
                                     />
                                   </div>
                                   <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                    <label style={{ fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" }}>Vehicle #:</label>
+                                    <label style={{ fontSize: 12, opacity: 0.8, whiteSpace: "nowrap" }}>Vehicle #:</label>
                                     <input
                                       value={vInfo.vehicleNum}
                                       onChange={e => setVInfo("vehicleNum", e.target.value)}
                                       placeholder="Enter #"
-                                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 80 }}
+                                      style={{ fontSize: 13, padding: "3px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", width: 80 }}
                                     />
                                   </div>
                                 </div>
@@ -5625,7 +5640,7 @@ function SurveyPrepApp() {
                             </div>
                           )}
                           {section.label && (
-                            <div style={{ background: T.blue50, padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 12, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            <div style={{ background: T.blue50, padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 13, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                               {section.label}
                             </div>
                           )}
@@ -5641,24 +5656,24 @@ function SurveyPrepApp() {
                                 }}>
                                   <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                      {item.policy && <span style={{ fontSize: 11, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
-                                      <span style={{ fontSize: 13, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
-                                      {item.locComment && <div style={{ fontSize: 11, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
+                                      {item.policy && <span style={{ fontSize: 12, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
+                                      <span style={{ fontSize: 14, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
+                                      {item.locComment && <div style={{ fontSize: 12, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
                                     </div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                                       <span style={{
-                                        fontSize: 11, fontWeight: 700, padding: "4px 9px", borderRadius: 4, whiteSpace: "nowrap",
+                                        fontSize: 12, fontWeight: 700, padding: "4px 9px", borderRadius: 4, whiteSpace: "nowrap",
                                         background: item.locAns === "Y" ? T.successBg : item.locAns === "N" ? T.errorBg : item.locAns ? T.gray100 : T.gray50,
                                         color: item.locAns === "Y" ? T.success : item.locAns === "N" ? T.error : T.gray500,
                                         border: `1px solid ${item.locAns === "Y" ? T.successBorder : item.locAns === "N" ? T.errorBorder : T.gray200}`
                                       }}>
                                         Loc: {item.locAns || "—"}
                                       </span>
-                                      {mismatch && <span title="Mismatch with location self-audit" style={{ color: T.warning, fontSize: 15, fontWeight: 700 }}>⚠</span>}
+                                      {mismatch && <span title="Mismatch with location self-audit" style={{ color: T.warning, fontSize: 16, fontWeight: 700 }}>⚠</span>}
                                       <div style={{ display: "flex", gap: 4 }}>
                                         {["yes", "no", "na"].map(v => (
                                           <button key={v} onClick={() => setOp541tStates(p => ({ ...p, [item.key]: p[item.key] === v ? null : v }))} aria-label={STATUS_COLORS[v].aria} aria-pressed={s === v} style={{
-                                            width: 40, height: 34, fontSize: 11.5, fontWeight: 700,
+                                            width: 40, height: 34, fontSize: 12.5, fontWeight: 700,
                                             border: `1.5px solid ${s === v ? STATUS_COLORS[v].border : T.gray200}`,
                                             background: s === v ? STATUS_COLORS[v].bg : T.white,
                                             color: s === v ? STATUS_COLORS[v].text : T.gray400,
@@ -5674,7 +5689,7 @@ function SurveyPrepApp() {
                                       value={op541tComments[item.key]}
                                       onChange={e => setOp541tComments(p => ({ ...p, [item.key]: e.target.value }))}
                                       rows={2}
-                                      style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
+                                      style={{ marginTop: 8, width: "50%", fontSize: 13, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
                                   )}
                                 </div>
                               );
@@ -5712,14 +5727,14 @@ function SurveyPrepApp() {
               {jc427TemplateStatus === "loading" && (
                 <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray500 }}>
                   <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-                  <div style={{ fontSize: 14, color: T.gray600 }}>Loading JC 427 template…</div>
+                  <div style={{ fontSize: 15, color: T.gray600 }}>Loading JC 427 template…</div>
                 </div>
               )}
               {jc427TemplateStatus === "error" && (
                 <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray600 }}>
                   <div style={{ fontSize: 38, marginBottom: 12 }}>⚠</div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: T.error, marginBottom: 8 }}>Couldn't load the JC 427 template</div>
-                  <div style={{ fontSize: 13, color: T.gray600, maxWidth: 440, margin: "0 auto" }}>
+                  <div style={{ fontSize: 14, color: T.gray600, maxWidth: 440, margin: "0 auto" }}>
                     Check your internet connection and reload the page. If this keeps happening, the template file may be missing from the deployment.
                   </div>
                 </div>
@@ -5727,10 +5742,10 @@ function SurveyPrepApp() {
               {jc427TemplateStatus === "ready" && (
                 <div>
                   <div style={{ padding: "10px 24px", background: T.gray50, borderBottom: `1px solid ${T.gray200}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                    <span style={{ fontSize: 12, color: T.gray500 }}>{jc427Items.length} of {JC427_ALL_ITEMS.length} items recognized</span>
+                    <span style={{ fontSize: 13, color: T.gray500 }}>{jc427Items.length} of {JC427_ALL_ITEMS.length} items recognized</span>
                     <button
                       onClick={exportUpdatedJC427}
-                      style={{ fontSize: 12, padding: "5px 12px", background: T.success, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                      style={{ fontSize: 13, padding: "5px 12px", background: T.success, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
                       ⬇ Export Updated JC 427
                     </button>
                   </div>
@@ -5765,7 +5780,7 @@ function SurveyPrepApp() {
             <div style={{ padding: "20px 24px" }}>
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: BRAND, marginBottom: 4 }}>Policy Revision Reference</div>
-                <div style={{ fontSize: 12, color: T.gray600 }}>
+                <div style={{ fontSize: 13, color: T.gray600 }}>
                   Admins can add, edit, or remove policies directly below — changes apply immediately for every specialist and reflect on the checklist badges automatically. No code changes or redeploys needed.
                 </div>
               </div>
@@ -5784,7 +5799,7 @@ function SurveyPrepApp() {
 
       {/* EMAIL VIEW */}
       {view === "email" && (
-        <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 28px 80px" }}>
+        <div style={{ maxWidth: WIDTH_REPORT, margin: "0 auto", padding: "24px 28px 80px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
             <div style={{ fontSize: 18, fontWeight: 700 }}>Manager Follow-Up Email</div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -5796,8 +5811,8 @@ function SurveyPrepApp() {
             </div>
           </div>
           <textarea value={emailText} onChange={e => setEmailText(e.target.value)} aria-label="Follow-up email body"
-            style={{ width: "100%", minHeight: 420, fontSize: 13, lineHeight: 1.7, padding: 14, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, resize: "vertical", color: T.ink, background: T.white, boxSizing: "border-box", fontFamily: "inherit" }} />
-          <div style={{ marginTop: 12, fontSize: 12, color: T.gray500 }}>You can edit this email before copying. Click “View Report →” for the full report.</div>
+            style={{ width: "100%", minHeight: 420, fontSize: 14, lineHeight: 1.7, padding: 14, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, resize: "vertical", color: T.ink, background: T.white, boxSizing: "border-box", fontFamily: "inherit" }} />
+          <div style={{ marginTop: 12, fontSize: 13, color: T.gray500 }}>You can edit this email before copying. Click “View Report →” for the full report.</div>
         </div>
       )}
 
@@ -5805,7 +5820,7 @@ function SurveyPrepApp() {
           exports or shares it, so with nothing answered there is nothing to
           offer but the way back to the checklist. */}
       {view === "report" && answeredCount === 0 && (
-        <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 28px 80px" }}>
+        <div style={{ maxWidth: WIDTH_REPORT, margin: "0 auto", padding: "24px 28px 80px" }}>
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 18 }}>Survey Prep Report</div>
           <div style={{ background: T.white, border: `1px solid ${T.gray200}`, borderRadius: T.radiusCard, padding: "64px 24px", textAlign: "center", boxShadow: T.shadowCard }}>
             <div style={{ width: 56, height: 56, borderRadius: 14, background: T.blue50, color: T.blue600, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
@@ -5815,14 +5830,14 @@ function SurveyPrepApp() {
             <div style={{ fontSize: 13, color: T.gray600, marginBottom: 20, maxWidth: 360, marginLeft: "auto", marginRight: "auto" }}>
               Mark items Compliant, Issue, or N/A in the checklist to build this visit's report.
             </div>
-            <button onClick={goChecklist} style={{ ...btnPrimary, padding: "10px 20px", fontSize: 13.5, fontWeight: 700 }}>Go to Checklist</button>
+            <button onClick={goChecklist} style={{ ...btnPrimary, padding: "10px 20px", fontSize: 13.5, fontWeight: 700 }}>Go to {MODULE_LABEL}</button>
           </div>
         </div>
       )}
 
       {/* REPORT VIEW */}
       {view === "report" && answeredCount > 0 && (
-        <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 28px 80px" }}>
+        <div style={{ maxWidth: WIDTH_REPORT, margin: "0 auto", padding: "24px 28px 80px" }}>
 
           {/* Screen-only toolbar */}
           <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>

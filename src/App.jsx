@@ -2076,6 +2076,23 @@ function ChecklistQrCode({ value }) {
 // specialist (watching live progress) — no auth, the visit ID is the secret.
 const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Vehicles", "PST Visits", "Personnel", "Personnel Records (JC 427)", "Binders"];
 
+// Branded shell shared by all three ChecklistView states (loading / not-found /
+// ready) so the unauthenticated page carries the same header chrome as the
+// main app instead of dropping straight into bare content.
+function ChecklistPageShell({ children }) {
+  return (
+    <div style={{ fontFamily: T.font, background: T.gray50, minHeight: "100vh", color: T.ink }}>
+      <div style={{ background: T.blue600, color: T.white, padding: "14px 28px", display: "flex", alignItems: "center", gap: 14 }}>
+        <img src="/rotech-survey-prep/rotech-logo.jpg" alt="Rotech Healthcare" style={{ height: 34, width: "auto", background: T.white, borderRadius: T.radius, padding: "4px 10px" }} />
+        <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em" }}>{MODULE_LABEL}</div>
+      </div>
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ChecklistView({ visitId }) {
   const [doc_, setDoc_] = useState(undefined); // undefined = loading, null = not found
   const [notes, setNotes] = useState("");
@@ -2110,71 +2127,83 @@ function ChecklistView({ visitId }) {
   }
 
   if (doc_ === undefined) {
-    return <div style={{ padding: 40, textAlign: "center", color: T.gray500, fontFamily: T.font }}>Loading checklist…</div>;
+    return (
+      <ChecklistPageShell>
+        <div style={{ ...cardStyle(), padding: 40, textAlign: "center", color: T.gray500 }}>Loading checklist…</div>
+      </ChecklistPageShell>
+    );
   }
   if (doc_ === null) {
-    return <div style={{ padding: 40, textAlign: "center", color: T.error, fontFamily: T.font }}>Checklist not found. Double-check the link.</div>;
+    return (
+      <ChecklistPageShell>
+        <div style={{ ...cardStyle(), padding: 40, textAlign: "center", color: T.error }}>Checklist not found. Double-check the link.</div>
+      </ChecklistPageShell>
+    );
   }
 
   const total = doc_.categories.length;
   const done = doc_.categories.filter(it => it.done).length;
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px", fontFamily: T.font }}>
-      <div style={{ fontWeight: 700, fontSize: 18, color: BRAND }}>Follow-Up Checklist</div>
-      <div style={{ fontSize: 13, color: T.gray600, marginTop: 4 }}>
-        {doc_.meta?.location} {doc_.meta?.lawson ? `(#${doc_.meta.lawson})` : ""} — visited {doc_.meta?.date}
-      </div>
-      <div style={{ fontSize: 13, color: T.gray600, marginTop: 2 }}>Specialist: {doc_.meta?.specialist}</div>
+    <ChecklistPageShell>
+      <div style={cardStyle(T.blue600)}>
+        <div style={{ padding: "20px 24px" }}>
+          <div style={{ fontWeight: 700, fontSize: 18, color: BRAND }}>Follow-Up Checklist</div>
+          <div style={{ fontSize: 13, color: T.gray600, marginTop: 4 }}>
+            {doc_.meta?.location} {doc_.meta?.lawson ? `(#${doc_.meta.lawson})` : ""} — visited {doc_.meta?.date}
+          </div>
+          <div style={{ fontSize: 13, color: T.gray600, marginTop: 2 }}>Specialist: {doc_.meta?.specialist}</div>
 
-      <div style={{ background: T.blue50, border: `1px solid ${T.blueBorder}`, borderRadius: 8, padding: "10px 14px", margin: "16px 0", fontSize: 13, fontWeight: 600, color: BRAND }}>
-        {total === 0 ? "No outstanding items — nice work!" : `${done} of ${total} items complete`}
-      </div>
+          <div style={{ background: T.blue50, border: `1px solid ${T.blueBorder}`, borderRadius: T.radius, padding: "10px 14px", margin: "16px 0", fontSize: 13, fontWeight: 600, color: BRAND }}>
+            {total === 0 ? "No outstanding items — nice work!" : `${done} of ${total} items complete`}
+          </div>
 
-      {total === 0 ? null : CHECKLIST_CATEGORY_ORDER.map(cat => {
-        const catItems = doc_.categories.filter(it => it.category === cat);
-        if (catItems.length === 0) return null;
-        // Group items by subheader, preserving insertion order
-        const subheaders = [];
-        const bySubheader = {};
-        catItems.forEach(item => {
-          const sh = item.subheader || "";
-          if (!bySubheader[sh]) { subheaders.push(sh); bySubheader[sh] = []; }
-          bySubheader[sh].push(item);
-        });
-        return (
-          <div key={cat} style={{ marginBottom: 22 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{cat}</div>
-            {subheaders.map(sh => (
-              <div key={sh} style={{ marginBottom: 12 }}>
-                {sh && <div style={{ fontSize: 13, fontWeight: 600, color: T.gray700, marginBottom: 4, paddingBottom: 3, borderBottom: `2px solid ${BRAND}` }}>{sh}</div>}
-                {bySubheader[sh].map(item => (
-                  <label key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
-                    <input type="checkbox" checked={!!item.done} onChange={() => toggleItem(item.id)} style={{ marginTop: 3, width: 16, height: 16 }} />
-                    <span style={{ fontSize: 14, color: item.done ? T.gray500 : T.ink, textDecoration: item.done ? "line-through" : "none" }}>
-                      {item.text}{item.comment ? <span style={{ color: T.gray600 }}> — {item.comment}</span> : null}
-                    </span>
-                  </label>
+          {total === 0 ? null : CHECKLIST_CATEGORY_ORDER.map(cat => {
+            const catItems = doc_.categories.filter(it => it.category === cat);
+            if (catItems.length === 0) return null;
+            // Group items by subheader, preserving insertion order
+            const subheaders = [];
+            const bySubheader = {};
+            catItems.forEach(item => {
+              const sh = item.subheader || "";
+              if (!bySubheader[sh]) { subheaders.push(sh); bySubheader[sh] = []; }
+              bySubheader[sh].push(item);
+            });
+            return (
+              <div key={cat} style={{ marginBottom: 22 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{cat}</div>
+                {subheaders.map(sh => (
+                  <div key={sh} style={{ marginBottom: 12 }}>
+                    {sh && <div style={{ fontSize: 13, fontWeight: 600, color: T.gray700, marginBottom: 4, paddingBottom: 3, borderBottom: `2px solid ${BRAND}` }}>{sh}</div>}
+                    {bySubheader[sh].map(item => (
+                      <label key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.gray200}`, cursor: "pointer" }}>
+                        <input type="checkbox" checked={!!item.done} onChange={() => toggleItem(item.id)} style={{ marginTop: 3, width: 16, height: 16 }} />
+                        <span style={{ fontSize: 14, color: item.done ? T.gray500 : T.ink, textDecoration: item.done ? "line-through" : "none" }}>
+                          {item.text}{item.comment ? <span style={{ color: T.gray600 }}> — {item.comment}</span> : null}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 ))}
               </div>
-            ))}
-          </div>
-        );
-      })}
+            );
+          })}
 
-      <div style={{ marginTop: 20 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
-          Notes {savingNotes ? <span style={{ fontWeight: 400, color: T.gray500, textTransform: "none" }}>(saving…)</span> : null}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+              Notes {savingNotes ? <span style={{ fontWeight: 400, color: T.gray500, textTransform: "none" }}>(saving…)</span> : null}
+            </div>
+            <textarea
+              value={notes}
+              onChange={e => onNotesChange(e.target.value)}
+              rows={4}
+              placeholder="Add any notes for the accreditation specialist…"
+              style={{ width: "100%", fontSize: 13, padding: 10, border: `1px solid ${T.gray200}`, borderRadius: T.radius, resize: "vertical", boxSizing: "border-box", color: T.ink, fontFamily: "inherit" }}
+            />
+          </div>
         </div>
-        <textarea
-          value={notes}
-          onChange={e => onNotesChange(e.target.value)}
-          rows={4}
-          placeholder="Add any notes for the accreditation specialist…"
-          style={{ width: "100%", fontSize: 13, padding: 10, border: `1px solid ${T.gray200}`, borderRadius: 6, resize: "vertical", boxSizing: "border-box", color: T.ink }}
-        />
       </div>
-    </div>
+    </ChecklistPageShell>
   );
 }
 

@@ -6,8 +6,113 @@ import { db, auth } from "./firebase";
 import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, where, orderBy, limit, writeBatch } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
 
-const BRAND = "#1a3a5c";
-const ACCENT = "#2e6da4";
+// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
+// Rotech Healthcare design system. Every colour/radius/shadow in the UI comes
+// from here — reach for a token rather than a literal hex so a palette change
+// stays a one-line edit.
+// ─────────────────────────────────────────────────────────────────────────────
+const T = {
+  blue600: "#0053a1", // primary
+  blue700: "#00468a",
+  blue800: "#003a70", // hover / deep
+  blue400: "#3d83cc",
+  blue50:  "#eef4fb", // tint bg
+  blueBorder: "#dbe8f6", // hairline on tinted blue surfaces (report tables)
+  teal:    "#00a0c6",
+  tealDeep:"#00768f", // teal text on white — the raw teal fails contrast
+  success: "#1d7a4d", successBg: "#e7f4ec", successBorder: "#8fc9a3",
+  error:   "#c0392b", errorBg:   "#fbeae7", errorBorder:   "#e0a099",
+  warning: "#b06a00", warningBg: "#fbf0db",
+  ink:     "#131922", // body text
+  gray700: "#424b56", // secondary text
+  gray600: "#5d6773",
+  gray500: "#7c8794", // muted
+  gray400: "#9ba5b2",
+  gray300: "#c5ccd5", // borders
+  gray200: "#e1e6ec", // hairline
+  gray100: "#eef1f5",
+  gray50:  "#f6f8fa",
+  white:   "#ffffff",
+
+  font: "'Source Sans 3', system-ui, sans-serif",
+  radius:     8,   // buttons / inputs
+  radiusCard: 12,  // cards
+  radiusPill: 999,
+  shadowCard: "0 1px 3px rgba(19,25,34,.08), 0 1px 2px rgba(19,25,34,.04)",
+  shadowSoft: "0 1px 3px rgba(19,25,34,.06)",
+  focusRing:  "0 0 0 3px rgba(0,83,161,.30)",
+};
+
+// Reusable card chrome — white surface, hairline border, soft shadow. The
+// `accent` argument draws the 5px top rule that identifies the card's module.
+function cardStyle(accent) {
+  return {
+    background: T.white,
+    border: `1px solid ${T.gray200}`,
+    borderRadius: T.radiusCard,
+    boxShadow: T.shadowCard,
+    overflow: "hidden",
+    ...(accent ? { borderTop: `5px solid ${accent}` } : null),
+  };
+}
+
+// Lucide icons, inlined as SVG rather than pulled from the unpkg UMD bundle the
+// design handoff suggests: this app is an offline-capable PWA, and a CDN
+// <script> plus a post-render lucide.createIcons() sweep would both break
+// offline and fight React's ownership of the DOM. Paths are Lucide's own
+// (ISC licensed); add new glyphs to this map as screens need them.
+const ICON_PATHS = {
+  home:            'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z|M9 22V12h6v10',
+  "clipboard-list":'M8 2h8v4H8z|M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2|M12 11h4|M12 16h4|M8 11h.01|M8 16h.01',
+  "file-text":     'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z|M14 2v4a2 2 0 0 0 2 2h4|M10 9H8|M16 13H8|M16 17H8',
+  "trending-up":   'M22 7l-8.5 8.5-5-5L2 17|M16 7h6v6',
+  history:         'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8|M3 3v5h5|M12 7v5l4 2',
+  "book-open":     'M12 7v14|M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z',
+  "list-checks":   'M3 17l2 2 4-4|M3 7l2 2 4-4|M13 6h8|M13 12h8|M13 18h8',
+  "map-pin":       'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0|M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6',
+  "git-compare":   'M18 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6|M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6|M13 6h3a2 2 0 0 1 2 2v7|M11 18H8a2 2 0 0 1-2-2V9',
+  "check-circle":  'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20|M9 12l2 2 4-4',
+  "alert-circle":  'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20|M12 8v4|M12 16h.01',
+  clock:           'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20|M12 6v6l4 2',
+  search:          'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16|M21 21l-4.3-4.3',
+  save:            'M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z|M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7|M7 3v4a1 1 0 0 0 1 1h7',
+};
+
+function Icon({ name, size = 16, style }) {
+  const d = ICON_PATHS[name];
+  if (!d) return null;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ flexShrink: 0, ...style }}>
+      {d.split("|").map((p, i) => <path key={i} d={p} />)}
+    </svg>
+  );
+}
+
+// Shared form/button chrome. Spread these and override the one or two
+// properties that differ rather than restating the whole block.
+const metaLabel = {
+  display: "block", fontSize: 10.5, fontWeight: 700, color: T.gray600,
+  textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6,
+};
+const metaField = {
+  width: "100%", padding: "8px 10px", fontSize: 13.5, border: `1.5px solid ${T.gray300}`,
+  borderRadius: T.radius, color: T.ink, fontFamily: "inherit", background: T.white,
+  boxSizing: "border-box", outline: "none",
+};
+const btnPrimary = {
+  padding: "9px 16px", fontSize: 13, fontWeight: 600, background: T.blue600, color: T.white,
+  border: "none", borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+};
+const btnOutline = {
+  padding: "9px 16px", fontSize: 13, fontWeight: 600, background: T.white, color: T.blue600,
+  border: `1.5px solid ${T.blue600}`, borderRadius: T.radius, cursor: "pointer",
+  fontFamily: "inherit", whiteSpace: "nowrap",
+};
+
+const BRAND = T.blue600;
+const ACCENT = T.blue400;
 
 // Admins allowed to add/edit/delete Location Roster entries and Policy
 // Revision Dates (everyone else, any signed-in specialist, gets read-only
@@ -1859,6 +1964,22 @@ const SECTIONS = [
   }
 ];
 
+// The checklist tab rail runs SECTIONS first, then these fixed extras. Named
+// so the dashboard and header nav can jump straight to one without every
+// call site re-deriving `SECTIONS.length + n`.
+const TAB = {
+  op541:    SECTIONS.length,
+  op541t:   SECTIONS.length + 1,
+  jc427:    SECTIONS.length + 2,
+  policy:   SECTIONS.length + 3,
+  trends:   SECTIONS.length + 4,
+  followUp: SECTIONS.length + 5,
+  roster:   SECTIONS.length + 6,
+};
+// Reference tabs are read-only lookups rather than part of the visit's
+// checklist — "Checklist" in the header nav bounces off these back to tab 0.
+const REFERENCE_TABS = [TAB.policy, TAB.trends, TAB.followUp, TAB.roster];
+
 function initStates() {
   const s = {}, c = {};
   SECTIONS.forEach((sec, si) => sec.items.forEach((_, ii) => {
@@ -1868,10 +1989,12 @@ function initStates() {
   return { states: s, comments: c };
 }
 
+// `aria` is what a screen reader announces — "Y"/"N"/"N/A" alone are
+// meaningless out of context, so every answer button carries the long form.
 const STATUS_COLORS = {
-  yes: { bg: "#e8f5e9", border: "#66bb6a", text: "#2e7d32", label: "Y" },
-  no:  { bg: "#ffebee", border: "#ef5350", text: "#c62828", label: "N" },
-  na:  { bg: "#e0e0e0", border: "#757575", text: "#212121", label: "N/A" },
+  yes: { bg: T.successBg, border: T.successBorder, text: T.success, label: "Y",   aria: "Mark compliant" },
+  no:  { bg: T.errorBg,   border: T.errorBorder,   text: T.error,   label: "N",   aria: "Mark as issue" },
+  na:  { bg: T.gray100,   border: T.gray300,       text: T.gray600, label: "N/A", aria: "Mark not applicable" },
 };
 
 // ─── POLICY REVISION DATES ────────────────────────────────────────────────────
@@ -1933,7 +2056,7 @@ function ChecklistQrCode({ value }) {
     QRCode.toCanvas(canvasRef.current, value, { width: 160, margin: 1 }, () => {});
   }, [value]);
   if (!value) return null;
-  return <canvas ref={canvasRef} style={{ display: "block", marginTop: 12, border: "1px solid #e0e0e0", borderRadius: 6 }} />;
+  return <canvas ref={canvasRef} style={{ display: "block", marginTop: 12, border: `1px solid ${T.gray200}`, borderRadius: 6 }} />;
 }
 
 // Standalone follow-up checklist page, opened via ?checklist=<visitId>. Used by
@@ -1975,24 +2098,24 @@ function ChecklistView({ visitId }) {
   }
 
   if (doc_ === undefined) {
-    return <div style={{ padding: 40, textAlign: "center", color: "#9e9e9e", fontFamily: "system-ui, sans-serif" }}>Loading checklist…</div>;
+    return <div style={{ padding: 40, textAlign: "center", color: T.gray500, fontFamily: T.font }}>Loading checklist…</div>;
   }
   if (doc_ === null) {
-    return <div style={{ padding: 40, textAlign: "center", color: "#c62828", fontFamily: "system-ui, sans-serif" }}>Checklist not found. Double-check the link.</div>;
+    return <div style={{ padding: 40, textAlign: "center", color: T.error, fontFamily: T.font }}>Checklist not found. Double-check the link.</div>;
   }
 
   const total = doc_.categories.length;
   const done = doc_.categories.filter(it => it.done).length;
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px", fontFamily: T.font }}>
       <div style={{ fontWeight: 700, fontSize: 18, color: BRAND }}>Follow-Up Checklist</div>
-      <div style={{ fontSize: 13, color: "#616161", marginTop: 4 }}>
+      <div style={{ fontSize: 13, color: T.gray600, marginTop: 4 }}>
         {doc_.meta?.location} {doc_.meta?.lawson ? `(#${doc_.meta.lawson})` : ""} — visited {doc_.meta?.date}
       </div>
-      <div style={{ fontSize: 13, color: "#616161", marginTop: 2 }}>Specialist: {doc_.meta?.specialist}</div>
+      <div style={{ fontSize: 13, color: T.gray600, marginTop: 2 }}>Specialist: {doc_.meta?.specialist}</div>
 
-      <div style={{ background: "#f5f8fb", border: "1px solid #c5cfe0", borderRadius: 8, padding: "10px 14px", margin: "16px 0", fontSize: 13, fontWeight: 600, color: BRAND }}>
+      <div style={{ background: T.blue50, border: `1px solid ${T.blueBorder}`, borderRadius: 8, padding: "10px 14px", margin: "16px 0", fontSize: 13, fontWeight: 600, color: BRAND }}>
         {total === 0 ? "No outstanding items — nice work!" : `${done} of ${total} items complete`}
       </div>
 
@@ -2012,12 +2135,12 @@ function ChecklistView({ visitId }) {
             <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{cat}</div>
             {subheaders.map(sh => (
               <div key={sh} style={{ marginBottom: 12 }}>
-                {sh && <div style={{ fontSize: 13, fontWeight: 600, color: "#424242", marginBottom: 4, paddingBottom: 3, borderBottom: `2px solid ${BRAND}` }}>{sh}</div>}
+                {sh && <div style={{ fontSize: 13, fontWeight: 600, color: T.gray700, marginBottom: 4, paddingBottom: 3, borderBottom: `2px solid ${BRAND}` }}>{sh}</div>}
                 {bySubheader[sh].map(item => (
                   <label key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
                     <input type="checkbox" checked={!!item.done} onChange={() => toggleItem(item.id)} style={{ marginTop: 3, width: 16, height: 16 }} />
-                    <span style={{ fontSize: 14, color: item.done ? "#9e9e9e" : "#212121", textDecoration: item.done ? "line-through" : "none" }}>
-                      {item.text}{item.comment ? <span style={{ color: "#757575" }}> — {item.comment}</span> : null}
+                    <span style={{ fontSize: 14, color: item.done ? T.gray500 : T.ink, textDecoration: item.done ? "line-through" : "none" }}>
+                      {item.text}{item.comment ? <span style={{ color: T.gray600 }}> — {item.comment}</span> : null}
                     </span>
                   </label>
                 ))}
@@ -2029,14 +2152,14 @@ function ChecklistView({ visitId }) {
 
       <div style={{ marginTop: 20 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
-          Notes {savingNotes ? <span style={{ fontWeight: 400, color: "#9e9e9e", textTransform: "none" }}>(saving…)</span> : null}
+          Notes {savingNotes ? <span style={{ fontWeight: 400, color: T.gray500, textTransform: "none" }}>(saving…)</span> : null}
         </div>
         <textarea
           value={notes}
           onChange={e => onNotesChange(e.target.value)}
           rows={4}
           placeholder="Add any notes for the accreditation specialist…"
-          style={{ width: "100%", fontSize: 13, padding: 10, border: "1px solid #e0e0e0", borderRadius: 6, resize: "vertical", boxSizing: "border-box", color: "#212121" }}
+          style={{ width: "100%", fontSize: 13, padding: 10, border: `1px solid ${T.gray200}`, borderRadius: 6, resize: "vertical", boxSizing: "border-box", color: T.ink }}
         />
       </div>
     </div>
@@ -2124,22 +2247,22 @@ function PolicyDatesPanel({ policyDates, onReload }) {
     }
   }
 
-  const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%", boxSizing: "border-box" };
+  const inputStyle = { fontSize: 12, padding: "5px 8px", border: `1px solid ${T.gray200}`, borderRadius: 5, color: T.ink, background: "#fff", width: "100%", boxSizing: "border-box" };
   const cols = isAdmin ? "140px 1fr 130px 90px" : "140px 1fr 130px";
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 12, color: "#9e9e9e" }}>
+        <div style={{ fontSize: 12, color: T.gray500 }}>
           {entries.length} polic{entries.length !== 1 ? "ies" : "y"}{isAdmin ? " — edits apply immediately for all specialists" : " — read-only (contact an admin to request changes)"}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {isAdmin && (
-            <button onClick={loadMissingDefaults} disabled={seeding} title="Add any built-in default policies that aren't in this list yet" style={{ padding: "7px 14px", fontSize: 12, background: "#fff", color: "#e65100", border: "1px solid #e65100", borderRadius: 6, cursor: "pointer", fontWeight: 600, opacity: seeding ? 0.7 : 1 }}>
+            <button onClick={loadMissingDefaults} disabled={seeding} title="Add any built-in default policies that aren't in this list yet" style={{ padding: "7px 14px", fontSize: 12, background: "#fff", color: T.warning, border: `1px solid ${T.warning}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, opacity: seeding ? 0.7 : 1 }}>
               {seeding ? "Loading…" : "Load missing defaults"}
             </button>
           )}
-          <button onClick={() => setShowChanges(v => !v)} style={{ padding: "7px 14px", fontSize: 12, background: showChanges ? BRAND : "#fff", color: showChanges ? "#fff" : "#616161", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+          <button onClick={() => setShowChanges(v => !v)} style={{ padding: "7px 14px", fontSize: 12, background: showChanges ? BRAND : "#fff", color: showChanges ? "#fff" : T.gray600, border: `1px solid ${T.gray200}`, borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
             {showChanges ? "Hide" : "Show"} Recent Changes
           </button>
           {isAdmin && (
@@ -2151,25 +2274,25 @@ function PolicyDatesPanel({ policyDates, onReload }) {
       </div>
 
       {showChanges && (
-        <div style={{ background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 8, marginBottom: 14, overflow: "hidden" }}>
-          <div style={{ padding: "8px 14px", fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e0e0e0" }}>
+        <div style={{ background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: 8, marginBottom: 14, overflow: "hidden" }}>
+          <div style={{ padding: "8px 14px", fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `1px solid ${T.gray200}` }}>
             Recent Changes
           </div>
           {auditEntries.length === 0 ? (
-            <div style={{ padding: 14, fontSize: 13, color: "#9e9e9e" }}>No changes recorded yet.</div>
+            <div style={{ padding: 14, fontSize: 13, color: T.gray500 }}>No changes recorded yet.</div>
           ) : (
             <div style={{ maxHeight: 260, overflowY: "auto" }}>
               {auditEntries.map((e, i) => {
                 const isBulk = e.action === "load-defaults";
                 const label = isBulk ? `${e.after?.count ?? "?"} default polic${e.after?.count !== 1 ? "ies" : "y"} loaded` : (e.action === "delete" ? e.before?.name : e.after?.name);
-                const actionColor = e.action === "delete" ? "#c62828" : e.action === "create" ? "#2e7d32" : "#e65100";
+                const actionColor = e.action === "delete" ? T.error : e.action === "create" ? T.success : T.warning;
                 return (
                   <div key={i} style={{ padding: "8px 14px", fontSize: 12, borderTop: i > 0 ? "1px solid #f0f0f0" : "none", display: "flex", justifyContent: "space-between", gap: 10 }}>
                     <div>
                       <span style={{ fontWeight: 700, color: actionColor, textTransform: "uppercase", marginRight: 6 }}>{e.action}</span>
-                      <span style={{ color: "#424242" }}>{isBulk ? label : `${e.docId}${label ? ` — ${label}` : ""}`}</span>
+                      <span style={{ color: T.gray700 }}>{isBulk ? label : `${e.docId}${label ? ` — ${label}` : ""}`}</span>
                     </div>
-                    <div style={{ color: "#9e9e9e", whiteSpace: "nowrap" }}>
+                    <div style={{ color: T.gray500, whiteSpace: "nowrap" }}>
                       {e.user || e.userEmail || "unknown"} · {e.at ? new Date(e.at).toLocaleString("en-US") : "—"}
                     </div>
                   </div>
@@ -2183,68 +2306,68 @@ function PolicyDatesPanel({ policyDates, onReload }) {
       <input
         value={query} onChange={e => setQuery(e.target.value)}
         placeholder="Search by policy #, name, or date…"
-        style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 6, marginBottom: 14, boxSizing: "border-box", outline: "none", color: "#212121" }}
+        style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: `1px solid ${T.gray200}`, borderRadius: 6, marginBottom: 14, boxSizing: "border-box", outline: "none", color: T.ink }}
       />
 
       {editingKey && (
-        <div style={{ background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+        <div style={{ background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: 8, padding: 14, marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, marginBottom: 10 }}>{editingKey === "new" ? "New policy" : `Editing ${editingKey}`}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8, marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Policy #</div>
+              <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Policy #</div>
               <input value={draft.key} disabled={editingKey !== "new"} placeholder="Policy 2.2.1" onChange={e => setDraft(d => ({ ...d, key: e.target.value }))} style={inputStyle} />
             </div>
             <div>
-              <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Name</div>
+              <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Name</div>
               <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={inputStyle} />
             </div>
             <div>
-              <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Last Revised</div>
+              <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Last Revised</div>
               <input value={draft.rev} placeholder="MM.DD.YYYY" onChange={e => setDraft(d => ({ ...d, rev: e.target.value }))} style={inputStyle} />
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={saveEdit} disabled={saving} style={{ padding: "6px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>{saving ? "Saving…" : "Save"}</button>
-            <button onClick={cancelEdit} style={{ padding: "6px 14px", fontSize: 12, background: "#fff", border: "1px solid #e0e0e0", borderRadius: 5, cursor: "pointer", color: "#616161" }}>Cancel</button>
+            <button onClick={cancelEdit} style={{ padding: "6px 14px", fontSize: 12, background: "#fff", border: `1px solid ${T.gray200}`, borderRadius: 5, cursor: "pointer", color: T.gray600 }}>Cancel</button>
           </div>
         </div>
       )}
 
-      <div style={{ border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ border: `1px solid ${T.gray200}`, borderRadius: 8, overflow: "hidden" }}>
         {/* Header row */}
-        <div style={{ display: "grid", gridTemplateColumns: cols, background: "#1a3a5c", color: "#fff", padding: "9px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+        <div style={{ display: "grid", gridTemplateColumns: cols, background: T.blue800, color: "#fff", padding: "9px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
           <div>Policy #</div>
           <div>Name</div>
           <div style={{ textAlign: "center" }}>Last Revised</div>
           {isAdmin && <div></div>}
         </div>
         {filtered.length === 0 && (
-          <div style={{ padding: "24px", textAlign: "center", color: "#9e9e9e", fontSize: 13 }}>No policies match "{query}"</div>
+          <div style={{ padding: "24px", textAlign: "center", color: T.gray500, fontSize: 13 }}>No policies match "{query}"</div>
         )}
         {filtered.map(([key, val], i) => (
           <div key={key} style={{
             display: "grid", gridTemplateColumns: cols,
             padding: "9px 14px", fontSize: 13, alignItems: "center",
-            background: i % 2 === 0 ? "#fff" : "#f8f9fa",
+            background: i % 2 === 0 ? "#fff" : T.gray50,
             borderTop: "1px solid #f0f0f0"
           }}>
-            <div style={{ fontWeight: 600, color: "#1a3a5c", fontFamily: "monospace", fontSize: 12 }}>{key}</div>
-            <div style={{ color: "#424242" }}>{val.name}</div>
+            <div style={{ fontWeight: 600, color: T.blue800, fontFamily: "monospace", fontSize: 12 }}>{key}</div>
+            <div style={{ color: T.gray700 }}>{val.name}</div>
             <div style={{ textAlign: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 10, background: "#e8eef4", color: "#1a3a5c", border: "1px solid #c5d5e8" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 10, background: T.blue50, color: T.blue800, border: `1px solid ${T.blueBorder}` }}>
                 {val.rev}
               </span>
             </div>
             {isAdmin && (
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                <button onClick={() => startEdit(key, val)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 4, cursor: "pointer" }}>Edit</button>
-                <button onClick={() => removePolicy(key)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #ffcdd2", color: "#c62828", borderRadius: 4, cursor: "pointer" }}>✕</button>
+                <button onClick={() => startEdit(key, val)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: `1px solid ${T.gray200}`, borderRadius: 4, cursor: "pointer" }}>Edit</button>
+                <button onClick={() => removePolicy(key)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #ffcdd2", color: T.error, borderRadius: 4, cursor: "pointer" }}>✕</button>
               </div>
             )}
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 10, fontSize: 11, color: "#bdbdbd", textAlign: "right" }}>{filtered.length} of {entries.length} policies shown</div>
+      <div style={{ marginTop: 10, fontSize: 11, color: T.gray300, textAlign: "right" }}>{filtered.length} of {entries.length} policies shown</div>
     </div>
   );
 }
@@ -2295,28 +2418,28 @@ function FollowUpDashboard() {
     });
   }
 
-  const rowStyle = { background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8, padding: "12px 16px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" };
+  const rowStyle = { background: "#fff", border: `1px solid ${T.gray200}`, borderRadius: 8, padding: "12px 16px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" };
 
   function Row({ c }) {
     return (
       <div style={rowStyle}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#212121" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>
             {c.meta.location || "Unknown location"} {c.meta.lawson ? `(#${c.meta.lawson})` : ""}
           </div>
-          <div style={{ fontSize: 12, color: "#757575", marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: T.gray600, marginTop: 2 }}>
             Visited {c.meta.date || "—"} · {c.meta.specialist || "—"} · created {c.createdAt ? new Date(c.createdAt).toLocaleDateString("en-US") : "—"}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{
             fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 10,
-            background: c.remaining === 0 ? "#e8f5e9" : "#fff3e0",
-            color: c.remaining === 0 ? "#2e7d32" : "#e65100",
+            background: c.remaining === 0 ? T.successBg : T.warningBg,
+            color: c.remaining === 0 ? T.success : T.warning,
           }}>
             {c.remaining === 0 ? "✓ All complete" : `${c.remaining} of ${c.total} open`}
           </span>
-          <button onClick={() => copyLink(c.id)} style={{ padding: "6px 12px", fontSize: 12, background: copiedId === c.id ? "#e8f5e9" : "#fff", border: "1px solid #e0e0e0", borderRadius: 5, cursor: "pointer", color: copiedId === c.id ? "#2e7d32" : "#424242" }}>
+          <button onClick={() => copyLink(c.id)} style={{ padding: "6px 12px", fontSize: 12, background: copiedId === c.id ? T.successBg : "#fff", border: `1px solid ${T.gray200}`, borderRadius: 5, cursor: "pointer", color: copiedId === c.id ? T.success : T.gray700 }}>
             {copiedId === c.id ? "✓ Copied" : "Copy link"}
           </button>
           <a href={linkFor(c.id)} target="_blank" rel="noreferrer" style={{ padding: "6px 12px", fontSize: 12, background: BRAND, color: "#fff", borderRadius: 5, textDecoration: "none", fontWeight: 600 }}>
@@ -2328,16 +2451,16 @@ function FollowUpDashboard() {
   }
 
   if (loading) return (
-    <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
+    <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray500 }}>
       <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-      <div style={{ fontSize: 14, color: "#616161" }}>Loading follow-up checklists…</div>
+      <div style={{ fontSize: 14, color: T.gray600 }}>Loading follow-up checklists…</div>
     </div>
   );
 
   if (checklists.length === 0) return (
-    <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
+    <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray500 }}>
       <div style={{ fontSize: 38, marginBottom: 12 }}>📌</div>
-      <div style={{ fontSize: 16, fontWeight: 600, color: "#424242", marginBottom: 8 }}>No follow-up checklists yet</div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: T.gray700, marginBottom: 8 }}>No follow-up checklists yet</div>
       <div style={{ fontSize: 13 }}>Generate one from a visit's Report view — "Generate Follow-Up Checklist Link".</div>
     </div>
   );
@@ -2345,12 +2468,12 @@ function FollowUpDashboard() {
   return (
     <div style={{ padding: "16px 24px" }}>
       <div style={{ fontSize: 16, fontWeight: 700, color: BRAND, marginBottom: 4 }}>Follow-Up Dashboard</div>
-      <div style={{ fontSize: 12, color: "#9e9e9e", marginBottom: 16 }}>
+      <div style={{ fontSize: 12, color: T.gray500, marginBottom: 16 }}>
         {open.length} open · {completed.length} completed — every follow-up checklist ever generated, across all locations
       </div>
 
       {open.length === 0 && (
-        <div style={{ fontSize: 13, color: "#757575", padding: "12px 0" }}>No open follow-ups — everything's been checked off. 🎉</div>
+        <div style={{ fontSize: 13, color: T.gray600, padding: "12px 0" }}>No open follow-ups — everything's been checked off. 🎉</div>
       )}
       {open.map(c => <Row key={c.id} c={c} />)}
 
@@ -2457,7 +2580,7 @@ function LocationRoster({ locations, onReload }) {
     }
   }
 
-  const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%", boxSizing: "border-box" };
+  const inputStyle = { fontSize: 12, padding: "5px 8px", border: `1px solid ${T.gray200}`, borderRadius: 5, color: T.ink, background: "#fff", width: "100%", boxSizing: "border-box" };
   const fields = [["lawson", "Lawson #"], ["name", "Name"], ["city", "City"], ["state", "State"], ["region", "Region"], ["areaCode", "Area Code"], ["areaManager", "Area Manager"]];
 
   return (
@@ -2465,17 +2588,17 @@ function LocationRoster({ locations, onReload }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: BRAND }}>Location Roster</div>
-          <div style={{ fontSize: 12, color: "#9e9e9e", marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: T.gray500, marginTop: 2 }}>
             {locations.length} location{locations.length !== 1 ? "s" : ""}{isAdmin ? " — edits apply immediately for all specialists" : " — read-only (contact an admin to request changes)"}
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {isAdmin && (
-            <button onClick={restoreFromBackup} disabled={restoring} title={`Restore all ${LOCATIONS_BACKUP_SNAPSHOT.length} locations from the standing backup`} style={{ padding: "7px 14px", fontSize: 12, background: "#fff", color: "#e65100", border: "1px solid #e65100", borderRadius: 6, cursor: "pointer", fontWeight: 600, opacity: restoring ? 0.7 : 1 }}>
+            <button onClick={restoreFromBackup} disabled={restoring} title={`Restore all ${LOCATIONS_BACKUP_SNAPSHOT.length} locations from the standing backup`} style={{ padding: "7px 14px", fontSize: 12, background: "#fff", color: T.warning, border: `1px solid ${T.warning}`, borderRadius: 6, cursor: "pointer", fontWeight: 600, opacity: restoring ? 0.7 : 1 }}>
               {restoring ? "Restoring…" : "Restore from backup"}
             </button>
           )}
-          <button onClick={() => setShowChanges(v => !v)} style={{ padding: "7px 14px", fontSize: 12, background: showChanges ? BRAND : "#fff", color: showChanges ? "#fff" : "#616161", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+          <button onClick={() => setShowChanges(v => !v)} style={{ padding: "7px 14px", fontSize: 12, background: showChanges ? BRAND : "#fff", color: showChanges ? "#fff" : T.gray600, border: `1px solid ${T.gray200}`, borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
             {showChanges ? "Hide" : "Show"} Recent Changes
           </button>
           {isAdmin && (
@@ -2487,25 +2610,25 @@ function LocationRoster({ locations, onReload }) {
       </div>
 
       {showChanges && (
-        <div style={{ background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 8, marginBottom: 14, overflow: "hidden" }}>
-          <div style={{ padding: "8px 14px", fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e0e0e0" }}>
+        <div style={{ background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: 8, marginBottom: 14, overflow: "hidden" }}>
+          <div style={{ padding: "8px 14px", fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `1px solid ${T.gray200}` }}>
             Recent Changes
           </div>
           {auditEntries.length === 0 ? (
-            <div style={{ padding: 14, fontSize: 13, color: "#9e9e9e" }}>No changes recorded yet.</div>
+            <div style={{ padding: 14, fontSize: 13, color: T.gray500 }}>No changes recorded yet.</div>
           ) : (
             <div style={{ maxHeight: 260, overflowY: "auto" }}>
               {auditEntries.map((e, i) => {
                 const isRestore = e.action === "restore-from-backup";
                 const label = isRestore ? `${e.after?.count ?? "?"} location(s) restored` : (e.action === "delete" ? e.before?.name : e.after?.name);
-                const actionColor = e.action === "delete" ? "#c62828" : e.action === "create" ? "#2e7d32" : "#e65100";
+                const actionColor = e.action === "delete" ? T.error : e.action === "create" ? T.success : T.warning;
                 return (
                   <div key={i} style={{ padding: "8px 14px", fontSize: 12, borderTop: i > 0 ? "1px solid #f0f0f0" : "none", display: "flex", justifyContent: "space-between", gap: 10 }}>
                     <div>
                       <span style={{ fontWeight: 700, color: actionColor, textTransform: "uppercase", marginRight: 6 }}>{e.action}</span>
-                      <span style={{ color: "#424242" }}>{isRestore ? label : `#${e.docId}${label ? ` — ${label}` : ""}`}</span>
+                      <span style={{ color: T.gray700 }}>{isRestore ? label : `#${e.docId}${label ? ` — ${label}` : ""}`}</span>
                     </div>
-                    <div style={{ color: "#9e9e9e", whiteSpace: "nowrap" }}>
+                    <div style={{ color: T.gray500, whiteSpace: "nowrap" }}>
                       {e.user || e.userEmail || "unknown"} · {e.at ? new Date(e.at).toLocaleString("en-US") : "—"}
                     </div>
                   </div>
@@ -2517,33 +2640,33 @@ function LocationRoster({ locations, onReload }) {
       )}
 
       <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name, city, region, Lawson #, Area Manager…"
-        style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 6, marginBottom: 14, boxSizing: "border-box", color: "#212121" }} />
+        style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: `1px solid ${T.gray200}`, borderRadius: 6, marginBottom: 14, boxSizing: "border-box", color: T.ink }} />
 
       {editingLawson && (
-        <div style={{ background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+        <div style={{ background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: 8, padding: 14, marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, marginBottom: 10 }}>{editingLawson === "new" ? "New location" : `Editing #${editingLawson}`}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8, marginBottom: 10 }}>
             {fields.map(([k, label]) => (
               <div key={k}>
-                <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>{label}</div>
+                <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>{label}</div>
                 <input value={draft[k]} disabled={k === "lawson" && editingLawson !== "new"} onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))} style={inputStyle} />
               </div>
             ))}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={saveEdit} disabled={saving} style={{ padding: "6px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>{saving ? "Saving…" : "Save"}</button>
-            <button onClick={cancelEdit} style={{ padding: "6px 14px", fontSize: 12, background: "#fff", border: "1px solid #e0e0e0", borderRadius: 5, cursor: "pointer", color: "#616161" }}>Cancel</button>
+            <button onClick={cancelEdit} style={{ padding: "6px 14px", fontSize: 12, background: "#fff", border: `1px solid ${T.gray200}`, borderRadius: 5, cursor: "pointer", color: T.gray600 }}>Cancel</button>
           </div>
         </div>
       )}
 
-      <div style={{ border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ border: `1px solid ${T.gray200}`, borderRadius: 8, overflow: "hidden" }}>
         <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 140px 70px 70px 1fr 90px", background: BRAND, color: "#fff", padding: "9px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
           <div>Lawson #</div><div>Name</div><div>City, State</div><div>Region</div><div>Area</div><div>Area Manager</div><div></div>
         </div>
-        {sorted.length === 0 && <div style={{ padding: 24, textAlign: "center", color: "#9e9e9e", fontSize: 13 }}>No locations match "{query}"</div>}
+        {sorted.length === 0 && <div style={{ padding: 24, textAlign: "center", color: T.gray500, fontSize: 13 }}>No locations match "{query}"</div>}
         {sorted.map((l, i) => (
-          <div key={l.lawson} style={{ display: "grid", gridTemplateColumns: "90px 1fr 140px 70px 70px 1fr 90px", padding: "8px 14px", fontSize: 13, alignItems: "center", background: i % 2 === 0 ? "#fff" : "#f8f9fa", borderTop: "1px solid #f0f0f0" }}>
+          <div key={l.lawson} style={{ display: "grid", gridTemplateColumns: "90px 1fr 140px 70px 70px 1fr 90px", padding: "8px 14px", fontSize: 13, alignItems: "center", background: i % 2 === 0 ? "#fff" : T.gray50, borderTop: "1px solid #f0f0f0" }}>
             <div style={{ fontFamily: "monospace", fontSize: 12 }}>{l.lawson}</div>
             <div>{l.name}</div>
             <div>{l.city}, {l.state}</div>
@@ -2551,8 +2674,8 @@ function LocationRoster({ locations, onReload }) {
             <div>{l.areaCode}</div>
             <div>{l.areaManager}</div>
             <div style={{ display: "flex", gap: 6 }}>
-              {isAdmin && <button onClick={() => startEdit(l)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 4, cursor: "pointer" }}>Edit</button>}
-              {isAdmin && <button onClick={() => removeLocation(l.lawson)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #ffcdd2", color: "#c62828", borderRadius: 4, cursor: "pointer" }}>✕</button>}
+              {isAdmin && <button onClick={() => startEdit(l)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: `1px solid ${T.gray200}`, borderRadius: 4, cursor: "pointer" }}>Edit</button>}
+              {isAdmin && <button onClick={() => removeLocation(l.lawson)} style={{ fontSize: 11, padding: "3px 8px", background: "#fff", border: "1px solid #ffcdd2", color: T.error, borderRadius: 4, cursor: "pointer" }}>✕</button>}
             </div>
           </div>
         ))}
@@ -2589,8 +2712,8 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
     .map(cat => ({ cat, items: items.filter(it => it.category === cat) }))
     .filter(g => g.items.length > 0);
 
-  const fieldStyle = { width: "100%", fontSize: 13, padding: "6px 8px", border: "1px solid #e0e0e0", borderRadius: 4, boxSizing: "border-box", color: "#212121" };
-  const labelStyle = { fontSize: 11, color: "#616161", marginBottom: 4, fontWeight: 600 };
+  const fieldStyle = { width: "100%", fontSize: 13, padding: "6px 8px", border: `1px solid ${T.gray200}`, borderRadius: 4, boxSizing: "border-box", color: T.ink };
+  const labelStyle = { fontSize: 11, color: T.gray600, marginBottom: 4, fontWeight: 600 };
 
   return (
     <div style={{ marginTop: 24 }}>
@@ -2601,10 +2724,10 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
       {slots.map((s, idx) => {
         const sid = slotId(s);
         return (
-          <div key={sid} style={{ border: "1px solid #e0e0e0", borderRadius: 8, padding: 16, marginBottom: 16, background: "#fff" }}>
+          <div key={sid} style={{ border: `1px solid ${T.gray200}`, borderRadius: 8, padding: 16, marginBottom: 16, background: "#fff" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontWeight: 700, color: BRAND, fontSize: 14 }}>Employee {idx + 1}</div>
-              <button onClick={() => onRemoveEmployee(s)} style={{ fontSize: 11, color: "#c62828", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+              <button onClick={() => onRemoveEmployee(s)} style={{ fontSize: 11, color: T.error, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                 Remove
               </button>
             </div>
@@ -2625,22 +2748,22 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
             </div>
 
             {groups.map(({ cat, items: catItems }) => (
-              <div key={cat} style={{ background: "#e8f5e9", border: "1px solid #c8e6c9", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, color: "#2e7d32", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{cat}</div>
+              <div key={cat} style={{ background: T.successBg, border: "1px solid #c8e6c9", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, color: T.success, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{cat}</div>
                 {catItems.map(item => {
                   const key = `${item.key}|${sid}`;
                   return (
                     <div key={item.key} style={{ padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                        <div style={{ fontSize: 12, color: "#212121", flex: 1 }}>{item.text}</div>
+                        <div style={{ fontSize: 12, color: T.ink, flex: 1 }}>{item.text}</div>
                         {item.answerType === "yn" ? (
                           <div style={{ display: "flex", gap: 4 }}>
                             {["yes", "no", "na"].map(v => {
                               const sc = STATUS_COLORS[v];
                               const active = answers[key] === v;
                               return (
-                                <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))}
-                                  style={{ width: 40, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? sc.border : "#e0e0e0"}`, background: active ? sc.bg : "#fff", color: active ? sc.text : "#9e9e9e" }}>
+                                <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))} aria-label={sc.aria} aria-pressed={active}
+                                  style={{ width: 40, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 6, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${active ? sc.border : T.gray200}`, background: active ? sc.bg : T.white, color: active ? sc.text : T.gray400 }}>
                                   {sc.label}
                                 </button>
                               );
@@ -2651,7 +2774,7 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
                             type="date"
                             value={usDateToIso(dates[key])}
                             onChange={e => setDates(p => ({ ...p, [key]: isoToUsDate(e.target.value) }))}
-                            style={{ fontSize: 12, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, boxSizing: "border-box", color: "#212121" }}
+                            style={{ fontSize: 12, padding: "4px 6px", border: `1px solid ${T.gray200}`, borderRadius: 4, boxSizing: "border-box", color: T.ink }}
                           />
                         )}
                       </div>
@@ -2660,7 +2783,7 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
                         onChange={e => setComments(p => ({ ...p, [item.key]: e.target.value }))}
                         rows={1}
                         placeholder="Comments (shared across all employees)…"
-                        style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: "#212121" }}
+                        style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: `1px solid ${T.gray200}`, borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: T.ink }}
                       />
                     </div>
                   );
@@ -2686,8 +2809,8 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
 // 3-year/6-month-warning red/yellow/green coloring that app uses; per-item
 // comments are shared across employees (one Comments column per row in the
 // real file, same convention as OP 541T's Personnel Records).
-const JC427_STATUS_BG     = { red: "#ffebee", yellow: "#fff9c4", green: "#e8f5e9" };
-const JC427_STATUS_BORDER = { red: "#ef9a9a", yellow: "#fff59d", green: "#a5d6a7" };
+const JC427_STATUS_BG     = { red: T.errorBg, yellow: "#fff9c4", green: T.successBg };
+const JC427_STATUS_BORDER = { red: T.errorBorder, yellow: "#fff59d", green: T.successBorder };
 
 function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments, onAddEmployee, onRemoveEmployee, onUpdateSlot, canAddEmployee }) {
   const slotId = s => `${s.sheetName}|${s.col}`;
@@ -2696,8 +2819,8 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
     .filter(g => g.items.length > 0);
   const [showInstructions, setShowInstructions] = useState(false);
 
-  const fieldStyle = { width: "100%", fontSize: 13, padding: "6px 8px", border: "1px solid #e0e0e0", borderRadius: 4, boxSizing: "border-box", color: "#212121" };
-  const labelStyle = { fontSize: 11, color: "#616161", marginBottom: 4, fontWeight: 600 };
+  const fieldStyle = { width: "100%", fontSize: 13, padding: "6px 8px", border: `1px solid ${T.gray200}`, borderRadius: 4, boxSizing: "border-box", color: T.ink };
+  const labelStyle = { fontSize: 11, color: T.gray600, marginBottom: 4, fontWeight: 600 };
 
   return (
     <div style={{ marginTop: 24 }}>
@@ -2708,7 +2831,7 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
         </button>
       </div>
 
-      <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 6, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#7a5c00", textAlign: "center" }}>
+      <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 6, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: T.warning, textAlign: "center" }}>
         ALL employees MUST have a Personnel File and a SEPARATE Medical File. Employees transfilling or curbside filling liquid oxygen MUST have a SEPARATE FDA File.
       </div>
 
@@ -2718,7 +2841,7 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
           <div key={sid} style={{ border: `2px solid ${BRAND}`, borderRadius: 8, padding: 16, marginBottom: 16, background: "#fff" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontWeight: 700, color: BRAND, fontSize: 14 }}>Employee {idx + 1}{s.name ? `: ${s.name}` : ""}</div>
-              <button onClick={() => onRemoveEmployee(s)} style={{ fontSize: 11, color: "#c62828", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+              <button onClick={() => onRemoveEmployee(s)} style={{ fontSize: 11, color: T.error, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                 Remove
               </button>
             </div>
@@ -2739,8 +2862,8 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
             </div>
 
             {groups.map(({ cat, items: catItems }) => (
-              <div key={cat} style={{ background: "#e8f5e9", border: "1px solid #c8e6c9", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, color: "#2e7d32", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{cat}</div>
+              <div key={cat} style={{ background: T.successBg, border: "1px solid #c8e6c9", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, color: T.success, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{cat}</div>
                 {catItems.map(item => {
                   const key = `${item.id}|${sid}`;
                   const dateVal = dates[key] || "";
@@ -2748,9 +2871,9 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
                   return (
                     <div key={item.id} style={{ padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                        <div style={{ fontSize: 12, color: "#212121", flex: 1 }}>
+                        <div style={{ fontSize: 12, color: T.ink, flex: 1 }}>
                           {item.text}
-                          {item.note && <div style={{ fontSize: 10, color: "#9e9e9e", fontStyle: "italic", marginTop: 2 }}>{item.note}</div>}
+                          {item.note && <div style={{ fontSize: 10, color: T.gray500, fontStyle: "italic", marginTop: 2 }}>{item.note}</div>}
                         </div>
                         {item.answerType === "yn" ? (
                           <div style={{ display: "flex", gap: 4 }}>
@@ -2758,8 +2881,8 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
                               const sc = STATUS_COLORS[v];
                               const active = answers[key] === v;
                               return (
-                                <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))}
-                                  style={{ width: 40, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? sc.border : "#e0e0e0"}`, background: active ? sc.bg : "#fff", color: active ? sc.text : "#9e9e9e" }}>
+                                <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))} aria-label={sc.aria} aria-pressed={active}
+                                  style={{ width: 40, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 6, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${active ? sc.border : T.gray200}`, background: active ? sc.bg : T.white, color: active ? sc.text : T.gray400 }}>
                                   {sc.label}
                                 </button>
                               );
@@ -2771,8 +2894,8 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
                             value={usDateToIso(dateVal)}
                             onChange={e => setDates(p => ({ ...p, [key]: isoToUsDate(e.target.value) }))}
                             style={{
-                              fontSize: 12, padding: "4px 6px", borderRadius: 4, boxSizing: "border-box", color: "#212121",
-                              border: `1px solid ${status ? JC427_STATUS_BORDER[status] : "#e0e0e0"}`,
+                              fontSize: 12, padding: "4px 6px", borderRadius: 4, boxSizing: "border-box", color: T.ink,
+                              border: `1px solid ${status ? JC427_STATUS_BORDER[status] : T.gray200}`,
                               background: status ? JC427_STATUS_BG[status] : "#fff",
                             }}
                           />
@@ -2783,7 +2906,7 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
                         onChange={e => setComments(p => ({ ...p, [item.id]: e.target.value }))}
                         rows={1}
                         placeholder="Comments (added as a note on each employee's cell for this item)…"
-                        style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: "#212121" }}
+                        style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: `1px solid ${T.gray200}`, borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: T.ink }}
                       />
                     </div>
                   );
@@ -2804,14 +2927,14 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
       {showInstructions && (
         <div onClick={() => setShowInstructions(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, maxWidth: 640, width: "100%", maxHeight: "85vh", overflowY: "auto", padding: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #e0e0e0", paddingBottom: 10 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#212121" }}>JC 427 Instructions</div>
-              <button onClick={() => setShowInstructions(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#757575", lineHeight: 1 }}>×</button>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: `1px solid ${T.gray200}`, paddingBottom: 10 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: T.ink }}>JC 427 Instructions</div>
+              <button onClick={() => setShowInstructions(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: T.gray600, lineHeight: 1 }}>×</button>
             </div>
             {JC427_INSTRUCTIONS.map((s, i) => (
               <div key={i} style={{ marginBottom: 14 }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: "#212121" }}>{s.title}</div>
-                <div style={{ fontSize: 12, color: "#616161", whiteSpace: "pre-line", marginTop: 3 }}>{s.body}</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: T.ink }}>{s.title}</div>
+                <div style={{ fontSize: 12, color: T.gray600, whiteSpace: "pre-line", marginTop: 3 }}>{s.body}</div>
               </div>
             ))}
           </div>
@@ -2959,21 +3082,21 @@ function TrendTracker() {
   function exportPDF() {
     window.print();
   }
-  const inputStyle = { fontSize: 12, padding: "5px 8px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", background: "#fff", width: "100%" };
-  const cardStyle  = { background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8, overflow: "hidden", marginBottom: 16 };
+  const inputStyle = { fontSize: 12, padding: "5px 8px", border: `1px solid ${T.gray200}`, borderRadius: 5, color: T.ink, background: "#fff", width: "100%" };
+  const cardStyle  = { background: "#fff", border: `1px solid ${T.gray200}`, borderRadius: 8, overflow: "hidden", marginBottom: 16 };
   const headStyle  = { background: BRAND, color: "#fff", padding: "10px 16px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" };
 
   if (firestoreLoading) return (
-    <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
+    <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray500 }}>
       <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-      <div style={{ fontSize: 14, color: "#616161" }}>Loading company-wide trend data…</div>
+      <div style={{ fontSize: 14, color: T.gray600 }}>Loading company-wide trend data…</div>
     </div>
   );
 
   if (totalVisits === 0) return (
-    <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
+    <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray500 }}>
       <div style={{ fontSize: 38, marginBottom: 12 }}>📊</div>
-      <div style={{ fontSize: 16, fontWeight: 600, color: "#424242", marginBottom: 8 }}>No trend data yet</div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: T.gray700, marginBottom: 8 }}>No trend data yet</div>
       <div style={{ fontSize: 13 }}>Complete a visit and click "☑ Finalize Visit" to start tracking issue trends.</div>
     </div>
   );
@@ -2984,67 +3107,67 @@ function TrendTracker() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: BRAND }}>Issue Trend Analysis</div>
-          <div style={{ fontSize: 12, color: "#9e9e9e", marginTop: 2 }}>{totalVisits} visit{totalVisits !== 1 ? "s" : ""} tracked · {issues.length} total issues recorded</div>
+          <div style={{ fontSize: 12, color: T.gray500, marginTop: 2 }}>{totalVisits} visit{totalVisits !== 1 ? "s" : ""} tracked · {issues.length} total issues recorded</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={exportXLSX} style={{ padding: "7px 14px", fontSize: 12, background: "#1a6e35", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>⬇ Export XLSX</button>
+          <button onClick={exportXLSX} style={{ padding: "7px 14px", fontSize: 12, background: T.success, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>⬇ Export XLSX</button>
           <button onClick={exportPDF}  style={{ padding: "7px 14px", fontSize: 12, background: BRAND,     color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>🖨 Print / PDF</button>
         </div>
       </div>
 
       {/* Filters */}
-      <div style={{ background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+      <div style={{ background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Filter</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
           <div>
-            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Location</div>
+            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Location</div>
             <input list="locs" value={filterLoc} onChange={e => setFilterLoc(e.target.value)} placeholder="All locations" style={inputStyle} />
             <datalist id="locs">{allLocations.map(l => <option key={l} value={l} />)}</datalist>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Section</div>
+            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Section</div>
             <select value={filterSection} onChange={e => setFilterSection(e.target.value)} style={inputStyle}>
               <option value="">All sections</option>
               {allSections.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Specialist</div>
+            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Specialist</div>
             <select value={filterSpec} onChange={e => setFilterSpec(e.target.value)} style={inputStyle}>
               <option value="">All specialists</option>
               {allSpecialists.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Region</div>
+            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Region</div>
             <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} style={inputStyle}>
               <option value="">All regions</option>
               {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Area Manager</div>
+            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Area Manager</div>
             <select value={filterAM} onChange={e => setFilterAM(e.target.value)} style={inputStyle}>
               <option value="">All area managers</option>
               {allAMs.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Date From</div>
+            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Date From</div>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#757575", marginBottom: 3 }}>Date To</div>
+            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Date To</div>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={inputStyle} />
           </div>
           <div style={{ display: "flex", alignItems: "flex-end" }}>
             <button onClick={() => { setFilterLoc(""); setFilterSection(""); setFilterSpec(""); setFilterAM(""); setFilterRegion(""); setDateFrom(""); setDateTo(""); }}
-              style={{ width: "100%", padding: "5px 8px", fontSize: 12, background: "#fff", border: "1px solid #e0e0e0", borderRadius: 5, cursor: "pointer", color: "#616161" }}>
+              style={{ width: "100%", padding: "5px 8px", fontSize: 12, background: "#fff", border: `1px solid ${T.gray200}`, borderRadius: 5, cursor: "pointer", color: T.gray600 }}>
               Clear Filters
             </button>
           </div>
         </div>
-        <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 8 }}>Showing {filtered.length} issue{filtered.length !== 1 ? "s" : ""} across {visitIds.length} visit{visitIds.length !== 1 ? "s" : ""}</div>
+        <div style={{ fontSize: 11, color: T.gray500, marginTop: 8 }}>Showing {filtered.length} issue{filtered.length !== 1 ? "s" : ""} across {visitIds.length} visit{visitIds.length !== 1 ? "s" : ""}</div>
       </div>
 
 
@@ -3054,13 +3177,13 @@ function TrendTracker() {
           <div style={{ ...headStyle, background: "#b71c1c" }}>🔁 Recurring Issues — Same Item Failing at Same Location ({recurringItems.length})</div>
           <div style={{ padding: "12px 16px" }}>
             {recurringItems.map((r, i) => (
-              <div key={i} style={{ padding: "8px 12px", marginBottom: 6, background: "#fff8f8", border: "1px solid #ef9a9a", borderRadius: 6 }}>
+              <div key={i} style={{ padding: "8px 12px", marginBottom: 6, background: "#fff8f8", border: `1px solid ${T.errorBorder}`, borderRadius: 6 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#c62828", marginBottom: 2 }}>{r.loc}</div>
-                    <div style={{ fontSize: 13, color: "#212121", lineHeight: 1.4 }}>{r.item}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: T.error, marginBottom: 2 }}>{r.loc}</div>
+                    <div style={{ fontSize: 13, color: T.ink, lineHeight: 1.4 }}>{r.item}</div>
                   </div>
-                  <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "2px 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{r.count}× failed</span>
+                  <span style={{ background: T.errorBg, color: T.error, borderRadius: 10, padding: "2px 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{r.count}× failed</span>
                 </div>
               </div>
             ))}
@@ -3075,8 +3198,8 @@ function TrendTracker() {
             <span>📈 Monthly Issue Trend</span>
             {trendDirection && (
               <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 10,
-                background: trendDirection === "up" ? "#ffebee" : trendDirection === "down" ? "#e8f5e9" : "#f5f5f5",
-                color: trendDirection === "up" ? "#c62828" : trendDirection === "down" ? "#1a6e35" : "#757575" }}>
+                background: trendDirection === "up" ? T.errorBg : trendDirection === "down" ? T.successBg : T.gray100,
+                color: trendDirection === "up" ? T.error : trendDirection === "down" ? T.success : T.gray600 }}>
                 {trendDirection === "up" ? "▲ Trending up (last 3 mo)" : trendDirection === "down" ? "▼ Trending down (last 3 mo)" : "■ Flat (last 3 mo)"}
               </span>
             )}
@@ -3086,7 +3209,7 @@ function TrendTracker() {
               <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 36 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: BRAND, marginBottom: 4 }}>{count}</div>
                 <div style={{ width: 22, height: Math.max(4, (count / maxMonthCount) * 90), background: ACCENT, borderRadius: "3px 3px 0 0" }} />
-                <div style={{ fontSize: 10, color: "#9e9e9e", marginTop: 4, whiteSpace: "nowrap" }}>{monthLabel(key)}</div>
+                <div style={{ fontSize: 10, color: T.gray500, marginTop: 4, whiteSpace: "nowrap" }}>{monthLabel(key)}</div>
               </div>
             ))}
           </div>
@@ -3099,9 +3222,9 @@ function TrendTracker() {
           <div style={headStyle}>👤 Issues by Area Manager</div>
           <div style={{ padding: "12px 16px" }}>
             {topAMs.map(([am, count], i) => (
-              <div key={am} style={{ marginBottom: i < topAMs.length - 1 ? 12 : 0, paddingBottom: i < topAMs.length - 1 ? 12 : 0, borderBottom: i < topAMs.length - 1 ? "1px solid #f5f5f5" : "none" }}>
+              <div key={am} style={{ marginBottom: i < topAMs.length - 1 ? 12 : 0, paddingBottom: i < topAMs.length - 1 ? 12 : 0, borderBottom: i < topAMs.length - 1 ? `1px solid ${T.gray100}` : "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: am === "Unassigned" ? "#9e9e9e" : BRAND }}>{am}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: am === "Unassigned" ? T.gray500 : BRAND }}>{am}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <div style={{ width: Math.max(4, (count / (topAMs[0]?.[1] || 1)) * 80), height: 6, background: ACCENT, borderRadius: 3 }} />
                     <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, minWidth: 20, textAlign: "right" }}>{count}</span>
@@ -3109,7 +3232,7 @@ function TrendTracker() {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {Object.entries(amLocFreq[am] || {}).sort((a,b) => b[1]-a[1]).map(([loc, c]) => (
-                    <span key={loc} style={{ fontSize: 11, background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: 10, padding: "2px 10px", color: "#616161" }}>
+                    <span key={loc} style={{ fontSize: 11, background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: 10, padding: "2px 10px", color: T.gray600 }}>
                       {loc} <strong style={{ color: BRAND }}>{c}</strong>
                     </span>
                   ))}
@@ -3125,13 +3248,13 @@ function TrendTracker() {
         <div style={cardStyle}>
           <div style={headStyle}>Top Failing Items</div>
           <div style={{ padding: "12px 16px" }}>
-            {topItems.length === 0 && <div style={{ fontSize: 13, color: "#9e9e9e" }}>No issues in selected range.</div>}
+            {topItems.length === 0 && <div style={{ fontSize: 13, color: T.gray500 }}>No issues in selected range.</div>}
             {topItems.map(([text, count], i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < topItems.length - 1 ? "1px solid #f5f5f5" : "none", gap: 8 }}>
-                <div style={{ fontSize: 12, color: "#212121", lineHeight: 1.4, flex: 1 }}>{text}</div>
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < topItems.length - 1 ? `1px solid ${T.gray100}` : "none", gap: 8 }}>
+                <div style={{ fontSize: 12, color: T.ink, lineHeight: 1.4, flex: 1 }}>{text}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <div style={{ width: Math.max(4, (count / (topItems[0]?.[1] || 1)) * 60), height: 6, background: "#ef5350", borderRadius: 3 }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#c62828", minWidth: 20, textAlign: "right" }}>{count}</span>
+                  <div style={{ width: Math.max(4, (count / (topItems[0]?.[1] || 1)) * 60), height: 6, background: T.errorBorder, borderRadius: 3 }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: T.error, minWidth: 20, textAlign: "right" }}>{count}</span>
                 </div>
               </div>
             ))}
@@ -3142,10 +3265,10 @@ function TrendTracker() {
         <div style={cardStyle}>
           <div style={headStyle}>Locations by Issue Count</div>
           <div style={{ padding: "12px 16px" }}>
-            {topLocs.length === 0 && <div style={{ fontSize: 13, color: "#9e9e9e" }}>No issues in selected range.</div>}
+            {topLocs.length === 0 && <div style={{ fontSize: 13, color: T.gray500 }}>No issues in selected range.</div>}
             {topLocs.map(([loc, count], i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < topLocs.length - 1 ? "1px solid #f5f5f5" : "none", gap: 8 }}>
-                <div style={{ fontSize: 12, color: "#212121", flex: 1 }}>{loc}</div>
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < topLocs.length - 1 ? `1px solid ${T.gray100}` : "none", gap: 8 }}>
+                <div style={{ fontSize: 12, color: T.ink, flex: 1 }}>{loc}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                   <div style={{ width: Math.max(4, (count / (topLocs[0]?.[1] || 1)) * 60), height: 6, background: BRAND, borderRadius: 3 }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, minWidth: 20, textAlign: "right" }}>{count}</span>
@@ -3160,11 +3283,11 @@ function TrendTracker() {
       <div style={cardStyle}>
         <div style={headStyle}>Issues by Checklist Section</div>
         <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
-          {topSections.length === 0 && <div style={{ fontSize: 13, color: "#9e9e9e" }}>No issues in selected range.</div>}
+          {topSections.length === 0 && <div style={{ fontSize: 13, color: T.gray500 }}>No issues in selected range.</div>}
           {topSections.map(([sec, count], i) => (
-            <div key={i} style={{ padding: "8px 12px", background: "#f8f9fa", borderRadius: 6, border: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 12, color: "#424242" }}>{sec}</div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, background: "#e8eef4", borderRadius: 10, padding: "1px 8px" }}>{count}</span>
+            <div key={i} style={{ padding: "8px 12px", background: T.gray50, borderRadius: 6, border: `1px solid ${T.gray200}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: T.gray700 }}>{sec}</div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, background: T.blue50, borderRadius: 10, padding: "1px 8px" }}>{count}</span>
             </div>
           ))}
         </div>
@@ -3176,26 +3299,26 @@ function TrendTracker() {
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
-              <tr style={{ background: "#f8f9fa" }}>
+              <tr style={{ background: T.gray50 }}>
                 {["Date","Location","Region","Area Manager","Section","Item","Comment","Specialist"].map(h => (
-                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#424242", borderBottom: "1px solid #e0e0e0", whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: T.gray700, borderBottom: `1px solid ${T.gray200}`, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: "20px", textAlign: "center", color: "#9e9e9e" }}>No issues match the current filters.</td></tr>
+                <tr><td colSpan={8} style={{ padding: "20px", textAlign: "center", color: T.gray500 }}>No issues match the current filters.</td></tr>
               )}
               {filtered.map((r, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                  <td style={{ padding: "7px 12px", whiteSpace: "nowrap", color: "#616161" }}>{r.date}</td>
+                <tr key={i} style={{ borderBottom: `1px solid ${T.gray100}`, background: i % 2 === 0 ? "#fff" : T.gray50 }}>
+                  <td style={{ padding: "7px 12px", whiteSpace: "nowrap", color: T.gray600 }}>{r.date}</td>
                   <td style={{ padding: "7px 12px", fontWeight: 600, color: BRAND }}>{r.location}</td>
-                  <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.region || "—"}</td>
-                  <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.areaManager || "Unassigned"}</td>
-                  <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.section}</td>
-                  <td style={{ padding: "7px 12px", color: "#212121", lineHeight: 1.4 }}>{r.itemText}</td>
-                  <td style={{ padding: "7px 12px", color: "#757575", fontStyle: r.comment ? "normal" : "italic" }}>{r.comment || "—"}</td>
-                  <td style={{ padding: "7px 12px", color: "#616161", whiteSpace: "nowrap" }}>{r.specialist}</td>
+                  <td style={{ padding: "7px 12px", color: T.gray600, whiteSpace: "nowrap" }}>{r.region || "—"}</td>
+                  <td style={{ padding: "7px 12px", color: T.gray600, whiteSpace: "nowrap" }}>{r.areaManager || "Unassigned"}</td>
+                  <td style={{ padding: "7px 12px", color: T.gray600, whiteSpace: "nowrap" }}>{r.section}</td>
+                  <td style={{ padding: "7px 12px", color: T.ink, lineHeight: 1.4 }}>{r.itemText}</td>
+                  <td style={{ padding: "7px 12px", color: T.gray600, fontStyle: r.comment ? "normal" : "italic" }}>{r.comment || "—"}</td>
+                  <td style={{ padding: "7px 12px", color: T.gray600, whiteSpace: "nowrap" }}>{r.specialist}</td>
                 </tr>
 
               ))}
@@ -3232,9 +3355,9 @@ function UpdateBanner() {
   if (!needRefresh) return null;
 
   return (
-    <div style={{ position: "sticky", top: 0, zIndex: 1000, background: "#7a4a00", color: "#fff", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+    <div style={{ position: "sticky", top: 0, zIndex: 1000, background: T.warning, color: "#fff", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
       <span>A new version of Survey Prep is available.</span>
-      <button onClick={() => updateServiceWorker(true)} style={{ padding: "6px 14px", fontSize: 12, fontWeight: 700, background: "#fff", color: "#7a4a00", border: "none", borderRadius: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
+      <button onClick={() => updateServiceWorker(true)} style={{ padding: "6px 14px", fontSize: 12, fontWeight: 700, background: "#fff", color: T.warning, border: "none", borderRadius: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
         Update Now
       </button>
     </div>
@@ -3297,32 +3420,34 @@ function AuthGate({ children }) {
     }
   }
 
-  const cardStyle = { background: "rgb(233, 239, 253)", border: "1px solid #e0e0e0", borderRadius: 10, padding: "32px 28px", width: 320, boxShadow: "0 14px 12px rgba(0, 3, 26, 0.06)" };
-  const fieldLabel = { fontSize: 11, color: "#757575", marginBottom: 4 };
-  const fieldInput = { width: "100%", padding: "8px 10px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 6, boxSizing: "border-box", color: "#080aaf" };
-  const submitBtn = busy => ({ width: "100%", padding: "9px 0", fontSize: 13, fontWeight: 600, background: BRAND, color: "#ced1ff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1 });
+  // Named authCard rather than cardStyle so it doesn't shadow the shared
+  // card helper — this one is the narrow centred sign-in panel.
+  const authCard = { background: T.white, border: `1px solid ${T.gray200}`, borderTop: `5px solid ${T.blue600}`, borderRadius: T.radiusCard, padding: "32px 28px", width: 340, boxShadow: T.shadowCard };
+  const fieldLabel = { display: "block", fontSize: 10.5, fontWeight: 700, color: T.gray600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 };
+  const fieldInput = { width: "100%", padding: "8px 10px", fontSize: 13.5, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, boxSizing: "border-box", color: T.ink, fontFamily: "inherit", outline: "none" };
+  const submitBtn = busy => ({ width: "100%", padding: "11px 0", fontSize: 14, fontWeight: 700, background: T.blue600, color: T.white, border: "none", borderRadius: T.radius, cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1, fontFamily: "inherit" });
 
   if (user === undefined) {
-    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#9e9e9e", fontFamily: "system-ui, sans-serif" }}>Loading…</div>;
+    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: T.gray500, fontFamily: T.font }}>Loading…</div>;
   }
 
   if (!user) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f5f7fa", fontFamily: "system-ui, sans-serif" }}>
-        <form onSubmit={handleSignIn} style={cardStyle}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: BRAND, marginBottom: 4 }}>Rotech Survey Prep</div>
-          <div style={{ fontSize: 13, color: "#757575", marginBottom: 20 }}>Sign in with your specialist account</div>
-          <div style={{ marginBottom: 12 }}>
-            <div style={fieldLabel}>Email</div>
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} style={fieldInput} />
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.gray50, fontFamily: T.font, padding: 16 }}>
+        <form onSubmit={handleSignIn} style={authCard}>
+          <div style={{ fontSize: 19, fontWeight: 800, color: T.ink, marginBottom: 4, letterSpacing: "-0.01em" }}>Rotech Survey Prep</div>
+          <div style={{ fontSize: 13, color: T.gray600, marginBottom: 20 }}>Sign in with your specialist account</div>
+          <div style={{ marginBottom: 14 }}>
+            <label htmlFor="auth-email" style={fieldLabel}>Email</label>
+            <input id="auth-email" type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} style={fieldInput} />
           </div>
-          <div style={{ marginBottom: 16 }}>
-            <div style={fieldLabel}>Password</div>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} style={fieldInput} />
+          <div style={{ marginBottom: 18 }}>
+            <label htmlFor="auth-password" style={fieldLabel}>Password</label>
+            <input id="auth-password" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} style={fieldInput} />
           </div>
-          {error && <div style={{ fontSize: 12, color: "#c62828", marginBottom: 12 }}>{error}</div>}
+          {error && <div role="alert" style={{ fontSize: 12.5, color: T.error, background: T.errorBg, border: `1px solid ${T.errorBorder}`, borderRadius: T.radius, padding: "8px 10px", marginBottom: 14 }}>{error}</div>}
           <button type="submit" disabled={signingIn} style={submitBtn(signingIn)}>{signingIn ? "Signing in…" : "Sign In"}</button>
-          <div style={{ fontSize: 11, color: "#020077", marginTop: 16, textAlign: "center" }}>No account? Request one by emailing accreditation@rotech.com</div>
+          <div style={{ fontSize: 11.5, color: T.gray500, marginTop: 16, textAlign: "center" }}>No account? Request one by emailing accreditation@rotech.com</div>
         </form>
       </div>
     );
@@ -3330,11 +3455,12 @@ function AuthGate({ children }) {
 
   if (!user.displayName) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f5f7fa", fontFamily: "system-ui, sans-serif" }}>
-        <form onSubmit={handleSetName} style={cardStyle}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: BRAND, marginBottom: 4 }}>Welcome!</div>
-          <div style={{ fontSize: 13, color: "#757575", marginBottom: 20 }}>What's your name? This appears as the Accreditation Specialist on reports and trend data.</div>
-          <input required value={nameInput} onChange={e => setNameInput(e.target.value)} placeholder="Full name" style={{ ...fieldInput, marginBottom: 16 }} />
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.gray50, fontFamily: T.font, padding: 16 }}>
+        <form onSubmit={handleSetName} style={authCard}>
+          <div style={{ fontSize: 19, fontWeight: 800, color: T.ink, marginBottom: 4, letterSpacing: "-0.01em" }}>Welcome</div>
+          <div style={{ fontSize: 13, color: T.gray600, marginBottom: 20 }}>What's your name? This appears as the Accreditation Specialist on reports and trend data.</div>
+          <label htmlFor="auth-name" style={fieldLabel}>Full name</label>
+          <input id="auth-name" required value={nameInput} onChange={e => setNameInput(e.target.value)} placeholder="Full name" style={{ ...fieldInput, marginBottom: 16 }} />
           <button type="submit" disabled={savingName} style={submitBtn(savingName)}>{savingName ? "Saving…" : "Continue"}</button>
         </form>
       </div>
@@ -3379,7 +3505,11 @@ function SurveyPrepApp() {
     if (draft?.states) return { states: draft.states, comments: draft.comments ?? {} };
     return initStates();
   });
-  const [view, setView] = useState("form");
+  // Landing screen after auth. "dashboard" is the entry point; the checklist,
+  // report and reference panels are reached from there or the header nav.
+  const [view, setView] = useState("dashboard");
+  // Live filter over the checklist tab rail — UI-only, never persisted.
+  const [tabSearch, setTabSearch] = useState("");
   const [emailText, setEmailText] = useState("");
   const [reportLines, setReportLines] = useState([]);
   const [copied, setCopied] = useState(false);
@@ -3391,7 +3521,7 @@ function SurveyPrepApp() {
   // view on long checklists, so surface a fixed one once it's off-screen.
   const [showFloatingSave, setShowFloatingSave] = useState(false);
   useEffect(() => {
-    const onScroll = () => setShowFloatingSave(window.scrollY > 200);
+    const onScroll = () => setShowFloatingSave(window.scrollY > 260);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -4632,13 +4762,13 @@ function SurveyPrepApp() {
     navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
-  const isOp541Tab    = activeTab === SECTIONS.length;
-  const isOp541tTab   = activeTab === SECTIONS.length + 1;
-  const isJc427Tab    = activeTab === SECTIONS.length + 2;
-  const isPolicyTab   = activeTab === SECTIONS.length + 3;
-  const isTrendsTab   = activeTab === SECTIONS.length + 4;
-  const isFollowUpTab = activeTab === SECTIONS.length + 5;
-  const isRosterTab   = activeTab === SECTIONS.length + 6;
+  const isOp541Tab    = activeTab === TAB.op541;
+  const isOp541tTab   = activeTab === TAB.op541t;
+  const isJc427Tab    = activeTab === TAB.jc427;
+  const isPolicyTab   = activeTab === TAB.policy;
+  const isTrendsTab   = activeTab === TAB.trends;
+  const isFollowUpTab = activeTab === TAB.followUp;
+  const isRosterTab   = activeTab === TAB.roster;
   const isExtraTab = isOp541Tab || isOp541tTab || isJc427Tab || isPolicyTab || isTrendsTab || isFollowUpTab || isRosterTab;
   const sec = isExtraTab ? null : SECTIONS[activeTab];
   const op541Stats  = getOp541Stats();
@@ -4655,138 +4785,172 @@ function SurveyPrepApp() {
     pending: sectionTotals.pending + (op541Sections.length ? op541Stats.pending : 0) + (op541tSections.length ? op541tStats.pending : 0),
   };
 
+  // ── Navigation helpers ──────────────────────────────────────────────────
+  function goTab(idx) {
+    setActiveTab(idx);
+    setView("form");
+    window.scrollTo({ top: 0 });
+  }
+  function goChecklist() {
+    // Bounce off the read-only reference tabs so "Checklist" always lands on
+    // something the specialist can actually fill in.
+    if (REFERENCE_TABS.includes(activeTab)) setActiveTab(0);
+    setView("form");
+    window.scrollTo({ top: 0 });
+  }
+  function goReport() {
+    // Same generation as the email flow, but landing on the report instead.
+    generateOutputs();
+    setView("report");
+    window.scrollTo({ top: 0 });
+  }
+
+  // The report is empty until something has actually been marked — drives the
+  // empty state instead of rendering a report full of zeroes.
+  const answeredCount = allStats.yes + allStats.no
+    + SECTIONS.reduce((a, _, si) => a + getSectionStats(si).na, 0);
+
+  const specialistFirstName = (meta.specialist || "").trim().split(/\s+/)[0] || "there";
+
+  const navItems = [
+    { key: "dashboard", label: "Dashboard",    icon: "home",            active: view === "dashboard",                     onClick: () => { setView("dashboard"); window.scrollTo({ top: 0 }); } },
+    { key: "form",      label: "Checklist",    icon: "clipboard-list",  active: view === "form" && !REFERENCE_TABS.includes(activeTab), onClick: goChecklist },
+    { key: "report",    label: "Report",       icon: "file-text",       active: view === "report" || view === "email",     onClick: goReport },
+    { key: "trends",    label: "Issue Trends", icon: "trending-up",     active: view === "form" && isTrendsTab,            onClick: () => goTab(TAB.trends) },
+  ];
+
+  const headerBtn = {
+    padding: "7px 14px", fontSize: 12.5, background: "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.3)", color: T.white, borderRadius: T.radius,
+    cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+  };
+
+  // ── Tab rail model ──────────────────────────────────────────────────────
+  // One description per tab so the rail can render, filter and measure
+  // progress uniformly instead of repeating a button block per tab.
+  function tabBadge(key, bg, fg, content) {
+    return <span key={key} style={{ background: bg, color: fg, borderRadius: T.radiusPill, padding: "1px 7px", fontSize: 10.5, fontWeight: 600, marginLeft: 6 }}>{content}</span>;
+  }
+  const okBadge   = k => tabBadge(k, T.successBg, T.success, "✓");
+  const doneBadge = (st, k) => (st.no === 0 && st.pending === 0 ? [okBadge(k)] : []);
+
+  const jc427Stats = jc427TemplateStatus === "ready" ? getJC427Stats() : null;
+
+  const tabDefs = [
+    ...SECTIONS.map((s, i) => {
+      const st = getSectionStats(i);
+      return {
+        idx: i, label: s.label, progress: st,
+        badges: [
+          ...(st.no > 0 ? [tabBadge("no", T.errorBg, T.error, st.no)] : []),
+          ...doneBadge(st, "ok"),
+        ],
+      };
+    }),
+    {
+      idx: TAB.op541, label: "OP 541 Readiness",
+      progress: op541Sections.length ? { ...op541Stats, total: op541Stats.yes + op541Stats.no + op541Stats.na + op541Stats.pending } : null,
+      badges: [
+        ...(!op541FileName ? [<span key="up" style={{ fontSize: 11, color: T.gray500, marginLeft: 6 }}>+ Upload</span>] : []),
+        ...(op541FileName && op541Stats.no > 0 ? [tabBadge("no", T.errorBg, T.error, op541Stats.no)] : []),
+        ...(op541FileName && op541Stats.mismatch > 0 ? [tabBadge("mm", T.warningBg, T.warning, `⚠ ${op541Stats.mismatch}`)] : []),
+        ...(op541FileName ? doneBadge(op541Stats, "ok") : []),
+      ],
+    },
+    {
+      idx: TAB.op541t, label: "OP 541T Transfill",
+      progress: op541tSections.length ? { ...op541tStats, total: op541tStats.yes + op541tStats.no + op541tStats.na + op541tStats.pending } : null,
+      badges: [
+        ...(!op541tFileName ? [<span key="up" style={{ fontSize: 11, color: T.gray500, marginLeft: 6 }}>+ Upload</span>] : []),
+        ...(op541tFileName && op541tStats.no > 0 ? [tabBadge("no", T.errorBg, T.error, op541tStats.no)] : []),
+        ...(op541tFileName && op541tStats.mismatch > 0 ? [tabBadge("mm", T.warningBg, T.warning, `⚠ ${op541tStats.mismatch}`)] : []),
+        ...(op541tFileName ? doneBadge(op541tStats, "ok") : []),
+      ],
+    },
+    {
+      idx: TAB.jc427, label: "JC 427 Personnel", progress: null,
+      badges: [
+        ...(jc427TemplateStatus === "loading" ? [<span key="ld" style={{ fontSize: 11, color: T.gray500, marginLeft: 6 }}>Loading…</span>] : []),
+        ...(jc427TemplateStatus === "error"   ? [<span key="er" style={{ fontSize: 11, color: T.error, marginLeft: 6 }}>⚠ Load failed</span>] : []),
+        ...(jc427Stats && jc427Stats.no > 0       ? [tabBadge("no", T.errorBg, T.error, jc427Stats.no)] : []),
+        ...(jc427Stats && jc427Stats.expired > 0  ? [tabBadge("ex", T.errorBg, T.error, `⏰ ${jc427Stats.expired}`)] : []),
+        ...(jc427Stats && jc427Stats.expiring > 0 ? [tabBadge("eg", T.warningBg, T.warning, `⏰ ${jc427Stats.expiring}`)] : []),
+        ...(jc427Stats && jc427Stats.no === 0 && jc427Stats.expired === 0 && jc427Stats.expiring === 0 ? [okBadge("ok")] : []),
+      ],
+    },
+    { idx: TAB.policy,   label: "Policy Dates",     progress: null, badges: [] },
+    { idx: TAB.trends,   label: "Issue Trends",     progress: null, badges: [] },
+    { idx: TAB.followUp, label: "Follow-Ups",       progress: null, badges: [] },
+    { idx: TAB.roster,   label: "Location Roster",  progress: null, badges: [] },
+  ];
+
+  const tabQuery = tabSearch.trim().toLowerCase();
+  const visibleTabs = tabQuery ? tabDefs.filter(t => t.label.toLowerCase().includes(tabQuery)) : tabDefs;
+
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", margin: "0 auto", background: "#fff", minHeight: "100vh" }}>
+    <div style={{ fontFamily: T.font, margin: "0 auto", background: T.gray50, minHeight: "100vh", color: T.ink }}>
 
       {/* Header */}
-      <div className="no-print" style={{ background: BRAND, color: "#fff", padding: "16px 24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <img src="/rotech-survey-prep/rotech-logo.jpg" alt="Rotech Healthcare" style={{ height: 52, width: "auto", background: "#fff", borderRadius: 6, padding: "4px 10px" }} />
-            <div style={{ fontSize: 20, fontWeight: 600 }}>Accreditation Survey Prep Report</div>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, opacity: 0.6 }}>{meta.specialist}</span>
-            <button onClick={() => signOut(auth)} style={{ padding: "5px 10px", fontSize: 11, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", borderRadius: 5, cursor: "pointer" }}>
-              Sign out
-            </button>
-            {savedAt && view === "form" && (
-              <span style={{ fontSize: 11, opacity: 0.5 }}>
-                Auto-saved {new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-              </span>
-            )}
-            {view !== "form" && (
-              <button onClick={() => setView("form")} style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 6, cursor: "pointer" }}>
-                ← Back to form
-              </button>
-            )}
-            {view === "form" && (
-              <>
-                <button onClick={saveProgress} style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 6, cursor: "pointer" }}>
-                  💾 Save Progress
-                </button>
-                {currentVisitId && (
-                  <button onClick={finalizeVisit} style={{ padding: "7px 14px", fontSize: 13, background: visitFinalized ? "rgba(76,175,80,0.35)" : "rgba(255,255,255,0.1)", border: `1px solid ${visitFinalized ? "rgba(76,175,80,0.7)" : "rgba(255,255,255,0.3)"}`, color: "#fff", borderRadius: 6, cursor: "pointer", fontWeight: visitFinalized ? 600 : 400 }}>
-                    {visitFinalized ? "✅ Visit Finalized" : "☑ Finalize Visit"}
-                  </button>
-                )}
-                <button onClick={() => setShowVisits(v => !v)} style={{ padding: "7px 14px", fontSize: 13, background: showVisits ? "#fff" : "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: showVisits ? BRAND : "#fff", borderRadius: 6, cursor: "pointer", fontWeight: showVisits ? 600 : 400 }}>
-                  📋 Saved Visits {savedVisits.length > 0 && `(${savedVisits.length})`}
-                </button>
-                <button onClick={startFresh} style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,100,100,0.5)", color: "#ffcdd2", borderRadius: 6, cursor: "pointer" }}>
-                  ✕ Clear & Start Over
-                </button>
-                <button onClick={generateOutputs} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
-                  Generate Email & Report
-                </button>
-              </>
-            )}
-            {view === "email" && (
-              <button onClick={() => setView("report")} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
-                View Report →
-              </button>
-            )}
-          </div>
+      <div className="no-print app-header" style={{ background: T.blue600, color: T.white, padding: "14px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <img src="/rotech-survey-prep/rotech-logo.jpg" alt="Rotech Healthcare" style={{ height: 34, width: "auto", background: T.white, borderRadius: T.radius, padding: "4px 10px" }} />
+          <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em" }}>Accreditation Survey Prep</div>
         </div>
-
-        {/* Meta fields */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 16 }}>
-          <div>
-            <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>Lawson #</div>
-            <select value={meta.lawson} onChange={e => {
-                const lw = e.target.value;
-                const info = findLocation(lw, locations);
-                setMeta(p => ({ ...p, lawson: lw, location: info ? info.name : p.location, city: info ? `${info.city}, ${info.state}` : p.city }));
-              }}
-              style={{ width: "100%", padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box" }}>
-              <option value="" style={{ color: "#000" }}>— Select Lawson # —</option>
-              {[...new Set(locations.map(l => l.region))].sort().map(region => (
-                <optgroup key={region} label={region} style={{ color: "#000" }}>
-                  {locations.filter(l => l.region === region).map(l => (
-                    <option key={l.lawson} value={l.lawson} style={{ color: "#000" }}>
-                      {l.lawson} — {l.name}, {l.city} {l.state} ({l.areaCode})
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-              <option value="other" style={{ color: "#000" }}>Other / Not Listed</option>
-            </select>
-          </div>
-          {[["location", "Location Name"], ["city", "City / State"], ["date", "Visit Date"]].map(([k, label]) => (
-            <div key={k}>
-              <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>{label}</div>
-              <input value={meta[k]} onChange={e => setMeta(p => ({ ...p, [k]: e.target.value }))} placeholder={label}
-                style={{ width: "100%", padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box" }} />
-            </div>
-          ))}
-          <div>
-            <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>Accreditation Specialist</div>
-            <div style={{ width: "100%", padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 5, color: "#fff", boxSizing: "border-box" }}>
-              {meta.specialist || "—"}
-            </div>
-          </div>
-          <div style={{ gridColumn: "span 2" }}>
-            <div style={{ fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>Follow-Up Teams Call Scheduled</div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <input type="date" value={meta.followUpDate} onChange={e => setMeta(p => ({ ...p, followUpDate: e.target.value }))}
-                style={{ flex: 1, padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box", colorScheme: "dark" }} />
-              <input type="time" value={meta.followUpTime} onChange={e => setMeta(p => ({ ...p, followUpTime: e.target.value }))}
-                style={{ flex: 1, padding: "7px 11px", fontSize: 13, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, color: "#fff", outline: "none", boxSizing: "border-box", colorScheme: "dark" }} />
-            </div>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <nav aria-label="Main" style={{ display: "flex", background: "rgba(255,255,255,0.14)", borderRadius: T.radiusPill, padding: 4, gap: 2 }}>
+            {navItems.map(n => (
+              <button key={n.key} onClick={n.onClick} aria-current={n.active ? "page" : undefined}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", fontSize: 12.5,
+                  fontWeight: n.active ? 700 : 500, borderRadius: T.radiusPill, border: "none", cursor: "pointer",
+                  fontFamily: "inherit", whiteSpace: "nowrap",
+                  background: n.active ? T.white : "transparent",
+                  color: n.active ? T.blue600 : "rgba(255,255,255,0.85)",
+                }}>
+                <Icon name={n.icon} size={14} />{n.label}
+              </button>
+            ))}
+          </nav>
+          {savedAt && (
+            <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.6)", whiteSpace: "nowrap" }}>
+              Auto-saved {new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            </span>
+          )}
+          <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, paddingLeft: 6, whiteSpace: "nowrap" }}>{meta.specialist}</span>
+          <button onClick={() => signOut(auth)} style={headerBtn}>Sign out</button>
         </div>
       </div>
 
       {showPdfReminder && (
-        <div style={{ background: "#fff3e0", borderBottom: "2px solid #ffb74d", padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 12.5, color: "#7a4a00" }}>
+        <div style={{ background: T.warningBg, borderBottom: `2px solid ${T.warning}`, padding: "10px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12.5, color: T.warning }}>
             ⚠️ <strong>Double-check your PDF saved.</strong> A backup snapshot was downloaded to your device and stored in PDF History as a fail-safe — if the print dialog didn't actually save a PDF, reopen it with "Print / PDF" again, or recover the data anytime from PDF History below.
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setShowVisits(true)} style={{ padding: "5px 12px", fontSize: 12, background: "#fff", color: "#7a4a00", border: "1px solid #ffb74d", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>View PDF History</button>
-            <button onClick={() => setShowPdfReminder(false)} style={{ padding: "5px 12px", fontSize: 12, background: "transparent", color: "#7a4a00", border: "1px solid #ffb74d", borderRadius: 5, cursor: "pointer" }}>Dismiss</button>
+            <button onClick={() => setShowVisits(true)} style={{ ...btnOutline, padding: "5px 12px", fontSize: 12, color: T.warning, borderColor: T.warning }}>View PDF History</button>
+            <button onClick={() => setShowPdfReminder(false)} style={{ ...btnOutline, padding: "5px 12px", fontSize: 12, background: "transparent", color: T.warning, borderColor: T.warning, fontWeight: 500 }}>Dismiss</button>
           </div>
         </div>
       )}
 
       {/* Saved Visits Panel */}
       {showVisits && (
-        <div style={{ background: "#f8f9fa", borderBottom: "2px solid #e0e0e0", padding: "16px 24px" }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: BRAND, marginBottom: 12 }}>Saved Visits</div>
+        <div style={{ background: T.white, borderBottom: `1px solid ${T.gray200}`, padding: "16px 28px" }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: T.blue600, marginBottom: 12 }}>Saved Visits</div>
           {savedVisits.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#9e9e9e" }}>No saved visits yet. Use "Save Progress" to save the current visit.</div>
+            <div style={{ fontSize: 13, color: T.gray500 }}>No saved visits yet. Use "Save Progress" to save the current visit.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {savedVisits.map(v => (
-                <div key={v.id} style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 6, padding: "10px 14px" }}>
+                <div key={v.id} style={{ background: T.white, border: `1px solid ${T.gray200}`, borderRadius: 10, padding: "10px 14px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>{v.label}</div>
-                      <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>Saved {new Date(v.savedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: T.ink }}>{v.label}</div>
+                      <div style={{ fontSize: 11.5, color: T.gray500, marginTop: 2 }}>Saved {new Date(v.savedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => loadVisit(v)} style={{ padding: "6px 14px", fontSize: 12, background: BRAND, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>Load</button>
-                      <button onClick={() => { if (window.confirm("Delete this saved visit?")) deleteVisit(v.id); }} style={{ padding: "6px 10px", fontSize: 12, background: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", borderRadius: 5, cursor: "pointer" }}>✕</button>
+                      <button onClick={() => loadVisit(v)} style={{ padding: "6px 14px", fontSize: 12, background: T.blue600, color: T.white, border: "none", borderRadius: 7, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Load</button>
+                      <button onClick={() => { if (window.confirm("Delete this saved visit?")) deleteVisit(v.id); }} aria-label="Delete saved visit" style={{ padding: "6px 10px", fontSize: 12, background: T.errorBg, color: T.error, border: `1px solid ${T.errorBorder}`, borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
                     </div>
                   </div>
                 </div>
@@ -4795,16 +4959,16 @@ function SurveyPrepApp() {
           )}
 
           {/* PDF History */}
-          <div style={{ fontWeight: 700, fontSize: 14, color: BRAND, marginTop: 20, marginBottom: 10 }}>📄 PDF History <span style={{ fontSize: 11, fontWeight: 400, color: "#9e9e9e" }}>(last 15 generated)</span></div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: T.blue600, marginTop: 20, marginBottom: 10 }}>PDF History <span style={{ fontSize: 11, fontWeight: 400, color: T.gray500 }}>(last 15 generated)</span></div>
           {pdfHistory.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#9e9e9e" }}>No PDFs generated yet. Click "⬇ Download PDF" in the Report view to generate and auto-save a snapshot.</div>
+            <div style={{ fontSize: 13, color: T.gray500 }}>No PDFs generated yet. Click "⬇ Download PDF" in the Report view to generate and auto-save a snapshot.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {pdfHistory.map(s => (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: "1px solid #dde5ef", borderRadius: 6, padding: "10px 14px" }}>
+                <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: T.white, border: `1px solid ${T.gray200}`, borderRadius: 10, padding: "10px 14px" }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>{s.label}</div>
-                    <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: T.ink }}>{s.label}</div>
+                    <div style={{ fontSize: 11.5, color: T.gray500, marginTop: 2 }}>
                       Generated {new Date(s.generatedAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                       {s.specialist ? ` · ${s.specialist}` : ""}
                     </div>
@@ -4851,10 +5015,10 @@ function SurveyPrepApp() {
                       setReportLines(lines);
                       setView("report");
                       setShowVisits(false);
-                    }} style={{ padding: "6px 14px", fontSize: 12, background: "#1a3a5c", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                    }} style={{ padding: "6px 14px", fontSize: 12, background: T.blue600, color: T.white, border: "none", borderRadius: 7, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>
                       Regenerate
                     </button>
-                    <button onClick={() => { if (window.confirm("Remove this PDF record?")) { deletePdfSnapshot(s.id); setPdfHistory(loadPdfHistory()); }}} style={{ padding: "6px 10px", fontSize: 12, background: "#ffebee", color: "#c62828", border: "1px solid #ef9a9a", borderRadius: 5, cursor: "pointer" }}>✕</button>
+                    <button onClick={() => { if (window.confirm("Remove this PDF record?")) { deletePdfSnapshot(s.id); setPdfHistory(loadPdfHistory()); }}} aria-label="Remove PDF record" style={{ padding: "6px 10px", fontSize: 12, background: T.errorBg, color: T.error, border: `1px solid ${T.errorBorder}`, borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
                   </div>
                 </div>
               ))}
@@ -4863,147 +5027,254 @@ function SurveyPrepApp() {
         </div>
       )}
 
+      {/* DASHBOARD VIEW — landing screen after auth */}
+      {view === "dashboard" && (
+        <div style={{ maxWidth: 1160, margin: "0 auto", padding: "28px 28px 80px" }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.01em" }}>Welcome back, {specialistFirstName}</div>
+            <div style={{ fontSize: 13.5, color: T.gray600, marginTop: 3 }}>Accreditation Survey Prep Dashboard</div>
+          </div>
+
+          {/* Current visit */}
+          <div style={{ ...cardStyle(T.blue600), marginBottom: 20 }}>
+            <div style={{ padding: "18px 22px" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Your Current Visit</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
+                {[
+                  ["Location Name", meta.location],
+                  ["Lawson #",      meta.lawson],
+                  ["City / State",  meta.city],
+                  ["Visit Date",    meta.date],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <div style={{ fontSize: 10.5, color: T.gray500, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: value ? T.ink : T.gray400 }}>{value || "Not set"}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Stat pills */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+            {[
+              [allStats.yes,     "Compliant", T.successBg, T.success],
+              [allStats.no,      "Issues",    T.errorBg,   T.error],
+              [allStats.pending, "Pending",   T.gray100,   T.gray600],
+            ].map(([n, label, bg, fg]) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, background: bg, color: fg, padding: "6px 14px", borderRadius: T.radiusPill, fontSize: 13, fontWeight: 600 }}>
+                <span>{n}</span><span style={{ fontWeight: 400 }}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Recent visits */}
+          {savedVisits.length > 0 && (
+            <div style={{ background: T.white, border: `1px solid ${T.gray200}`, borderRadius: T.radiusCard, overflow: "hidden", boxShadow: T.shadowSoft, marginBottom: 20 }}>
+              <div style={{ padding: "16px 20px 6px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
+                <Icon name="history" size={15} style={{ color: T.gray600 }} />Recent Visits
+              </div>
+              <div style={{ padding: "6px 12px 12px" }}>
+                {savedVisits.slice(0, 5).map(v => (
+                  <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 12px", margin: "2px 0", borderRadius: T.radius }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.label}</div>
+                      <div style={{ fontSize: 11.5, color: T.gray500, marginTop: 2 }}>
+                        Saved {new Date(v.savedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      <button onClick={() => { loadVisit(v); setView("form"); }}
+                        style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, background: T.blue600, color: T.white, border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>Load</button>
+                      <button onClick={() => { if (window.confirm("Delete this saved visit?")) deleteVisit(v.id); }} aria-label="Delete saved visit"
+                        style={{ padding: "6px 10px", fontSize: 12, background: T.errorBg, color: T.error, border: `1px solid ${T.errorBorder}`, borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Action cards. flex-wrap rather than css-grid so a partial last row
+              spreads to fill instead of leaving empty column gaps. */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+            {[
+              { accent: T.blue600, titleColor: T.blue600,  icon: "clipboard-list", title: "Checklist",            desc: `${SECTIONS.length} binders / visit forms · Morning Meeting through Ventilator Visit`, stat: `${allStats.pending} items pending`,                                    cta: "Continue Assessment", onClick: goChecklist },
+              { accent: T.success, titleColor: T.success,  icon: "file-text",      title: "Survey Prep Report",   desc: "Generate the visit summary, PDF export, and follow-up checklist link",              stat: `${allStats.no} issues found so far`,                                   cta: "View Report",         onClick: goReport },
+              { accent: T.warning, titleColor: T.warning,  icon: "trending-up",    title: "Issue Trend Analysis", desc: "Company-wide recurring issues, top locations, and monthly trend",                   stat: "Across all finalized visits",                                          cta: "View Trends",         onClick: () => goTab(TAB.trends) },
+              { accent: T.teal,    titleColor: T.tealDeep, icon: "book-open",      title: "Policy Dates",         desc: "Reference revision dates for policies cited in the checklist",                      stat: `${Object.keys(policyDates).length} policies on file`,                  cta: "View Policy Dates",   onClick: () => goTab(TAB.policy) },
+              { accent: T.blue400, titleColor: T.blue600,  icon: "list-checks",    title: "Follow-Ups",           desc: "Company-wide progress on open follow-up checklists by location",                    stat: "Open items by location",                                               cta: "View Follow-Ups",     onClick: () => goTab(TAB.followUp) },
+              { accent: T.gray600, titleColor: T.ink,      icon: "map-pin",        title: "Location Roster",      desc: "Reference lookup of locations, Lawson #s, and area managers",                       stat: `${locations.length} locations on file`,                                cta: "View Roster",         onClick: () => goTab(TAB.roster) },
+              { accent: T.error,   titleColor: T.error,    icon: "git-compare",    title: "OP 541 Self-Audit",    desc: "Compares the location's uploaded self-audit against your on-site findings",         stat: op541FileName ? `${op541Stats.mismatch} mismatches flagged` : "No self-audit uploaded yet", cta: "View Self-Audit", onClick: () => goTab(TAB.op541) },
+            ].map(c => (
+              <div key={c.title} style={{ ...cardStyle(c.accent), flex: "1 1 260px" }}>
+                <div style={{ padding: 20 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: c.titleColor, marginBottom: 4, display: "flex", alignItems: "center", gap: 7 }}>
+                    <Icon name={c.icon} size={16} />{c.title}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: T.gray600, marginBottom: 4 }}>{c.desc}</div>
+                  <div style={{ fontSize: 11.5, color: T.gray500, marginBottom: 16 }}>{c.stat}</div>
+                  <button onClick={c.onClick}
+                    style={{ width: "100%", padding: 11, fontSize: 14, fontWeight: 700, background: c.accent, color: T.white, border: "none", borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit" }}>
+                    {c.cta}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* FORM VIEW */}
       {view === "form" && (
         <div>
-          {/* Summary bar */}
-          <div style={{ display: "flex", background: "#f8f9fa", borderBottom: "1px solid #e0e0e0", padding: "10px 24px", flexWrap: "wrap", gap: 16 }}>
-            {[["✓ Compliant", allStats.yes, "#2e7d32"], ["✗ Issues", allStats.no, "#c62828"], ["Pending", allStats.pending, "#616161"]].map(([l, n, c]) => (
-              <div key={l} style={{ fontSize: 13 }}>
-                <span style={{ color: c, fontWeight: 600 }}>{n}</span>
-                <span style={{ color: "#757575", marginLeft: 5 }}>{l}</span>
+          {/* Visit meta — moved off the header band onto its own card so the
+              fields read as editable inputs rather than header chrome. */}
+          <div style={{ maxWidth: 1320, margin: "20px auto 0", padding: "0 28px" }}>
+            <div style={cardStyle(T.blue600)}>
+              <div style={{ padding: "20px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 18 }}>
+                <div>
+                  <label htmlFor="meta-lawson" style={metaLabel}>Lawson #</label>
+                  <select id="meta-lawson" value={meta.lawson} onChange={e => {
+                      const lw = e.target.value;
+                      const info = findLocation(lw, locations);
+                      setMeta(p => ({ ...p, lawson: lw, location: info ? info.name : p.location, city: info ? `${info.city}, ${info.state}` : p.city }));
+                    }}
+                    style={metaField}>
+                    <option value="">— Select Lawson # —</option>
+                    {[...new Set(locations.map(l => l.region))].sort().map(region => (
+                      <optgroup key={region} label={region}>
+                        {locations.filter(l => l.region === region).map(l => (
+                          <option key={l.lawson} value={l.lawson}>
+                            {l.lawson} — {l.name}, {l.city} {l.state} ({l.areaCode})
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                    <option value="other">Other / Not Listed</option>
+                  </select>
+                </div>
+                {[["location", "Location Name"], ["city", "City / State"], ["date", "Visit Date"]].map(([k, label]) => (
+                  <div key={k}>
+                    <label htmlFor={`meta-${k}`} style={metaLabel}>{label}</label>
+                    <input id={`meta-${k}`} value={meta[k]} onChange={e => setMeta(p => ({ ...p, [k]: e.target.value }))} placeholder={label}
+                      style={metaField} />
+                  </div>
+                ))}
+                <div>
+                  <div style={metaLabel}>Accreditation Specialist</div>
+                  <div style={{ ...metaField, background: T.gray50, border: `1.5px solid ${T.gray200}`, color: T.gray700 }}>
+                    {meta.specialist || "—"}
+                  </div>
+                </div>
+                <div>
+                  <div style={metaLabel}>Follow-Up Teams Call Scheduled</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input type="date" aria-label="Follow-up call date" value={meta.followUpDate} onChange={e => setMeta(p => ({ ...p, followUpDate: e.target.value }))}
+                      style={{ ...metaField, flex: 1 }} />
+                    <input type="time" aria-label="Follow-up call time" value={meta.followUpTime} onChange={e => setMeta(p => ({ ...p, followUpTime: e.target.value }))}
+                      style={{ ...metaField, flex: 1 }} />
+                  </div>
+                </div>
               </div>
-            ))}
-            {op541Stats.mismatch > 0 && (
-              <div style={{ fontSize: 13 }}>
-                <span style={{ color: "#e65100", fontWeight: 600 }}>{op541Stats.mismatch}</span>
-                <span style={{ color: "#757575", marginLeft: 5 }}>⚠ OP 541 Mismatches</span>
-              </div>
-            )}
-            {op541tStats.mismatch > 0 && (
-              <div style={{ fontSize: 13 }}>
-                <span style={{ color: "#e65100", fontWeight: 600 }}>{op541tStats.mismatch}</span>
-                <span style={{ color: "#757575", marginLeft: 5 }}>⚠ OP 541T Mismatches</span>
-              </div>
-            )}
+            </div>
           </div>
 
-          {/* Tabs */}
-          <div style={{ display: "flex", overflowX: "auto", borderBottom: "1px solid #e0e0e0", background: "#fafafa" }}>
-            {SECTIONS.map((s, i) => {
-              const st = getSectionStats(i);
-              return (
-                <button key={i} onClick={() => setActiveTab(i)} style={{
-                  padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
-                  border: "none", borderBottom: i === activeTab ? `2px solid ${BRAND}` : "2px solid transparent",
-                  color: i === activeTab ? BRAND : "#616161", cursor: "pointer", fontWeight: i === activeTab ? 600 : 400,
-                  display: "flex", alignItems: "center", gap: 6
-                }}>
-                  {s.label}
-                  {st.no > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{st.no}</span>}
-                  {st.no === 0 && st.pending === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
+          {/* Unified stat card + visit actions */}
+          <div className="no-print" style={{ maxWidth: 1320, margin: "16px auto 0", padding: "0 28px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", background: T.white, border: `1px solid ${T.gray200}`, borderRadius: 10, overflow: "hidden", boxShadow: T.shadowSoft }}>
+              {[
+                { n: allStats.yes,     label: "Compliant", icon: "check-circle", bg: T.successBg, fg: T.success },
+                { n: allStats.no,      label: "Issues",    icon: "alert-circle", bg: T.errorBg,   fg: T.error },
+                { n: allStats.pending, label: "Pending",   icon: "clock",        bg: T.gray100,   fg: T.gray600 },
+                ...(op541Stats.mismatch  > 0 ? [{ n: op541Stats.mismatch,  label: "OP 541 Mismatches",  icon: "git-compare", bg: T.warningBg, fg: T.warning }] : []),
+                ...(op541tStats.mismatch > 0 ? [{ n: op541tStats.mismatch, label: "OP 541T Mismatches", icon: "git-compare", bg: T.warningBg, fg: T.warning }] : []),
+              ].map((s, i, arr) => (
+                <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderRight: i < arr.length - 1 ? `1px solid ${T.gray100}` : "none" }}>
+                  <div style={{ width: 30, height: 30, borderRadius: T.radius, background: s.bg, color: s.fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon name={s.icon} size={16} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: s.fg, lineHeight: 1.1 }}>{s.n}</div>
+                    <div style={{ fontSize: 11, color: T.gray500, whiteSpace: "nowrap" }}>{s.label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={saveProgress} style={btnOutline}>Save Progress</button>
+              {currentVisitId && (
+                <button onClick={finalizeVisit}
+                  style={visitFinalized
+                    ? { ...btnOutline, background: T.successBg, color: T.success, borderColor: T.successBorder }
+                    : btnOutline}>
+                  {visitFinalized ? "✓ Visit Finalized" : "Finalize Visit"}
                 </button>
-              );
-            })}
-
-            {/* OP 541 tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length)} style={{
-              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
-              border: "none", borderBottom: isOp541Tab ? `2px solid ${BRAND}` : "2px solid transparent",
-              color: isOp541Tab ? BRAND : "#616161", cursor: "pointer", fontWeight: isOp541Tab ? 600 : 400,
-              display: "flex", alignItems: "center", gap: 6
-            }}>
-              OP 541 Readiness
-              {!op541FileName && <span style={{ fontSize: 11, color: "#9e9e9e" }}>+ Upload</span>}
-              {op541FileName && op541Stats.no > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{op541Stats.no}</span>}
-              {op541FileName && op541Stats.mismatch > 0 && <span style={{ background: "#fff3e0", color: "#e65100", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⚠ {op541Stats.mismatch}</span>}
-              {op541FileName && op541Stats.no === 0 && op541Stats.pending === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
-            </button>
-
-            {/* OP 541T tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 1)} style={{
-              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
-              border: "none", borderBottom: isOp541tTab ? `2px solid ${BRAND}` : "2px solid transparent",
-              color: isOp541tTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isOp541tTab ? 600 : 400,
-              display: "flex", alignItems: "center", gap: 6
-            }}>
-              OP 541T Transfill
-              {!op541tFileName && <span style={{ fontSize: 11, color: "#9e9e9e" }}>+ Upload</span>}
-              {op541tFileName && op541tStats.no > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{op541tStats.no}</span>}
-              {op541tFileName && op541tStats.mismatch > 0 && <span style={{ background: "#fff3e0", color: "#e65100", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⚠ {op541tStats.mismatch}</span>}
-              {op541tFileName && op541tStats.no === 0 && op541tStats.pending === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
-            </button>
-
-            {/* JC 427 tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 2)} style={{
-              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
-              border: "none", borderBottom: isJc427Tab ? `2px solid ${BRAND}` : "2px solid transparent",
-              color: isJc427Tab ? BRAND : "#616161", cursor: "pointer", fontWeight: isJc427Tab ? 600 : 400,
-              display: "flex", alignItems: "center", gap: 6
-            }}>
-              JC 427 Personnel
-              {jc427TemplateStatus === "loading" && <span style={{ fontSize: 11, color: "#9e9e9e" }}>Loading…</span>}
-              {jc427TemplateStatus === "error" && <span style={{ fontSize: 11, color: "#c62828" }}>⚠ Load failed</span>}
-              {jc427TemplateStatus === "ready" && (() => { const st = getJC427Stats(); return (
-                <>
-                  {st.no > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{st.no}</span>}
-                  {st.expired > 0 && <span style={{ background: "#ffebee", color: "#c62828", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⏰ {st.expired}</span>}
-                  {st.expiring > 0 && <span style={{ background: "#fff9c4", color: "#7a5c00", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>⏰ {st.expiring}</span>}
-                  {st.no === 0 && st.expired === 0 && st.expiring === 0 && <span style={{ background: "#e8f5e9", color: "#2e7d32", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>✓</span>}
-                </>
-              ); })()}
-            </button>
-
-            {/* Policy Dates tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 3)} style={{
-              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
-              border: "none", borderBottom: isPolicyTab ? `2px solid ${BRAND}` : "2px solid transparent",
-              color: isPolicyTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isPolicyTab ? 600 : 400,
-            }}>
-              📋 Policy Dates
-            </button>
-
-            {/* Trends tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 4)} style={{
-              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
-              border: "none", borderBottom: isTrendsTab ? `2px solid ${BRAND}` : "2px solid transparent",
-              color: isTrendsTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isTrendsTab ? 600 : 400,
-            }}>
-              📊 Issue Trends
-            </button>
-
-            {/* Follow-Up Dashboard tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 5)} style={{
-              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
-              border: "none", borderBottom: isFollowUpTab ? `2px solid ${BRAND}` : "2px solid transparent",
-              color: isFollowUpTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isFollowUpTab ? 600 : 400,
-            }}>
-              📌 Follow-Ups
-            </button>
-
-            {/* Location Roster tab */}
-            <button onClick={() => setActiveTab(SECTIONS.length + 6)} style={{
-              padding: "10px 16px", fontSize: 12, whiteSpace: "nowrap", background: "none",
-              border: "none", borderBottom: isRosterTab ? `2px solid ${BRAND}` : "2px solid transparent",
-              color: isRosterTab ? BRAND : "#616161", cursor: "pointer", fontWeight: isRosterTab ? 600 : 400,
-            }}>
-              🗺️ Location Roster
-            </button>
+              )}
+              <button onClick={() => setShowVisits(v => !v)} style={showVisits ? { ...btnOutline, background: T.blue50 } : btnOutline}>
+                Saved Visits{savedVisits.length > 0 ? ` (${savedVisits.length})` : ""}
+              </button>
+              <button onClick={startFresh} style={{ ...btnOutline, color: T.error, borderColor: T.errorBorder }}>Clear &amp; Start Over</button>
+              <button onClick={generateOutputs} style={btnPrimary}>Generate Email &amp; Report</button>
+            </div>
           </div>
 
+          {/* Tab rail — searchable, each tab carrying its own progress bar */}
+          <div style={{ maxWidth: 1320, margin: "18px auto 0", padding: "0 28px" }}>
+            <div style={{ position: "relative", maxWidth: 280, marginBottom: 10 }}>
+              <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: T.gray400, pointerEvents: "none" }} />
+              <input value={tabSearch} onChange={e => setTabSearch(e.target.value)} placeholder="Search binders…" aria-label="Search binders"
+                style={{ width: "100%", padding: "7px 10px 7px 32px", fontSize: 12.5, border: `1.5px solid ${T.gray300}`, borderRadius: T.radiusPill, fontFamily: "inherit", boxSizing: "border-box", color: T.ink, outline: "none" }} />
+            </div>
+            <div role="tablist" aria-label="Checklist binders" style={{ display: "flex", gap: 6, overflowX: "auto", borderBottom: `1px solid ${T.gray200}` }}>
+              {visibleTabs.map(t => {
+                const active = activeTab === t.idx;
+                // Two-segment fill: answered (Y/N) then N/A, both as a share of
+                // the section's item count. Green once nothing is left pending.
+                const p = t.progress;
+                const total = p?.total || 0;
+                const answeredPct = total ? ((p.yes + p.no) / total) * 100 : 0;
+                const naPct       = total ? (p.na / total) * 100 : 0;
+                const complete    = total > 0 && p.pending === 0;
+                return (
+                  <div key={t.idx} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                    <button role="tab" aria-selected={active} onClick={() => setActiveTab(t.idx)}
+                      style={{
+                        padding: "10px 16px", fontSize: 12.5, whiteSpace: "nowrap", background: "none", border: "none",
+                        borderBottom: active ? `2px solid ${T.blue600}` : "2px solid transparent",
+                        color: active ? T.blue600 : T.gray600, cursor: "pointer",
+                        fontWeight: active ? 700 : 500, fontFamily: "inherit",
+                        display: "flex", alignItems: "center",
+                      }}>
+                      {t.label}{t.badges}
+                    </button>
+                    {/* Reference tabs have no progress to show, but still need
+                        the same vertical rhythm as the checklist tabs. */}
+                    <div aria-hidden="true" style={{ height: 4, background: p ? T.gray300 : "transparent", borderRadius: 2, margin: "4px 16px 6px", overflow: "hidden", display: "flex" }}>
+                      {p && <div style={{ width: `${answeredPct}%`, background: complete ? T.success : T.blue600 }} />}
+                      {p && <div style={{ width: `${naPct}%`, background: T.gray400 }} />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {visibleTabs.length === 0 && (
+              <div style={{ padding: "14px 4px", fontSize: 12.5, color: T.gray500 }}>No binders match “{tabSearch}”</div>
+            )}
+          </div>
           {/* Regular section content */}
           {!isExtraTab && (
-            <div style={{ padding: "16px 24px" }}>
-              <div style={{ fontSize: 11, color: "#9e9e9e", marginBottom: 12 }}>{sec.ref}</div>
+            <div style={{ maxWidth: 1320, margin: "0 auto", padding: "20px 28px 80px" }}>
+              <div style={{ fontSize: 11.5, color: T.gray500, marginBottom: 6, fontWeight: 600 }}>{sec.ref}</div>
               {sec.banner && (
-                <div style={{ background: BRAND, color: "#fff", padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, marginBottom: 14, letterSpacing: "0.02em" }}>
+                <div style={{ background: T.blue600, color: T.white, padding: "9px 16px", borderRadius: T.radius, fontSize: 12.5, fontWeight: 700, marginBottom: 16, letterSpacing: "0.02em" }}>
                   {sec.banner}
                 </div>
               )}
-              <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-                {[["yes", "Compliant"], ["no", "Issue found"], ["na", "N/A"]].map(([v, l]) => (
+              <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+                {[["yes", "Compliant"], ["no", "Issue"], ["na", "N/A"]].map(([v, l]) => (
                   <button key={v} onClick={() => sec.items.forEach((_, ii) => setState(`${activeTab}-${ii}`, v))}
-                    style={{ fontSize: 11, padding: "4px 12px", border: `1px solid ${STATUS_COLORS[v].border}`, background: STATUS_COLORS[v].bg, color: STATUS_COLORS[v].text, borderRadius: 5, cursor: "pointer" }}>
+                    style={{ fontSize: 12, padding: "6px 14px", border: `1.5px solid ${STATUS_COLORS[v].text}`, background: STATUS_COLORS[v].bg, color: STATUS_COLORS[v].text, borderRadius: T.radiusPill, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>
                     Mark all {l}
                   </button>
                 ))}
@@ -5014,28 +5285,28 @@ function SurveyPrepApp() {
                 const state = states[key];
                 return (
                   <div key={ii} style={{
-                    display: "flex", gap: 12, padding: "10px 12px", marginBottom: 6, borderRadius: 6,
-                    border: `1px solid ${state === "no" ? "#ef9a9a" : state === "yes" ? "#a5d6a7" : "#e0e0e0"}`,
-                    background: state === "no" ? "#fff8f8" : state === "yes" ? "#f9fff9" : "#fff",
+                    display: "flex", gap: 14, padding: "12px 14px", marginBottom: 8, borderRadius: 10,
+                    border: `1px solid ${state === "no" ? T.errorBorder : state === "yes" ? T.successBorder : T.gray200}`,
+                    background: state === "no" ? "#fffafa" : state === "yes" ? "#f9fff9" : T.white,
                     alignItems: "flex-start"
                   }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, lineHeight: 1.5, color: "#212121" }}>{item.text}</div>
-                          {item.note && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3, lineHeight: 1.4 }}>{item.note}</div>}
+                          <div style={{ fontSize: 14, lineHeight: 1.55, color: T.ink }}>{item.text}</div>
+                          {item.note && <div style={{ fontSize: 12, color: T.gray500, marginTop: 4, lineHeight: 1.5 }}>{item.note}</div>}
                           {(() => {
                             const matches = getPolicyMatches(item.text, policyDates);
                             if (!matches.length) return null;
                             return (
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
                                 {matches.map(key => (
                                   <span key={key} title={`${policyDates[key].name} — Rev: ${policyDates[key].rev}`} style={{
-                                    fontSize: 10, padding: "2px 7px", borderRadius: 10,
-                                    background: "#e8eef4", color: BRAND, border: "1px solid #c5d5e8",
+                                    fontSize: 10.5, padding: "2px 9px", borderRadius: T.radiusPill,
+                                    background: "#dbe8f6", color: T.blue600, border: "1px solid #b3cdec",
                                     cursor: "default", fontWeight: 600, letterSpacing: "0.02em"
                                   }}>
-                                    📋 {key} · Rev {policyDates[key].rev}
+                                    {key} · Rev {policyDates[key].rev}
                                   </span>
                                 ))}
                               </div>
@@ -5044,12 +5315,12 @@ function SurveyPrepApp() {
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                           {["yes", "no", "na"].map(v => (
-                            <button key={v} onClick={() => setState(key, v)} style={{
-                              width: 38, height: 32, fontSize: 11, fontWeight: 600,
-                              border: `1px solid ${state === v ? STATUS_COLORS[v].border : "#e0e0e0"}`,
-                              background: state === v ? STATUS_COLORS[v].bg : "#fafafa",
-                              color: state === v ? STATUS_COLORS[v].text : "#9e9e9e",
-                              borderRadius: 5, cursor: "pointer"
+                            <button key={v} onClick={() => setState(key, v)} aria-label={STATUS_COLORS[v].aria} aria-pressed={state === v} style={{
+                              width: 40, height: 34, fontSize: 11.5, fontWeight: 700,
+                              border: `1.5px solid ${state === v ? STATUS_COLORS[v].border : T.gray200}`,
+                              background: state === v ? STATUS_COLORS[v].bg : T.white,
+                              color: state === v ? STATUS_COLORS[v].text : T.gray400,
+                              borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit"
                             }}>{STATUS_COLORS[v].label}</button>
                           ))}
                         </div>
@@ -5057,8 +5328,9 @@ function SurveyPrepApp() {
                       {(state === "yes" || state === "no") && (
                         <textarea
                           placeholder={state === "no" ? "Describe the issue and required corrective action…" : "Add observation or note (optional)…"}
-                          value={comments[key]} onChange={e => setComment(key, e.target.value)} rows={3}
-                          style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "7px 9px", border: `1px solid ${state === "no" ? "#ef9a9a" : "#a5d6a7"}`, borderRadius: 5, resize: "vertical", color: "#212121", background: "#fff", boxSizing: "border-box", display: "block" }} />
+                          aria-label={state === "no" ? "Issue description" : "Observation note"}
+                          value={comments[key]} onChange={e => setComment(key, e.target.value)} rows={2}
+                          style={{ marginTop: 10, width: "60%", minWidth: 260, fontSize: 12.5, padding: "8px 10px", border: `1.5px solid ${state === "no" ? T.errorBorder : T.successBorder}`, borderRadius: T.radius, resize: "vertical", color: T.ink, background: T.white, boxSizing: "border-box", display: "block", fontFamily: "inherit" }} />
                       )}
                     </div>
                   </div>
@@ -5067,37 +5339,40 @@ function SurveyPrepApp() {
 
               {/* Tab-level comments for PST, PAP Setup, Vent */}
               {["pstSetup", "pstMaintenance", "clinician", "vent"].includes(sec.id) && (
-                <div style={{ marginTop: 12, padding: "14px 16px", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8 }}>
+                <div style={{ marginTop: 18, padding: "18px 20px", background: T.white, border: `1px solid ${T.gray200}`, borderRadius: T.radiusCard, boxShadow: T.shadowSoft }}>
                   {/* Global ID + Current RX */}
-                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: 11, fontWeight: 600, color: "#757575", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>Global ID</label>
+                  <div style={{ display: "flex", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 200px" }}>
+                      <label htmlFor={`gid-${sec.id}`} style={{ ...metaLabel, letterSpacing: "0.06em", marginBottom: 5 }}>Global ID</label>
                       <input
+                        id={`gid-${sec.id}`}
                         value={tabPatientInfo[sec.id]?.globalId || ""}
                         onChange={e => setTabPatient(sec.id, "globalId", e.target.value)}
                         placeholder="Patient Global ID"
-                        style={{ width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", boxSizing: "border-box" }}
+                        style={{ ...metaField, fontSize: 13 }}
                       />
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: 11, fontWeight: 600, color: "#757575", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>Current RX</label>
+                    <div style={{ flex: "1 1 200px" }}>
+                      <label htmlFor={`rx-${sec.id}`} style={{ ...metaLabel, letterSpacing: "0.06em", marginBottom: 5 }}>Current RX</label>
                       <input
+                        id={`rx-${sec.id}`}
                         value={tabPatientInfo[sec.id]?.currentRx || ""}
                         onChange={e => setTabPatient(sec.id, "currentRx", e.target.value)}
                         placeholder="Current prescription / order"
-                        style={{ width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid #e0e0e0", borderRadius: 5, color: "#212121", boxSizing: "border-box" }}
+                        style={{ ...metaField, fontSize: 13 }}
                       />
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    📝 Visit Notes / Unable to Complete Reason
-                  </div>
+                  <label htmlFor={`notes-${sec.id}`} style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: T.blue600, marginBottom: 7, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Visit Notes / Unable to Complete Reason
+                  </label>
                   <textarea
+                    id={`notes-${sec.id}`}
                     value={tabComments[sec.id]}
                     onChange={e => setTabComment(sec.id, e.target.value)}
                     placeholder="Note any reason this visit could not be completed (e.g. patient not available, location closed, PST unavailable) or general visit observations…"
                     rows={3}
-                    style={{ width: "100%", fontSize: 13, padding: "8px 10px", border: "1px solid #e0e0e0", borderRadius: 6, resize: "vertical", color: "#212121", background: "#fafafa", boxSizing: "border-box" }}
+                    style={{ ...metaField, fontSize: 13, padding: "9px 11px", resize: "vertical", background: T.gray50 }}
                   />
                 </div>
               )}
@@ -5108,10 +5383,10 @@ function SurveyPrepApp() {
           {isOp541Tab && (
             <div>
               {!op541FileName ? (
-                <div style={{ padding: "64px 24px", textAlign: "center", color: "#616161" }}>
+                <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray600 }}>
                   <div style={{ fontSize: 38, marginBottom: 12 }}>📂</div>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: "#212121", marginBottom: 8 }}>Upload the OP 541 Spreadsheet</div>
-                  <div style={{ fontSize: 13, color: "#757575", marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>Upload the OP 541 Spreadsheet</div>
+                  <div style={{ fontSize: 13, color: T.gray600, marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
                     Upload the .xlsx file filled out by the location. Their self-audit answers will appear alongside your on-site Y/N/NA assessment, with mismatches flagged automatically.
                   </div>
                   <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
@@ -5122,19 +5397,19 @@ function SurveyPrepApp() {
               ) : (
                 <div>
                   {/* Info bar */}
-                  <div style={{ padding: "10px 24px", background: "#f8f9fa", borderBottom: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ padding: "10px 24px", background: T.gray50, borderBottom: `1px solid ${T.gray200}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                     <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}>
-                      <span style={{ color: "#424242" }}>📄 {op541FileName}</span>
-                      <span style={{ color: "#9e9e9e" }}>Loc: = location self-audit &nbsp;|&nbsp; Y / N / N/A = your on-site assessment</span>
+                      <span style={{ color: T.gray700 }}>📄 {op541FileName}</span>
+                      <span style={{ color: T.gray500 }}>Loc: = location self-audit &nbsp;|&nbsp; Y / N / N/A = your on-site assessment</span>
                       {op541Stats.mismatch > 0 && (
-                        <span style={{ color: "#e65100", fontWeight: 600 }}>⚠ {op541Stats.mismatch} mismatch{op541Stats.mismatch !== 1 ? "es" : ""} with location self-audit</span>
+                        <span style={{ color: T.warning, fontWeight: 600 }}>⚠ {op541Stats.mismatch} mismatch{op541Stats.mismatch !== 1 ? "es" : ""} with location self-audit</span>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                       <button
                         onClick={exportUpdatedOp541}
                         title={op541BufferBytes ? undefined : "The original file isn't in this browser session (e.g. after loading a saved visit on a new device) — click to see how to bring it back"}
-                        style={{ fontSize: 12, padding: "5px 12px", background: op541BufferBytes ? "#1a6e35" : "#9e9e9e", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                        style={{ fontSize: 12, padding: "5px 12px", background: op541BufferBytes ? T.success : T.gray500, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
                         ⬇ Export Updated OP 541
                       </button>
                       <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
@@ -5183,7 +5458,7 @@ function SurveyPrepApp() {
                             </div>
                           )}
                           {section.label && (
-                            <div style={{ background: "#e8eef4", padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 12, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            <div style={{ background: T.blue50, padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 12, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                               {section.label}
                             </div>
                           )}
@@ -5194,33 +5469,33 @@ function SurveyPrepApp() {
                               return (
                                 <div key={item.key} style={{
                                   padding: "10px 12px", borderRadius: 6,
-                                  border: `1px solid ${mismatch ? "#ffb300" : s === "no" ? "#ef9a9a" : s === "yes" ? "#a5d6a7" : "#e0e0e0"}`,
+                                  border: `1px solid ${mismatch ? T.warning : s === "no" ? T.errorBorder : s === "yes" ? T.successBorder : T.gray200}`,
                                   background: mismatch ? "#fffde7" : s === "no" ? "#fff8f8" : s === "yes" ? "#f9fff9" : "#fff"
                                 }}>
                                   <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                      {item.policy && <span style={{ fontSize: 11, color: "#9e9e9e", marginRight: 8 }}>{item.policy}</span>}
-                                      <span style={{ fontSize: 13, color: "#212121", lineHeight: 1.5 }}>{item.text}</span>
-                                      {item.locComment && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3 }}>{item.locComment}</div>}
+                                      {item.policy && <span style={{ fontSize: 11, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
+                                      <span style={{ fontSize: 13, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
+                                      {item.locComment && <div style={{ fontSize: 11, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
                                     </div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                                       <span style={{
                                         fontSize: 11, fontWeight: 700, padding: "4px 9px", borderRadius: 4, whiteSpace: "nowrap",
-                                        background: item.locAns === "Y" ? "#e8f5e9" : item.locAns === "N" ? "#ffebee" : item.locAns ? "#f5f5f5" : "#fafafa",
-                                        color: item.locAns === "Y" ? "#2e7d32" : item.locAns === "N" ? "#c62828" : "#9e9e9e",
-                                        border: `1px solid ${item.locAns === "Y" ? "#a5d6a7" : item.locAns === "N" ? "#ef9a9a" : "#e0e0e0"}`
+                                        background: item.locAns === "Y" ? T.successBg : item.locAns === "N" ? T.errorBg : item.locAns ? T.gray100 : T.gray50,
+                                        color: item.locAns === "Y" ? T.success : item.locAns === "N" ? T.error : T.gray500,
+                                        border: `1px solid ${item.locAns === "Y" ? T.successBorder : item.locAns === "N" ? T.errorBorder : T.gray200}`
                                       }}>
                                         Loc: {item.locAns || "—"}
                                       </span>
-                                      {mismatch && <span title="Mismatch with location self-audit" style={{ color: "#e65100", fontSize: 15, fontWeight: 700 }}>⚠</span>}
+                                      {mismatch && <span title="Mismatch with location self-audit" style={{ color: T.warning, fontSize: 15, fontWeight: 700 }}>⚠</span>}
                                       <div style={{ display: "flex", gap: 4 }}>
                                         {["yes", "no", "na"].map(v => (
-                                          <button key={v} onClick={() => setOp541States(p => ({ ...p, [item.key]: p[item.key] === v ? null : v }))} style={{
-                                            width: 38, height: 32, fontSize: 11, fontWeight: 600,
-                                            border: `1px solid ${s === v ? STATUS_COLORS[v].border : "#e0e0e0"}`,
-                                            background: s === v ? STATUS_COLORS[v].bg : "#fafafa",
-                                            color: s === v ? STATUS_COLORS[v].text : "#9e9e9e",
-                                            borderRadius: 5, cursor: "pointer"
+                                          <button key={v} onClick={() => setOp541States(p => ({ ...p, [item.key]: p[item.key] === v ? null : v }))} aria-label={STATUS_COLORS[v].aria} aria-pressed={s === v} style={{
+                                            width: 40, height: 34, fontSize: 11.5, fontWeight: 700,
+                                            border: `1.5px solid ${s === v ? STATUS_COLORS[v].border : T.gray200}`,
+                                            background: s === v ? STATUS_COLORS[v].bg : T.white,
+                                            color: s === v ? STATUS_COLORS[v].text : T.gray400,
+                                            borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit"
                                           }}>{STATUS_COLORS[v].label}</button>
                                         ))}
                                       </div>
@@ -5232,7 +5507,7 @@ function SurveyPrepApp() {
                                       value={op541Comments[item.key]}
                                       onChange={e => setOp541Comments(p => ({ ...p, [item.key]: e.target.value }))}
                                       rows={2}
-                                      style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "6px 8px", border: `1px solid ${s === "no" ? "#ef9a9a" : "#a5d6a7"}`, borderRadius: 5, resize: "vertical", color: "#212121", background: "#fff", boxSizing: "border-box", display: "block" }} />
+                                      style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
                                   )}
                                 </div>
                               );
@@ -5251,9 +5526,9 @@ function SurveyPrepApp() {
                                 }}
                                 style={{
                                   marginTop: 8, padding: "5px 14px", fontSize: 11, fontWeight: 600,
-                                  background: allNa ? "#f5f5f5" : "#fafafa",
-                                  color: allNa ? "#616161" : "#757575",
-                                  border: `1px solid ${allNa ? "#bdbdbd" : "#e0e0e0"}`,
+                                  background: allNa ? T.gray100 : T.gray50,
+                                  color: allNa ? T.gray600 : T.gray600,
+                                  border: `1px solid ${allNa ? T.gray300 : T.gray200}`,
                                   borderRadius: 5, cursor: "pointer", letterSpacing: "0.02em"
                                 }}
                               >
@@ -5274,10 +5549,10 @@ function SurveyPrepApp() {
           {isOp541tTab && (
             <div>
               {!op541tFileName ? (
-                <div style={{ padding: "64px 24px", textAlign: "center", color: "#616161" }}>
+                <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray600 }}>
                   <div style={{ fontSize: 38, marginBottom: 12 }}>📂</div>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: "#212121", marginBottom: 8 }}>Upload the OP 541T Transfill Spreadsheet</div>
-                  <div style={{ fontSize: 13, color: "#757575", marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>Upload the OP 541T Transfill Spreadsheet</div>
+                  <div style={{ fontSize: 13, color: T.gray600, marginBottom: 28, maxWidth: 480, margin: "0 auto 28px" }}>
                     Upload the .xlsx file filled out by the transfill location. Their self-audit answers will appear alongside your on-site Y/N/NA assessment, with mismatches flagged automatically.
                   </div>
                   <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
@@ -5287,19 +5562,19 @@ function SurveyPrepApp() {
                 </div>
               ) : (
                 <div>
-                  <div style={{ padding: "10px 24px", background: "#f8f9fa", borderBottom: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ padding: "10px 24px", background: T.gray50, borderBottom: `1px solid ${T.gray200}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                     <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}>
-                      <span style={{ color: "#424242" }}>📄 {op541tFileName}</span>
-                      <span style={{ color: "#9e9e9e" }}>Loc: = location self-audit &nbsp;|&nbsp; Y / N / N/A = your on-site assessment</span>
+                      <span style={{ color: T.gray700 }}>📄 {op541tFileName}</span>
+                      <span style={{ color: T.gray500 }}>Loc: = location self-audit &nbsp;|&nbsp; Y / N / N/A = your on-site assessment</span>
                       {op541tStats.mismatch > 0 && (
-                        <span style={{ color: "#e65100", fontWeight: 600 }}>⚠ {op541tStats.mismatch} mismatch{op541tStats.mismatch !== 1 ? "es" : ""} with location self-audit</span>
+                        <span style={{ color: T.warning, fontWeight: 600 }}>⚠ {op541tStats.mismatch} mismatch{op541tStats.mismatch !== 1 ? "es" : ""} with location self-audit</span>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                       <button
                         onClick={exportUpdatedOp541t}
                         title={op541tBufferBytes ? undefined : "The original file isn't in this browser session (e.g. after loading a saved visit on a new device) — click to see how to bring it back"}
-                        style={{ fontSize: 12, padding: "5px 12px", background: op541tBufferBytes ? "#1a6e35" : "#9e9e9e", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                        style={{ fontSize: 12, padding: "5px 12px", background: op541tBufferBytes ? T.success : T.gray500, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
                         ⬇ Export Updated OP 541T
                       </button>
                       <label style={{ fontSize: 12, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
@@ -5347,7 +5622,7 @@ function SurveyPrepApp() {
                             </div>
                           )}
                           {section.label && (
-                            <div style={{ background: "#e8eef4", padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 12, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            <div style={{ background: T.blue50, padding: "8px 14px", marginBottom: 8, borderRadius: 5, fontWeight: 700, fontSize: 12, color: BRAND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                               {section.label}
                             </div>
                           )}
@@ -5358,33 +5633,33 @@ function SurveyPrepApp() {
                               return (
                                 <div key={item.key} style={{
                                   padding: "10px 12px", borderRadius: 6,
-                                  border: `1px solid ${mismatch ? "#ffb300" : s === "no" ? "#ef9a9a" : s === "yes" ? "#a5d6a7" : "#e0e0e0"}`,
+                                  border: `1px solid ${mismatch ? T.warning : s === "no" ? T.errorBorder : s === "yes" ? T.successBorder : T.gray200}`,
                                   background: mismatch ? "#fffde7" : s === "no" ? "#fff8f8" : s === "yes" ? "#f9fff9" : "#fff"
                                 }}>
                                   <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                      {item.policy && <span style={{ fontSize: 11, color: "#9e9e9e", marginRight: 8 }}>{item.policy}</span>}
-                                      <span style={{ fontSize: 13, color: "#212121", lineHeight: 1.5 }}>{item.text}</span>
-                                      {item.locComment && <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 3 }}>{item.locComment}</div>}
+                                      {item.policy && <span style={{ fontSize: 11, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
+                                      <span style={{ fontSize: 13, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
+                                      {item.locComment && <div style={{ fontSize: 11, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
                                     </div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                                       <span style={{
                                         fontSize: 11, fontWeight: 700, padding: "4px 9px", borderRadius: 4, whiteSpace: "nowrap",
-                                        background: item.locAns === "Y" ? "#e8f5e9" : item.locAns === "N" ? "#ffebee" : item.locAns ? "#f5f5f5" : "#fafafa",
-                                        color: item.locAns === "Y" ? "#2e7d32" : item.locAns === "N" ? "#c62828" : "#9e9e9e",
-                                        border: `1px solid ${item.locAns === "Y" ? "#a5d6a7" : item.locAns === "N" ? "#ef9a9a" : "#e0e0e0"}`
+                                        background: item.locAns === "Y" ? T.successBg : item.locAns === "N" ? T.errorBg : item.locAns ? T.gray100 : T.gray50,
+                                        color: item.locAns === "Y" ? T.success : item.locAns === "N" ? T.error : T.gray500,
+                                        border: `1px solid ${item.locAns === "Y" ? T.successBorder : item.locAns === "N" ? T.errorBorder : T.gray200}`
                                       }}>
                                         Loc: {item.locAns || "—"}
                                       </span>
-                                      {mismatch && <span title="Mismatch with location self-audit" style={{ color: "#e65100", fontSize: 15, fontWeight: 700 }}>⚠</span>}
+                                      {mismatch && <span title="Mismatch with location self-audit" style={{ color: T.warning, fontSize: 15, fontWeight: 700 }}>⚠</span>}
                                       <div style={{ display: "flex", gap: 4 }}>
                                         {["yes", "no", "na"].map(v => (
-                                          <button key={v} onClick={() => setOp541tStates(p => ({ ...p, [item.key]: p[item.key] === v ? null : v }))} style={{
-                                            width: 38, height: 32, fontSize: 11, fontWeight: 600,
-                                            border: `1px solid ${s === v ? STATUS_COLORS[v].border : "#e0e0e0"}`,
-                                            background: s === v ? STATUS_COLORS[v].bg : "#fafafa",
-                                            color: s === v ? STATUS_COLORS[v].text : "#9e9e9e",
-                                            borderRadius: 5, cursor: "pointer"
+                                          <button key={v} onClick={() => setOp541tStates(p => ({ ...p, [item.key]: p[item.key] === v ? null : v }))} aria-label={STATUS_COLORS[v].aria} aria-pressed={s === v} style={{
+                                            width: 40, height: 34, fontSize: 11.5, fontWeight: 700,
+                                            border: `1.5px solid ${s === v ? STATUS_COLORS[v].border : T.gray200}`,
+                                            background: s === v ? STATUS_COLORS[v].bg : T.white,
+                                            color: s === v ? STATUS_COLORS[v].text : T.gray400,
+                                            borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit"
                                           }}>{STATUS_COLORS[v].label}</button>
                                         ))}
                                       </div>
@@ -5396,7 +5671,7 @@ function SurveyPrepApp() {
                                       value={op541tComments[item.key]}
                                       onChange={e => setOp541tComments(p => ({ ...p, [item.key]: e.target.value }))}
                                       rows={2}
-                                      style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "6px 8px", border: `1px solid ${s === "no" ? "#ef9a9a" : "#a5d6a7"}`, borderRadius: 5, resize: "vertical", color: "#212121", background: "#fff", boxSizing: "border-box", display: "block" }} />
+                                      style={{ marginTop: 8, width: "50%", fontSize: 12, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
                                   )}
                                 </div>
                               );
@@ -5432,33 +5707,33 @@ function SurveyPrepApp() {
           {isJc427Tab && (
             <div>
               {jc427TemplateStatus === "loading" && (
-                <div style={{ padding: "64px 24px", textAlign: "center", color: "#9e9e9e" }}>
+                <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray500 }}>
                   <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-                  <div style={{ fontSize: 14, color: "#616161" }}>Loading JC 427 template…</div>
+                  <div style={{ fontSize: 14, color: T.gray600 }}>Loading JC 427 template…</div>
                 </div>
               )}
               {jc427TemplateStatus === "error" && (
-                <div style={{ padding: "64px 24px", textAlign: "center", color: "#616161" }}>
+                <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray600 }}>
                   <div style={{ fontSize: 38, marginBottom: 12 }}>⚠</div>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: "#c62828", marginBottom: 8 }}>Couldn't load the JC 427 template</div>
-                  <div style={{ fontSize: 13, color: "#757575", maxWidth: 440, margin: "0 auto" }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: T.error, marginBottom: 8 }}>Couldn't load the JC 427 template</div>
+                  <div style={{ fontSize: 13, color: T.gray600, maxWidth: 440, margin: "0 auto" }}>
                     Check your internet connection and reload the page. If this keeps happening, the template file may be missing from the deployment.
                   </div>
                 </div>
               )}
               {jc427TemplateStatus === "ready" && (
                 <div>
-                  <div style={{ padding: "10px 24px", background: "#f8f9fa", borderBottom: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                    <span style={{ fontSize: 12, color: "#9e9e9e" }}>{jc427Items.length} of {JC427_ALL_ITEMS.length} items recognized</span>
+                  <div style={{ padding: "10px 24px", background: T.gray50, borderBottom: `1px solid ${T.gray200}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: T.gray500 }}>{jc427Items.length} of {JC427_ALL_ITEMS.length} items recognized</span>
                     <button
                       onClick={exportUpdatedJC427}
-                      style={{ fontSize: 12, padding: "5px 12px", background: "#1a6e35", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                      style={{ fontSize: 12, padding: "5px 12px", background: T.success, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
                       ⬇ Export Updated JC 427
                     </button>
                   </div>
                   <div style={{ padding: "16px 24px" }}>
                     {jc427Items.length === 0 ? (
-                      <div style={{ padding: "40px 24px", textAlign: "center", color: "#9e9e9e" }}>
+                      <div style={{ padding: "40px 24px", textAlign: "center", color: T.gray500 }}>
                         Couldn't recognize any items in the bundled template. Contact support.
                       </div>
                     ) : (
@@ -5487,7 +5762,7 @@ function SurveyPrepApp() {
             <div style={{ padding: "20px 24px" }}>
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: BRAND, marginBottom: 4 }}>Policy Revision Reference</div>
-                <div style={{ fontSize: 12, color: "#757575" }}>
+                <div style={{ fontSize: 12, color: T.gray600 }}>
                   Admins can add, edit, or remove policies directly below — changes apply immediately for every specialist and reflect on the checklist badges automatically. No code changes or redeploys needed.
                 </div>
               </div>
@@ -5506,47 +5781,71 @@ function SurveyPrepApp() {
 
       {/* EMAIL VIEW */}
       {view === "email" && (
-        <div style={{ padding: "24px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: "#212121" }}>Manager Follow-Up Email</div>
-            <button onClick={() => copyText(emailText)} style={{ padding: "7px 14px", fontSize: 13, background: copied ? "#e8f5e9" : "#fff", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", color: copied ? "#2e7d32" : "#424242" }}>
-              {copied ? "✓ Copied" : "Copy email"}
-            </button>
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 28px 80px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>Manager Follow-Up Email</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => copyText(emailText)}
+                style={copied ? { ...btnOutline, background: T.successBg, color: T.success, borderColor: T.successBorder } : btnOutline}>
+                {copied ? "✓ Copied" : "Copy email"}
+              </button>
+              <button onClick={() => setView("report")} style={btnPrimary}>View Report →</button>
+            </div>
           </div>
-          <textarea value={emailText} onChange={e => setEmailText(e.target.value)}
-            style={{ width: "100%", minHeight: 420, fontSize: 13, lineHeight: 1.7, padding: "14px", border: "1px solid #e0e0e0", borderRadius: 8, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
-          <div style={{ marginTop: 12, fontSize: 12, color: "#9e9e9e" }}>You can edit this email before copying. Click "View Report →" for the full report.</div>
+          <textarea value={emailText} onChange={e => setEmailText(e.target.value)} aria-label="Follow-up email body"
+            style={{ width: "100%", minHeight: 420, fontSize: 13, lineHeight: 1.7, padding: 14, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, resize: "vertical", color: T.ink, background: T.white, boxSizing: "border-box", fontFamily: "inherit" }} />
+          <div style={{ marginTop: 12, fontSize: 12, color: T.gray500 }}>You can edit this email before copying. Click “View Report →” for the full report.</div>
+        </div>
+      )}
+
+      {/* REPORT VIEW — empty state. Every action on the populated report
+          exports or shares it, so with nothing answered there is nothing to
+          offer but the way back to the checklist. */}
+      {view === "report" && answeredCount === 0 && (
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 28px 80px" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 18 }}>Survey Prep Report</div>
+          <div style={{ background: T.white, border: `1px solid ${T.gray200}`, borderRadius: T.radiusCard, padding: "64px 24px", textAlign: "center", boxShadow: T.shadowCard }}>
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: T.blue50, color: T.blue600, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <Icon name="file-text" size={26} />
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>No checklist items answered yet</div>
+            <div style={{ fontSize: 13, color: T.gray600, marginBottom: 20, maxWidth: 360, marginLeft: "auto", marginRight: "auto" }}>
+              Mark items Compliant, Issue, or N/A in the checklist to build this visit's report.
+            </div>
+            <button onClick={goChecklist} style={{ ...btnPrimary, padding: "10px 20px", fontSize: 13.5, fontWeight: 700 }}>Go to Checklist</button>
+          </div>
         </div>
       )}
 
       {/* REPORT VIEW */}
-      {view === "report" && (
-        <div style={{ padding: "24px" }}>
+      {view === "report" && answeredCount > 0 && (
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 28px 80px" }}>
 
           {/* Screen-only toolbar */}
-          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: "#212121" }}>Survey Prep Report</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={exportFollowUpXLSX} style={{ padding: "7px 14px", fontSize: 13, background: "#1a6e35", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
-                ⬇ Export Follow-Up XLSX
+          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>Survey Prep Report</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={exportFollowUpXLSX} style={{ ...btnPrimary, background: T.success }}>
+                Export Follow-Up XLSX
               </button>
-              <button onClick={exportPDF} style={{ padding: "7px 14px", fontSize: 13, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
-                ⬇ Download PDF
+              <button onClick={exportPDF} style={btnPrimary}>
+                Download PDF
               </button>
-              <button onClick={generateChecklistLink} disabled={checklistLinkLoading} style={{ padding: "7px 14px", fontSize: 13, background: "#fff", color: BRAND, border: `1px solid ${BRAND}`, borderRadius: 6, cursor: checklistLinkLoading ? "default" : "pointer", fontWeight: 600, opacity: checklistLinkLoading ? 0.6 : 1 }}>
-                📋 {checklistLinkLoading ? "Generating…" : "Generate Follow-Up Checklist Link"}
+              <button onClick={generateChecklistLink} disabled={checklistLinkLoading}
+                style={{ ...btnOutline, cursor: checklistLinkLoading ? "default" : "pointer", opacity: checklistLinkLoading ? 0.6 : 1 }}>
+                {checklistLinkLoading ? "Generating…" : "Follow-Up Checklist Link"}
               </button>
             </div>
           </div>
 
           {checklistLink && (
-            <div className="no-print" style={{ background: "#f5f8fb", border: "1px solid #c5cfe0", borderRadius: 8, padding: "14px 16px", marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: BRAND, marginBottom: 8 }}>Follow-Up Checklist Link</div>
+            <div className="no-print" style={{ background: T.blue50, border: `1px solid #c5d9ef`, borderRadius: T.radiusCard, padding: "14px 16px", marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.blue600, marginBottom: 8 }}>Follow-Up Checklist Link</div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input readOnly value={checklistLink} onFocus={e => e.target.select()}
-                  style={{ flex: 1, fontSize: 12, padding: "8px 10px", border: "1px solid #e0e0e0", borderRadius: 6, color: "#212121", background: "#fff" }} />
+                <input readOnly value={checklistLink} onFocus={e => e.target.select()} aria-label="Follow-up checklist link"
+                  style={{ ...metaField, flex: 1, fontSize: 12 }} />
                 <button onClick={() => { navigator.clipboard.writeText(checklistLink).then(() => { setChecklistLinkCopied(true); setTimeout(() => setChecklistLinkCopied(false), 2000); }); }}
-                  style={{ padding: "7px 14px", fontSize: 13, background: checklistLinkCopied ? "#e8f5e9" : "#fff", border: "1px solid #e0e0e0", borderRadius: 6, cursor: "pointer", color: checklistLinkCopied ? "#2e7d32" : "#424242", whiteSpace: "nowrap" }}>
+                  style={checklistLinkCopied ? { ...btnOutline, background: T.successBg, color: T.success, borderColor: T.successBorder } : btnOutline}>
                   {checklistLinkCopied ? "✓ Copied" : "Copy link"}
                 </button>
               </div>
@@ -5560,33 +5859,33 @@ function SurveyPrepApp() {
           </div>
 
           {/* ── META TABLE ── */}
-          <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #c5cfe0", borderTop: "none", marginBottom: 0 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", border: `1px solid ${T.blueBorder}`, borderTop: "none", marginBottom: 0 }}>
             <tbody>
               <tr>
-                <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", borderRight: "1px solid #dde5ef", borderBottom: "1px solid #dde5ef", background: "#f5f8fb", width: "50%" }}>
-                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>Location {meta.lawson ? `(Lawson # ${meta.lawson})` : ""}</span>
-                  <strong style={{ color: "#1a3a5c" }}>{meta.location || "—"}</strong>
+                <td style={{ padding: "7px 14px", fontSize: 13, color: T.gray700, borderRight: `1px solid ${T.blueBorder}`, borderBottom: `1px solid ${T.blueBorder}`, background: T.blue50, width: "50%" }}>
+                  <span style={{ color: T.gray500, fontSize: 11, display: "block", marginBottom: 1 }}>Location {meta.lawson ? `(Lawson # ${meta.lawson})` : ""}</span>
+                  <strong style={{ color: T.blue800 }}>{meta.location || "—"}</strong>
                 </td>
-                <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", borderBottom: "1px solid #dde5ef", background: "#f5f8fb" }}>
-                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>City / State</span>
-                  <strong style={{ color: "#1a3a5c" }}>{meta.city || "—"}</strong>
+                <td style={{ padding: "7px 14px", fontSize: 13, color: T.gray700, borderBottom: `1px solid ${T.blueBorder}`, background: T.blue50 }}>
+                  <span style={{ color: T.gray500, fontSize: 11, display: "block", marginBottom: 1 }}>City / State</span>
+                  <strong style={{ color: T.blue800 }}>{meta.city || "—"}</strong>
                 </td>
               </tr>
               <tr>
-                <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", borderRight: "1px solid #dde5ef", background: "#f5f8fb" }}>
-                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>Accreditation Specialist</span>
-                  <strong style={{ color: "#1a3a5c" }}>{meta.specialist || "—"}</strong>
+                <td style={{ padding: "7px 14px", fontSize: 13, color: T.gray700, borderRight: `1px solid ${T.blueBorder}`, background: T.blue50 }}>
+                  <span style={{ color: T.gray500, fontSize: 11, display: "block", marginBottom: 1 }}>Accreditation Specialist</span>
+                  <strong style={{ color: T.blue800 }}>{meta.specialist || "—"}</strong>
                 </td>
-                <td style={{ padding: "7px 14px", fontSize: 13, color: "#424242", background: "#f5f8fb" }}>
-                  <span style={{ color: "#7a8fa8", fontSize: 11, display: "block", marginBottom: 1 }}>Visit Date</span>
-                  <strong style={{ color: "#1a3a5c" }}>{meta.date || "—"}</strong>
+                <td style={{ padding: "7px 14px", fontSize: 13, color: T.gray700, background: T.blue50 }}>
+                  <span style={{ color: T.gray500, fontSize: 11, display: "block", marginBottom: 1 }}>Visit Date</span>
+                  <strong style={{ color: T.blue800 }}>{meta.date || "—"}</strong>
                 </td>
               </tr>
               {(meta.followUpDate || meta.followUpTime) && (
                 <tr>
-                  <td colSpan={2} style={{ padding: "7px 14px", fontSize: 13, background: "#fffbea", borderTop: "1px solid #dde5ef" }}>
-                    <span style={{ color: "#7a5c00", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 1 }}>Follow-Up Teams Call Scheduled</span>
-                    <strong style={{ color: "#3d2e00", fontSize: 14 }}>
+                  <td colSpan={2} style={{ padding: "7px 14px", fontSize: 13, background: T.warningBg, borderTop: `1px solid ${T.blueBorder}` }}>
+                    <span style={{ color: T.warning, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 1 }}>Follow-Up Teams Call Scheduled</span>
+                    <strong style={{ color: T.ink, fontSize: 14 }}>
                       {meta.followUpDate ? new Date(meta.followUpDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—"}
                       {meta.followUpTime ? ` · ${formatFollowUpTime(meta.followUpTime)}` : ""}
                     </strong>
@@ -5599,8 +5898,8 @@ function SurveyPrepApp() {
           {/* ── SUMMARY SCORES ── */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 0, marginBottom: 20, marginTop: 16 }}>
             {[
-              ["Total Compliant", reportLines.reduce((a, s) => a + s.yes, 0), "#2e7d32", "#e8f5e9", "2px solid #2e7d32"],
-              ["Total Issues",    reportLines.reduce((a, s) => a + s.no, 0),  "#c62828", "#ffebee", "2px solid #c62828"],
+              ["Total Compliant", reportLines.reduce((a, s) => a + s.yes, 0), T.success, T.successBg, `2px solid ${T.success}`],
+              ["Total Issues",    reportLines.reduce((a, s) => a + s.no, 0),  T.error, T.errorBg, `2px solid ${T.error}`],
             ].map(([l, n, tc, bg, border]) => (
               <div key={l} style={{ background: bg, borderBottom: border, padding: "10px 12px", textAlign: "center", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
                 <div style={{ fontSize: 26, fontWeight: 700, color: tc }}>{n}</div>
@@ -5609,7 +5908,7 @@ function SurveyPrepApp() {
             ))}
           </div>
 
-          <div style={{ fontSize: 12, color: "#5c6b7a", fontStyle: "italic", marginBottom: 20, marginTop: -12 }}>
+          <div style={{ fontSize: 12, color: T.gray600, fontStyle: "italic", marginBottom: 20, marginTop: -12 }}>
             Friendly reminder: please refer back to the Follow-Up Checklist regularly and mark items off as they're completed.
           </div>
 
@@ -5622,14 +5921,14 @@ function SurveyPrepApp() {
           {reportLines.map((s, i) => {
             const hasIssues = s.no > 0 || s.issues.length > 0;
             const hasPending = s.pending > 0;
-            const accentColor = hasIssues ? "#c62828" : hasPending ? "#e65100" : "#2e7d32";
+            const accentColor = hasIssues ? T.error : hasPending ? T.warning : T.success;
             const isCompliant = !hasIssues && !hasPending;
             return (
-              <div key={i} style={{ marginBottom: 10, borderRadius: "0 6px 6px 0", border: `1px solid #e0e0e0`, borderLeft: `4px solid ${accentColor}`, pageBreakInside: "avoid", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+              <div key={i} style={{ marginBottom: 10, borderRadius: "0 6px 6px 0`, border: `1px solid ${T.gray200}`, borderLeft: `4px solid ${accentColor}`, pageBreakInside: `avoid", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
                 {/* Section header */}
                 <div style={{ padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", background: isCompliant ? "#f6fbf6" : hasIssues ? "#fdf4f4" : "#fffbf2", borderBottom: isCompliant ? "none" : "1px solid #ede0e0" }}>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: "#212121" }}>{s.label}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: T.ink }}>{s.label}</div>
                     {(s.pstName || s.driverName || s.vehicleNum) && (
                       <div style={{ display: "flex", gap: 14, marginTop: 2, fontSize: 11, color: "#555" }}>
                         {s.pstName    && <span>PST: <strong>{s.pstName}</strong></span>}
@@ -5645,22 +5944,22 @@ function SurveyPrepApp() {
                     )}
                   </div>
                   <div style={{ display: "flex", gap: 10, fontSize: 11, whiteSpace: "nowrap" }}>
-                    <span style={{ color: "#2e7d32" }}>✓ {s.yes}</span>
-                    <span style={{ color: "#c62828" }}>✗ {s.no}</span>
-                    {s.na > 0      && <span style={{ color: "#616161" }}>N/A {s.na}</span>}
-                    {s.pending > 0 && <span style={{ color: "#e65100" }}>? {s.pending}</span>}
+                    <span style={{ color: T.success }}>✓ {s.yes}</span>
+                    <span style={{ color: T.error }}>✗ {s.no}</span>
+                    {s.na > 0      && <span style={{ color: T.gray600 }}>N/A {s.na}</span>}
+                    {s.pending > 0 && <span style={{ color: T.warning }}>? {s.pending}</span>}
                   </div>
                 </div>
 
                 {/* Issues */}
                 {s.issues.length > 0 && (
                   <div style={{ padding: "10px 14px 6px" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#c62828", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Items requiring corrective action</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.error, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Items requiring corrective action</div>
                     {s.issues.map((iss, j) => (
                       <div key={j} style={{ padding: "8px 10px", marginBottom: 5, background: iss.mismatch ? "#fffde7" : "#fff8f8", borderLeft: `3px solid ${iss.mismatch ? "#f0a500" : "#e57373"}`, borderRadius: "0 4px 4px 0", fontSize: 13, pageBreakInside: "avoid" }}>
-                        <div style={{ color: "#212121", lineHeight: 1.5 }}>• {iss.text}</div>
+                        <div style={{ color: T.ink, lineHeight: 1.5 }}>• {iss.text}</div>
                         {iss.mismatch && (
-                          <div style={{ fontSize: 11, color: "#e65100", marginTop: 3, fontWeight: 600 }}>⚠ Mismatch — location self-audit marked compliant</div>
+                          <div style={{ fontSize: 11, color: T.warning, marginTop: 3, fontWeight: 600 }}>⚠ Mismatch — location self-audit marked compliant</div>
                         )}
                         {iss.comment && (
                           <div style={{ fontSize: 12, color: "#7a3a3a", marginTop: 5, paddingTop: 5, borderTop: `1px solid ${iss.mismatch ? "#ffe082" : "#f5c6c6"}`, lineHeight: 1.4 }}>
@@ -5678,7 +5977,7 @@ function SurveyPrepApp() {
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#1565c0", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Observations</div>
                     {s.observations.map((obs, j) => (
                       <div key={j} style={{ padding: "7px 10px", marginBottom: 4, background: "#f3f8ff", borderLeft: "3px solid #64b5f6", borderRadius: "0 4px 4px 0", fontSize: 13, pageBreakInside: "avoid" }}>
-                        <div style={{ color: "#212121", lineHeight: 1.5 }}>✓ {obs.text}</div>
+                        <div style={{ color: T.ink, lineHeight: 1.5 }}>✓ {obs.text}</div>
                         {obs.comment && (
                           <div style={{ fontSize: 12, color: "#1565c0", marginTop: 4, paddingTop: 4, borderTop: "1px solid #bbdefb", lineHeight: 1.4 }}>
                             <strong>Note:</strong> {obs.comment}
@@ -5692,13 +5991,13 @@ function SurveyPrepApp() {
                 {/* Compliant Items — compact two-column green list */}
                 {s.compliantItems && s.compliantItems.length > 0 && (
                   <div style={{ padding: "8px 14px 10px", borderTop: (s.issues.length > 0 || (s.observations && s.observations.length > 0)) ? "1px solid #e8f0e8" : "none", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.success, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
                       Compliant Items ({s.compliantItems.length})
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 20px" }}>
                       {s.compliantItems.map((item, j) => (
                         <div key={j} style={{ fontSize: 11, color: "#33691e", lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 4 }}>
-                          <span style={{ color: "#2e7d32", flexShrink: 0, marginTop: 1 }}>✓</span>
+                          <span style={{ color: T.success, flexShrink: 0, marginTop: 1 }}>✓</span>
                           <span>{item.text}</span>
                         </div>
                       ))}
@@ -5710,7 +6009,7 @@ function SurveyPrepApp() {
                 {s.tabComment && (
                   <div style={{ padding: "8px 14px 10px", borderTop: "1px solid #ede8f5" }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#4a148c", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 5 }}>Visit Notes</div>
-                    <div style={{ fontSize: 12, color: "#212121", lineHeight: 1.5, padding: "6px 10px", background: "#f8f4ff", borderLeft: "3px solid #9c27b0", borderRadius: "0 4px 4px 0" }}>
+                    <div style={{ fontSize: 12, color: T.ink, lineHeight: 1.5, padding: "6px 10px", background: "#f8f4ff", borderLeft: "3px solid #9c27b0", borderRadius: "0 4px 4px 0" }}>
                       {s.tabComment}
                     </div>
                   </div>
@@ -5718,21 +6017,21 @@ function SurveyPrepApp() {
 
                 {/* All-compliant banner (no issues AND no pending) */}
                 {isCompliant && (!s.compliantItems || s.compliantItems.length === 0) && (
-                  <div style={{ padding: "6px 14px", fontSize: 12, color: "#2e7d32" }}>All items compliant — no corrective action required.</div>
+                  <div style={{ padding: "6px 14px", fontSize: 12, color: T.success }}>All items compliant — no corrective action required.</div>
                 )}
               </div>
             );
           })}
 
           {/* ── ADDITIONAL COMMENTS ── */}
-          <div style={{ border: "1px solid #e0e0e0", borderRadius: 6, padding: "12px 14px", marginTop: 16, marginBottom: 16 }}>
+          <div style={{ border: `1px solid ${T.gray200}`, borderRadius: 6, padding: "12px 14px", marginTop: 16, marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Additional Comments</div>
             <textarea
               placeholder="Add any additional notes or observations here…"
               rows={3}
               value={additionalComments}
               onChange={e => setAdditionalComments(e.target.value)}
-              style={{ width: "100%", fontSize: 13, padding: "8px", border: "1px solid #e0e0e0", borderRadius: 4, resize: "vertical", color: "#212121", boxSizing: "border-box" }} />
+              style={{ width: "100%", fontSize: 13, padding: "8px", border: `1px solid ${T.gray200}`, borderRadius: 4, resize: "vertical", color: T.ink, boxSizing: "border-box" }} />
           </div>
 
         </div>
@@ -5741,26 +6040,29 @@ function SurveyPrepApp() {
       {/* Floating Save Progress — stays reachable once the header scrolls away */}
       {view === "form" && showFloatingSave && (
         <button className="no-print" onClick={saveProgress}
-          style={{ position: "fixed", bottom: 22, right: 22, zIndex: 1100, padding: "13px 22px", fontSize: 15, fontWeight: 700, background: BRAND, color: "#fff", border: "none", borderRadius: 999, cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.35)" }}>
-          💾 Save Progress
+          style={{ position: "fixed", bottom: 24, right: 24, zIndex: 1100, padding: "14px 24px", fontSize: 15, fontWeight: 700, background: T.blue600, color: T.white, border: "none", borderRadius: T.radiusPill, cursor: "pointer", boxShadow: "0 8px 20px rgba(0,58,112,0.35)", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8 }}>
+          <Icon name="save" size={17} />Save Progress
         </button>
       )}
 
       {/* 30-minute save reminder */}
       {showSaveReminder && (
-        <div className="no-print" style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ background: "#fff", borderRadius: 10, padding: "26px 24px", width: 380, maxWidth: "100%", boxShadow: "0 18px 40px rgba(0,0,0,0.35)", textAlign: "center" }}>
-            <div style={{ fontSize: 34, marginBottom: 8 }}>💾</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: BRAND, marginBottom: 6 }}>Don't forget to save!</div>
-            <div style={{ fontSize: 13, color: "#616161", lineHeight: 1.5, marginBottom: 18 }}>
+        <div className="no-print" role="dialog" aria-modal="true" aria-labelledby="save-reminder-title"
+          style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(19,25,34,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: T.white, borderRadius: T.radiusCard, padding: "26px 24px", width: 380, maxWidth: "100%", boxShadow: "0 18px 40px rgba(19,25,34,0.35)", textAlign: "center" }}>
+            <div style={{ width: 52, height: 52, borderRadius: 14, background: T.blue50, color: T.blue600, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+              <Icon name="save" size={24} />
+            </div>
+            <div id="save-reminder-title" style={{ fontSize: 16, fontWeight: 700, color: T.ink, marginBottom: 6 }}>Don't forget to save</div>
+            <div style={{ fontSize: 13, color: T.gray600, lineHeight: 1.5, marginBottom: 18 }}>
               It's been 30 minutes since your progress was last saved to the cloud. Save Progress syncs this visit so it can't be lost and shows up on your other devices.
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-              <button onClick={saveProgress} style={{ padding: "9px 18px", fontSize: 13, fontWeight: 700, background: BRAND, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
-                💾 Save Progress
+              <button onClick={saveProgress} style={{ ...btnPrimary, padding: "9px 18px", fontWeight: 700 }}>
+                Save Progress
               </button>
               <button onClick={() => { saveReminderAnchor.current = Date.now(); setShowSaveReminder(false); }}
-                style={{ padding: "9px 18px", fontSize: 13, background: "#fff", color: "#616161", border: "1px solid #bdbdbd", borderRadius: 6, cursor: "pointer" }}>
+                style={{ ...btnOutline, color: T.gray600, borderColor: T.gray300, fontWeight: 500 }}>
                 Remind me later
               </button>
             </div>

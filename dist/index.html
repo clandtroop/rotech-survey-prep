@@ -5,17 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Rotech Survey Prep</title>
   <meta name="description" content="Rotech Healthcare Accreditation Survey Prep Checklist" />
-  <meta name="theme-color" content="#1a3a5c" />
+  <meta name="theme-color" content="#0053a1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Survey Prep" />
   <link rel="apple-touch-icon" href="/rotech-survey-prep/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: #f0f2f5; }
-    input::placeholder { color: rgba(255,255,255,0.45); }
+    body {
+      margin: 0;
+      font-family: 'Source Sans 3', system-ui, sans-serif;
+      background: #f6f8fa;
+      color: #131922;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Placeholders sit on white cards now that the meta fields moved off the
+       blue header band — the old translucent-white value was invisible there. */
+    ::placeholder { color: #9ba5b2; opacity: 1; }
+    a { color: #0053a1; }
+    a:hover { color: #003a70; }
+
+    /* One visible focus ring for every interactive control. :focus-visible
+       keeps it off mouse clicks but guarantees it for keyboard users. */
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    a:focus-visible,
+    [tabindex]:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(0,83,161,.30);
+      border-color: #0053a1;
+    }
+    /* On the blue header the blue ring disappears — invert it there. */
+    .app-header button:focus-visible,
+    .app-header select:focus-visible,
+    .app-header input:focus-visible {
+      box-shadow: 0 0 0 3px rgba(255,255,255,.55);
+      border-color: transparent;
+    }
   </style>
-  <script type="module" crossorigin src="/rotech-survey-prep/assets/index-vQcR1pEl.js"></script>
+  <script type="module" crossorigin src="/rotech-survey-prep/assets/index-DVY9m2Cf.js"></script>
 <link rel="manifest" href="/rotech-survey-prep/manifest.webmanifest"></head>
 <body>
   <div id="root"></div>

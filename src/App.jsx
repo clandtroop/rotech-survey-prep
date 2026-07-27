@@ -4818,9 +4818,13 @@ function SurveyPrepApp() {
   }
 
   // The report is empty until something has actually been marked — drives the
-  // empty state instead of rendering a report full of zeroes.
+  // empty state instead of rendering a report full of zeroes. N/A counts as
+  // answered, and has to be counted for the OP 541/541T sheets too: a visit
+  // where the only work done was marking uploaded self-audit rows N/A still
+  // has a report worth showing.
   const answeredCount = allStats.yes + allStats.no
-    + SECTIONS.reduce((a, _, si) => a + getSectionStats(si).na, 0);
+    + SECTIONS.reduce((a, _, si) => a + getSectionStats(si).na, 0)
+    + op541Stats.na + op541tStats.na;
 
   const specialistFirstName = (meta.specialist || "").trim().split(/\s+/)[0] || "there";
 
@@ -4948,7 +4952,16 @@ function SurveyPrepApp() {
       {/* Saved Visits Panel */}
       {showVisits && (
         <div style={{ background: T.white, borderBottom: `1px solid ${T.gray200}`, padding: "16px 28px" }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: T.blue600, marginBottom: 12 }}>Saved Visits</div>
+          {/* The toggle that opens this lives on the checklist screen, but the
+              PDF reminder banner can open it from anywhere — so the panel has
+              to carry its own way out. */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: T.blue600 }}>Saved Visits</div>
+            <button onClick={() => setShowVisits(false)} aria-label="Close saved visits"
+              style={{ ...btnOutline, padding: "5px 12px", fontSize: 12, color: T.gray600, borderColor: T.gray300, fontWeight: 500 }}>
+              Close
+            </button>
+          </div>
           {savedVisits.length === 0 ? (
             <div style={{ fontSize: 13, color: T.gray500 }}>No saved visits yet. Use "Save Progress" to save the current visit.</div>
           ) : (

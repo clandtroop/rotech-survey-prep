@@ -5237,7 +5237,10 @@ function SurveyPrepApp() {
                 const naPct       = total ? (p.na / total) * 100 : 0;
                 const complete    = total > 0 && p.pending === 0;
                 return (
-                  <div key={t.idx} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  // flexShrink:0 is load-bearing — without it 16 tabs compress to
+                  // fit the rail instead of overflowing it, and the nowrap labels
+                  // spill out of their own boxes and overlap each other.
+                  <div key={t.idx} style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
                     <button role="tab" aria-selected={active} onClick={() => setActiveTab(t.idx)}
                       style={{
                         padding: "10px 16px", fontSize: 12.5, whiteSpace: "nowrap", background: "none", border: "none",

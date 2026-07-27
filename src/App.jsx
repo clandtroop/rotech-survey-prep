@@ -3517,11 +3517,35 @@ function SurveyPrepApp() {
     if (draft?.states) return { states: draft.states, comments: draft.comments ?? {} };
     return initStates();
   });
-  // Landing screen after auth. "dashboard" is the entry point; the checklist,
-  // report and reference panels are reached from there or the header nav.
-  const [view, setView] = useState("dashboard");
+  // Landing screen after auth. The dashboard is the entry point for a fresh
+  // session, but someone resuming a visit in progress wants the checklist —
+  // making them click through a summary of work they're mid-way through is a
+  // speed bump. "In progress" means the draft already has an answer or a
+  // location on it, not merely that autosave has fired.
+  const [view, setView] = useState(() => {
+    const started = draft && (
+      Object.values(draft.states ?? {}).some(Boolean) || !!draft.meta?.location
+    );
+    return started ? "form" : "dashboard";
+  });
   // Live filter over the checklist tab rail — UI-only, never persisted.
   const [tabSearch, setTabSearch] = useState("");
+  // Overflow menu holding the destructive "Clear & Start Over" action.
+  const [showMoreActions, setShowMoreActions] = useState(false);
+  const moreActionsRef = useRef(null);
+  useEffect(() => {
+    if (!showMoreActions) return;
+    const onDocClick = e => {
+      if (!moreActionsRef.current?.contains(e.target)) setShowMoreActions(false);
+    };
+    const onEsc = e => { if (e.key === "Escape") setShowMoreActions(false); };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [showMoreActions]);
   const [emailText, setEmailText] = useState("");
   const [reportLines, setReportLines] = useState([]);
   const [copied, setCopied] = useState(false);
@@ -4826,6 +4850,10 @@ function SurveyPrepApp() {
     + SECTIONS.reduce((a, _, si) => a + getSectionStats(si).na, 0)
     + op541Stats.na + op541tStats.na;
 
+  // Only the OP 541 sheet's own mismatches — this is what the card prints, so
+  // the highlight and the number have to agree. 541T has its own count.
+  const op541Mismatches = op541Stats.mismatch;
+
   const specialistFirstName = (meta.specialist || "").trim().split(/\s+/)[0] || "there";
 
   const navItems = [
@@ -5130,7 +5158,9 @@ function SurveyPrepApp() {
               { accent: T.teal,    titleColor: T.tealDeep, icon: "book-open",      title: "Policy Dates",         desc: "Reference revision dates for policies cited in the checklist",                      stat: `${Object.keys(policyDates).length} policies on file`,                  cta: "View Policy Dates",   onClick: () => goTab(TAB.policy) },
               { accent: T.blue400, titleColor: T.blue600,  icon: "list-checks",    title: "Follow-Ups",           desc: "Company-wide progress on open follow-up checklists by location",                    stat: "Open items by location",                                               cta: "View Follow-Ups",     onClick: () => goTab(TAB.followUp) },
               { accent: T.gray600, titleColor: T.ink,      icon: "map-pin",        title: "Location Roster",      desc: "Reference lookup of locations, Lawson #s, and area managers",                       stat: `${locations.length} locations on file`,                                cta: "View Roster",         onClick: () => goTab(TAB.roster) },
-              { accent: T.error,   titleColor: T.error,    icon: "git-compare",    title: "OP 541 Self-Audit",    desc: "Compares the location's uploaded self-audit against your on-site findings",         stat: op541FileName ? `${op541Stats.mismatch} mismatches flagged` : "No self-audit uploaded yet", cta: "View Self-Audit", onClick: () => goTab(TAB.op541) },
+              // Mismatches are the highest-signal thing in the app, so this card
+              // goes amber and shouts the count the moment there is one.
+              { accent: op541Mismatches > 0 ? T.warning : T.error, titleColor: op541Mismatches > 0 ? T.warning : T.error, icon: "git-compare", title: "OP 541 Self-Audit", desc: "Compares the location's uploaded self-audit against your on-site findings", stat: op541FileName ? `${op541Stats.mismatch} mismatches flagged` : "No self-audit uploaded yet", alert: op541Mismatches > 0, cta: "View Self-Audit", onClick: () => goTab(TAB.op541) },
             ].map(c => (
               <div key={c.title} style={{ ...cardStyle(c.accent), flex: "1 1 260px" }}>
                 <div style={{ padding: 20 }}>
@@ -5138,7 +5168,13 @@ function SurveyPrepApp() {
                     <Icon name={c.icon} size={16} />{c.title}
                   </div>
                   <div style={{ fontSize: 13.5, color: T.gray600, marginBottom: 4 }}>{c.desc}</div>
-                  <div style={{ fontSize: 12.5, color: T.gray500, marginBottom: 16 }}>{c.stat}</div>
+                  {c.alert ? (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: T.warningBg, color: T.warning, fontSize: 12.5, fontWeight: 700, padding: "3px 10px", borderRadius: T.radiusPill, marginBottom: 16 }}>
+                      <Icon name="alert-circle" size={13} />{c.stat}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: T.gray500, marginBottom: 16 }}>{c.stat}</div>
+                  )}
                   <button onClick={c.onClick}
                     style={{ width: "100%", padding: 11, fontSize: 15, fontWeight: 700, background: c.accent, color: T.white, border: "none", borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit" }}>
                     {c.cta}
@@ -5242,8 +5278,32 @@ function SurveyPrepApp() {
               <button onClick={() => setShowVisits(v => !v)} style={showVisits ? { ...btnOutline, background: T.blue50 } : btnOutline}>
                 Saved Visits{savedVisits.length > 0 ? ` (${savedVisits.length})` : ""}
               </button>
-              <button onClick={startFresh} style={{ ...btnOutline, color: T.error, borderColor: T.errorBorder }}>Clear &amp; Start Over</button>
               <button onClick={generateOutputs} style={btnPrimary}>Generate Email &amp; Report</button>
+              {/* Destructive and rarely used — kept out of thumb's reach of
+                  "Save Progress" rather than sitting next to it. */}
+              <div ref={moreActionsRef} style={{ position: "relative" }}>
+                <button onClick={() => setShowMoreActions(v => !v)} aria-label="More actions"
+                  aria-expanded={showMoreActions} aria-haspopup="menu"
+                  style={{ ...btnOutline, color: T.gray600, borderColor: T.gray300, padding: "9px 13px", fontSize: 15, lineHeight: 1 }}>
+                  ⋯
+                </button>
+                {showMoreActions && (
+                  <div role="menu" style={{
+                    position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 1000, minWidth: 190,
+                    background: T.white, border: `1px solid ${T.gray200}`, borderRadius: 10,
+                    boxShadow: "0 8px 24px rgba(19,25,34,.16)", overflow: "hidden",
+                  }}>
+                    <button role="menuitem" onClick={() => { setShowMoreActions(false); startFresh(); }}
+                      style={{
+                        display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: 13,
+                        fontWeight: 600, background: "none", border: "none", color: T.error, cursor: "pointer",
+                        fontFamily: "inherit", whiteSpace: "nowrap",
+                      }}>
+                      Clear &amp; Start Over
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -5251,7 +5311,18 @@ function SurveyPrepApp() {
           <div style={{ maxWidth: WIDTH_FORM, margin: "18px auto 0", padding: "0 28px" }}>
             <div style={{ position: "relative", maxWidth: 280, marginBottom: 10 }}>
               <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: T.gray400, pointerEvents: "none" }} />
-              <input value={tabSearch} onChange={e => setTabSearch(e.target.value)} placeholder="Search binders…" aria-label="Search binders"
+              {/* Filtering the rail without moving the selection leaves the
+                  content below showing a binder that is no longer on screen —
+                  so if the search hides the active tab, jump to the first hit. */}
+              <input value={tabSearch} aria-label="Search binders" placeholder="Search binders…"
+                onChange={e => {
+                  const next = e.target.value;
+                  setTabSearch(next);
+                  const q = next.trim().toLowerCase();
+                  if (!q) return;
+                  const hits = tabDefs.filter(t => t.label.toLowerCase().includes(q));
+                  if (hits.length && !hits.some(t => t.idx === activeTab)) setActiveTab(hits[0].idx);
+                }}
                 style={{ width: "100%", padding: "7px 10px 7px 32px", fontSize: 13.5, border: `1.5px solid ${T.gray300}`, borderRadius: T.radiusPill, fontFamily: "inherit", boxSizing: "border-box", color: T.ink, outline: "none" }} />
             </div>
             <div role="tablist" aria-label="Checklist binders" style={{ display: "flex", gap: 6, overflowX: "auto", borderBottom: `1px solid ${T.gray200}` }}>

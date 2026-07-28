@@ -8,6 +8,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile 
 import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline, BRAND } from "./theme";
 import { TREND_KEY, TRENDS_COLLECTION, loadTrendData } from "./trendData";
 import TrendDashboard from "./TrendDashboard";
+import TeamPlanner from "./TeamPlanner";
 
 // What the assessment module is called in the nav, on its dashboard card, and
 // in any CTA pointing at it. Kept in one place so renaming it is a one-line
@@ -4372,6 +4373,12 @@ function SurveyPrepApp() {
     setView("report");
     window.scrollTo({ top: 0 });
   }
+  // The Team Planner is its own module rather than a checklist tab — it has
+  // nothing to do with the visit in progress, so it never touches activeTab.
+  function goPlanner() {
+    setView("planner");
+    window.scrollTo({ top: 0 });
+  }
 
   // The report is empty until something has actually been marked — drives the
   // empty state instead of rendering a report full of zeroes. N/A counts as
@@ -4393,6 +4400,7 @@ function SurveyPrepApp() {
     { key: "form",      label: MODULE_LABEL,   icon: "clipboard-list",  active: view === "form" && !REFERENCE_TABS.includes(activeTab), onClick: goChecklist },
     { key: "report",    label: "Report",       icon: "file-text",       active: view === "report" || view === "email",     onClick: goReport },
     { key: "trends",    label: "Issue Trends", icon: "trending-up",     active: view === "form" && isTrendsTab,            onClick: () => goTab(TAB.trends) },
+    { key: "planner",   label: "Team Planner", icon: "calendar",        active: view === "planner",                        onClick: goPlanner },
   ];
 
   const headerBtn = {
@@ -4690,6 +4698,7 @@ function SurveyPrepApp() {
               { accent: T.teal,    titleColor: T.tealDeep, icon: "book-open",      title: "Policy Dates",         desc: "Reference revision dates for policies cited in the checklist",                      stat: `${Object.keys(policyDates).length} policies on file`,                  cta: "View Policy Dates",   onClick: () => goTab(TAB.policy) },
               { accent: T.blue400, titleColor: T.blue600,  icon: "list-checks",    title: "Follow-Ups",           desc: "Company-wide progress on open follow-up checklists by location",                    stat: "Open items by location",                                               cta: "View Follow-Ups",     onClick: () => goTab(TAB.followUp) },
               { accent: T.gray600, titleColor: T.ink,      icon: "map-pin",        title: "Location Roster",      desc: "Reference lookup of locations, Lawson #s, and area managers",                       stat: `${locations.length} locations on file`,                                cta: "View Roster",         onClick: () => goTab(TAB.roster) },
+              { accent: T.tealDeep, titleColor: T.tealDeep, icon: "calendar",      title: "Team Planner",         desc: "Recurring duties, team whereabouts, PTO and visit planning",                        stat: "Replaces the Team Planner spreadsheet",                                cta: "Open Team Planner",   onClick: goPlanner },
               // Mismatches are the highest-signal thing in the app, so this card
               // goes amber and shouts the count the moment there is one.
               { accent: op541Mismatches > 0 ? T.warning : T.error, titleColor: op541Mismatches > 0 ? T.warning : T.error, icon: "git-compare", title: "OP 541 Self-Audit", desc: "Compares the location's uploaded self-audit against your on-site findings", stat: op541FileName ? `${op541Stats.mismatch} mismatches flagged` : "No self-audit uploaded yet", alert: op541Mismatches > 0, cta: "View Self-Audit", onClick: () => goTab(TAB.op541) },
@@ -4717,6 +4726,9 @@ function SurveyPrepApp() {
           </div>
         </div>
       )}
+
+      {/* TEAM PLANNER — separate module, no shared state with the checklist */}
+      {view === "planner" && <TeamPlanner />}
 
       {/* FORM VIEW */}
       {view === "form" && (

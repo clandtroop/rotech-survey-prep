@@ -87,6 +87,14 @@ export const ICON_PATHS = {
   table:           'M12 3v18|M3 9h18|M3 15h18|M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   "layout-grid":   'M3 3h7v7H3z|M14 3h7v7h-7z|M14 14h7v7h-7z|M3 14h7v7H3z',
   minus:           'M5 12h14',
+  // Added for the Team Planner module.
+  calendar:        'M8 2v4|M16 2v4|M3 10h18|M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+  "chevron-left":  'M15 18l-6-6 6-6',
+  plane:           'M17.8 19.2L16 11l3.5-3.5a2.12 2.12 0 0 0-3-3L13 8 4.8 6.2a1 1 0 0 0-.9 1.6l3.6 3.6-2 2-2.1-.4a1 1 0 0 0-.9 1.6L5 17l2.4 2.3a1 1 0 0 0 1.6-.9l-.4-2.1 2-2 3.6 3.6a1 1 0 0 0 1.6-.7z',
+  bed:             'M2 4v16|M2 8h18a2 2 0 0 1 2 2v10|M2 17h20|M6 8v9',
+  plus:            'M12 5v14|M5 12h14',
+  "square-pen":    'M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7|M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4z',
+  trash:           'M3 6h18|M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2|M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6|M10 11v6|M14 11v6',
 };
 
 export function Icon({ name, size = 16, style }) {

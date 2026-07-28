@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { collection, doc, onSnapshot, setDoc, deleteDoc, query as fsQuery, where, getDocs, writeBatch } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import { T, Icon, cardStyle, btnPrimary, btnOutline, metaLabel, metaField } from "./theme";
+import { MyTasksView, TaskEditorModal, blankTask } from "./TeamPlannerTasks";
 import {
   PLANNER_ADMIN_EMAILS, PEOPLE_COLLECTION, TASKS_COLLECTION, ENTRIES_COLLECTION, MILESTONES_COLLECTION,
+  TASK_DONE_COLLECTION, allTagsOf,
   STATUSES, STATUS_BY_ID, OUT_STATUSES, CADENCES, MONTH_NAMES,
   toIso, fromIso, todayIso, addDays, weekStart, monthKey, quarterOf, monthsOfQuarter,
   formatDate, formatRange, monthWeekdayGrid, weekdaysOfMonth,
@@ -27,6 +29,7 @@ import {
 
 const VIEWS = [
   { id: "today",       label: "Today",        icon: "clock" },
+  { id: "mytasks",     label: "My Tasks",     icon: "list-checks" },
   { id: "tasks",       label: "Task Calendar", icon: "repeat" },
   { id: "whereabouts", label: "Whereabouts",  icon: "calendar" },
   { id: "print",       label: "Print Summary", icon: "printer" },
@@ -120,6 +123,7 @@ function usePlannerData(year) {
   const [tasks, setTasks] = useState([]);
   const [milestones, setMilestones] = useState([]);
   const [entries, setEntries] = useState([]);
+  const [done, setDone] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -149,7 +153,19 @@ function usePlannerData(year) {
     }, e => { setError(e?.message || "Could not load calendar entries."); setLoading(false); });
   }, [year]);
 
-  return { people, tasks, milestones, entries, loading, error };
+  // Completion records, scoped to the year in view. Every periodKey shape —
+  // 2026-W32, 2026-08, 2026-Q3, 2026-08-17 — starts with the year, so one
+  // prefix range covers them all.
+  useEffect(() => {
+    const q = fsQuery(
+      collection(db, TASK_DONE_COLLECTION),
+      where("periodKey", ">=", `${year}-`),
+      where("periodKey", "<=", `${year}-\uf8ff`),
+    );
+    return onSnapshot(q, s => setDone(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => setDone([]));
+  }, [year]);
+
+  return { people, tasks, milestones, entries, done, loading, error };
 }
 
 // ─── SHARED BITS ─────────────────────────────────────────────────────────────
@@ -192,11 +208,12 @@ export default function TeamPlanner() {
   const [anchor, setAnchor] = useState(() => todayIso());   // drives month/quarter paging
   const [showRoster, setShowRoster] = useState(false);
   const [showManage, setShowManage] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
   const [editing, setEditing] = useState(null);             // entry draft in the modal
   const [detail, setDetail] = useState(null);               // entry shown in the drawer
 
   const year = Number(anchor.slice(0, 4));
-  const { people, tasks, milestones, entries, loading, error } = usePlannerData(year);
+  const { people, tasks, milestones, entries, done, loading, error } = usePlannerData(year);
 
   const email = auth.currentUser?.email || "";
   const isAdmin = PLANNER_ADMIN_EMAILS.includes(email);
@@ -305,7 +322,13 @@ export default function TeamPlanner() {
       </div>
 
       {view === "today"       && <TodayView {...viewProps} />}
-      {view === "tasks"       && <TaskCalendarView {...viewProps} />}
+      {view === "mytasks"     && (
+        <MyTasksView tasks={tasks} done={done} roster={activeRoster} me={me} isAdmin={isAdmin}
+          onEditTask={setEditingTask}
+          onNewTask={() => setEditingTask(blankTask(me?.personKey || "", me?.displayName || "", email))} />
+      )}
+      {view === "tasks"       && <TaskCalendarView {...viewProps} onEditTask={setEditingTask}
+        onNewTask={() => setEditingTask({ ...blankTask("", "", email), assignee: { type: "team", personKey: "", displayName: "Team" }, origin: "assigned" })} />}
       {view === "whereabouts" && <WhereaboutsView {...viewProps} />}
       {view === "print"       && <PrintSummaryView {...viewProps} />}
 
@@ -322,6 +345,10 @@ export default function TeamPlanner() {
       )}
       {showManage && (
         <ManageEntriesPanel me={me} isAdmin={isAdmin} roster={roster} onClose={() => setShowManage(false)} />
+      )}
+      {editingTask && (
+        <TaskEditorModal draft={editingTask} roster={activeRoster} isAdmin={isAdmin} allTasks={tasks}
+          onChange={setEditingTask} onClose={() => setEditingTask(null)} />
       )}
     </div>
   );
@@ -482,11 +509,13 @@ function TaskRow({ task }) {
 
 // ─── TASK CALENDAR ───────────────────────────────────────────────────────────
 
-function TaskCalendarView({ tasks, roster }) {
+function TaskCalendarView({ tasks, roster, isAdmin, onEditTask, onNewTask }) {
   const [person, setPerson] = useState("");
   const [cadence, setCadence] = useState("");
+  const [tag, setTag] = useState("");
   const [search, setSearch] = useState("");
   const [layout, setLayout] = useState("list");
+  const tagOptions = useMemo(() => allTagsOf(tasks), [tasks]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -494,11 +523,12 @@ function TaskCalendarView({ tasks, roster }) {
       .filter(t => t.active !== false)
       .filter(t => !person || t.assignee?.personKey === person || (person === "__team" && t.assignee?.type === "team"))
       .filter(t => !cadence || t.cadence?.type === cadence)
-      .filter(t => !q || `${t.name} ${t.comments} ${t.scope}`.toLowerCase().includes(q))
+      .filter(t => !tag || (t.tags || []).includes(tag))
+      .filter(t => !q || `${t.name} ${t.comments} ${t.scope} ${(t.tags || []).join(" ")}`.toLowerCase().includes(q))
       .sort((a, b) => cadenceRank(a) - cadenceRank(b)
         || (a.cadence?.date || "").localeCompare(b.cadence?.date || "")
         || String(a.name).localeCompare(String(b.name)));
-  }, [tasks, person, cadence, search]);
+  }, [tasks, person, cadence, tag, search]);
 
   // The old "Tasks by Month" tab was a quarter grid of month blocks; it held no
   // data of its own, so it is rendered here from the same task list rather than
@@ -527,8 +557,17 @@ function TaskCalendarView({ tasks, roster }) {
           <option value="">All cadences</option>
           {CADENCES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
+        <select value={tag} onChange={e => setTag(e.target.value)} aria-label="Filter by tag" style={selectStyle}>
+          <option value="">All tags</option>
+          {tagOptions.map(t => <option key={t} value={t}>#{t}</option>)}
+        </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tasks…" aria-label="Search tasks"
-          style={{ ...metaField, padding: "7px 10px", fontSize: 13.5, width: 220 }} />
+          style={{ ...metaField, padding: "7px 10px", fontSize: 13.5, width: 200 }} />
+        {isAdmin && (
+          <button onClick={onNewTask} style={{ ...btnPrimary, padding: "7px 14px", fontSize: 12.5 }}>
+            <Icon name="plus" size={13} style={{ marginRight: 5, verticalAlign: "-2px" }} />New task
+          </button>
+        )}
         <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
           {[["list", "table", "List"], ["months", "layout-grid", "By month"]].map(([id, icon, label]) => (
             <button key={id} onClick={() => setLayout(id)}
@@ -550,14 +589,14 @@ function TaskCalendarView({ tasks, roster }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: T.gray50 }}>
-                {["Task", "Cadence", "Specialist", "Applies to", "Comments"].map(h => (
+                {["Task", "Cadence", "Specialist", "Applies to", "Tags", "Comments", ""].map(h => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 11.5, fontWeight: 700, color: T.gray600, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${T.gray200}` }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: 20, color: T.gray500 }}>No tasks match these filters.</td></tr>
+                <tr><td colSpan={7} style={{ padding: 20, color: T.gray500 }}>No tasks match these filters.</td></tr>
               )}
               {filtered.map(t => (
                 <tr key={t.id} style={{ borderBottom: `1px solid ${T.gray100}` }}>
@@ -569,7 +608,24 @@ function TaskCalendarView({ tasks, roster }) {
                       : t.assignee?.displayName || <span style={{ color: T.gray400 }}>Unassigned</span>}
                   </td>
                   <td style={{ padding: "10px 14px", color: T.gray600 }}>{t.scope || "—"}</td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                      {(t.tags || []).map(x => (
+                        <span key={x} style={{ fontSize: 10.5, fontWeight: 600, padding: "1.5px 7px", borderRadius: 4, background: T.white, border: `1px solid ${T.gray300}`, color: T.gray600 }}>
+                          <span style={{ opacity: 0.45 }}>#</span>{x}
+                        </span>
+                      ))}
+                    </span>
+                  </td>
                   <td style={{ padding: "10px 14px", color: T.gray600 }}>{t.comments || ""}</td>
+                  <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                    {isAdmin && (
+                      <button onClick={() => onEditTask(t)}
+                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: T.blue600, textDecoration: "underline" }}>
+                        Edit
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

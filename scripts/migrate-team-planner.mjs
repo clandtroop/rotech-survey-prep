@@ -421,6 +421,28 @@ function parsePlanner(ws, warnings) {
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 
 function build(workbookPath) {
+  // SheetJS reports a missing file as a bare "Cannot access file <path>" with
+  // no hint about where it looked, which is unhelpful when the path is
+  // relative and the shell is a directory or two off.
+  if (!fs.existsSync(workbookPath)) {
+    console.error(`\nNo file at: ${path.resolve(workbookPath)}`);
+    console.error(`(working directory: ${process.cwd()})`);
+    const found = [".", "docs", "..", process.env.HOME ? path.join(process.env.HOME, "Downloads") : ""]
+      .filter(Boolean)
+      .flatMap(dir => {
+        try {
+          return fs.readdirSync(dir)
+            .filter(f => f.endsWith(".xlsx") && !f.startsWith("~$"))
+            .map(f => path.join(dir, f));
+        } catch { return []; }
+      });
+    if (found.length) {
+      console.error(`\nWorkbooks found nearby — pass one of these instead:`);
+      found.forEach(f => console.error(`  ${f}`));
+    }
+    process.exit(1);
+  }
+
   const wb = XLSX.readFile(workbookPath, { cellDates: true });
   const warnings = [];
   const need = name => {

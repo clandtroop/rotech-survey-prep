@@ -6,89 +6,10 @@ import { db, auth } from "./firebase";
 import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, where, orderBy, limit, writeBatch } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
 
-// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
-// Rotech Healthcare design system. Every colour/radius/shadow in the UI comes
-// from here — reach for a token rather than a literal hex so a palette change
-// stays a one-line edit.
-// ─────────────────────────────────────────────────────────────────────────────
-const T = {
-  blue600: "#0053a1", // primary
-  blue700: "#00468a",
-  blue800: "#003a70", // hover / deep
-  blue400: "#3d83cc",
-  blue50:  "#eef4fb", // tint bg
-  blueBorder: "#dbe8f6", // hairline on tinted blue surfaces (report tables)
-  teal:    "#00a0c6",
-  tealDeep:"#00768f", // teal text on white — the raw teal fails contrast
-  success: "#1d7a4d", successBg: "#e7f4ec", successBorder: "#8fc9a3",
-  error:   "#c0392b", errorBg:   "#fbeae7", errorBorder:   "#e0a099",
-  warning: "#b06a00", warningBg: "#fbf0db",
-  ink:     "#131922", // body text
-  gray700: "#424b56", // secondary text
-  gray600: "#5d6773",
-  gray500: "#7c8794", // muted
-  gray400: "#9ba5b2",
-  gray300: "#c5ccd5", // borders
-  gray200: "#e1e6ec", // hairline
-  gray100: "#eef1f5",
-  gray50:  "#f6f8fa",
-  white:   "#ffffff",
-
-  font: "'Source Sans 3', system-ui, sans-serif",
-  radius:     8,   // buttons / inputs
-  radiusCard: 12,  // cards
-  radiusPill: 999,
-  shadowCard: "0 1px 3px rgba(19,25,34,.08), 0 1px 2px rgba(19,25,34,.04)",
-  shadowSoft: "0 1px 3px rgba(19,25,34,.06)",
-  focusRing:  "0 0 0 3px rgba(0,83,161,.30)",
-};
-
-// Reusable card chrome — white surface, hairline border, soft shadow. The
-// `accent` argument draws the 5px top rule that identifies the card's module.
-function cardStyle(accent) {
-  return {
-    background: T.white,
-    border: `1px solid ${T.gray200}`,
-    borderRadius: T.radiusCard,
-    boxShadow: T.shadowCard,
-    overflow: "hidden",
-    ...(accent ? { borderTop: `5px solid ${accent}` } : null),
-  };
-}
-
-// Lucide icons, inlined as SVG rather than pulled from the unpkg UMD bundle the
-// design handoff suggests: this app is an offline-capable PWA, and a CDN
-// <script> plus a post-render lucide.createIcons() sweep would both break
-// offline and fight React's ownership of the DOM. Paths are Lucide's own
-// (ISC licensed); add new glyphs to this map as screens need them.
-const ICON_PATHS = {
-  home:            'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z|M9 22V12h6v10',
-  "clipboard-list":'M8 2h8v4H8z|M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2|M12 11h4|M12 16h4|M8 11h.01|M8 16h.01',
-  "file-text":     'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z|M14 2v4a2 2 0 0 0 2 2h4|M10 9H8|M16 13H8|M16 17H8',
-  "trending-up":   'M22 7l-8.5 8.5-5-5L2 17|M16 7h6v6',
-  history:         'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8|M3 3v5h5|M12 7v5l4 2',
-  "book-open":     'M12 7v14|M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z',
-  "list-checks":   'M3 17l2 2 4-4|M3 7l2 2 4-4|M13 6h8|M13 12h8|M13 18h8',
-  "map-pin":       'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0|M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6',
-  "git-compare":   'M18 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6|M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6|M13 6h3a2 2 0 0 1 2 2v7|M11 18H8a2 2 0 0 1-2-2V9',
-  "check-circle":  'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20|M9 12l2 2 4-4',
-  "alert-circle":  'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20|M12 8v4|M12 16h.01',
-  clock:           'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20|M12 6v6l4 2',
-  search:          'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16|M21 21l-4.3-4.3',
-  save:            'M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z|M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7|M7 3v4a1 1 0 0 0 1 1h7',
-};
-
-function Icon({ name, size = 16, style }) {
-  const d = ICON_PATHS[name];
-  if (!d) return null;
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-      style={{ flexShrink: 0, ...style }}>
-      {d.split("|").map((p, i) => <path key={i} d={p} />)}
-    </svg>
-  );
-}
+// Design tokens, card chrome and the inlined Lucide icon set now live in
+// theme.jsx so the chart module can share them without importing this file.
+import { T, cardStyle, Icon } from "./theme.jsx";
+import { StatTile, ColumnChart, HBarChart, StackedShareBar, SERIES } from "./charts.jsx";
 
 // Shared form/button chrome. Spread these and override the one or two
 // properties that differ rather than restating the whole block.
@@ -2985,6 +2906,60 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
   );
 }
 
+// Card chrome for a single plot — title, optional hint, optional right-hand
+// badge, then the plot itself. Kept flush with the app's card system rather
+// than the solid blue header bars this screen used to carry.
+function ChartCard({ title, icon, hint, right, span, children }) {
+  return (
+    <div style={{ ...cardStyle(), gridColumn: span ? `span ${span}` : undefined, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ padding: "15px 18px 0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, display: "flex", alignItems: "center", gap: 7 }}>
+            <Icon name={icon} size={15} style={{ color: T.gray500 }} />{title}
+          </div>
+          {hint && <div style={{ fontSize: 11.5, color: T.gray500, marginTop: 3 }}>{hint}</div>}
+        </div>
+        {right}
+      </div>
+      <div style={{ padding: "14px 18px 18px", flex: 1 }}>{children}</div>
+    </div>
+  );
+}
+
+// Row-level detail, folded away by default. The dashboard leads with the shape
+// of the data; the tables that used to fill this screen live behind these
+// headers. The body stays mounted and is hidden with CSS so printing still
+// picks it up (see the @media print block at the bottom of the app).
+function DrillDown({ title, icon, count, accent, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ ...cardStyle(accent), marginBottom: 16 }}>
+      <button onClick={() => setOpen(o => !o)} aria-expanded={open}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "14px 18px",
+                 background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
+        <Icon name={open ? "chevron-down" : "chevron-right"} size={16} style={{ color: T.gray500 }} />
+        <Icon name={icon} size={15} style={{ color: accent || T.gray500 }} />
+        <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{title}</span>
+        {count != null && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: accent || T.blue600,
+                         background: accent === T.error ? T.errorBg : T.blue50,
+                         borderRadius: T.radiusPill, padding: "1px 9px" }}>{count}</span>
+        )}
+      </button>
+      <div className="drill-body" style={{ display: open ? "block" : "none" }}>{children}</div>
+    </div>
+  );
+}
+
+// Which form each finding came from. Fixed order so a source keeps its hue when
+// filters change the mix — colour follows the entity, never its current rank.
+const ISSUE_SOURCES = [
+  { key: "checklist", label: "Visit checklist" },
+  { key: "op541",     label: "OP 541" },
+  { key: "op541t",    label: "OP 541T" },
+  { key: "jc427",     label: "JC 427" },
+];
+
 function TrendTracker() {
   const [localData] = useState(loadTrendData);
   const [firestoreRecords, setFirestoreRecords] = useState([]);
@@ -2996,6 +2971,10 @@ function TrendTracker() {
   const [filterRegion, setFilterRegion] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Repeat offenders are paged rather than dumped — the full list is a long tail
+  // and the top of it is what anyone acts on.
+  const [recurringShown, setRecurringShown] = useState(12);
 
   // Real-time Firestore listener — picks up all specialists' finalized visits
   useEffect(() => {
@@ -3024,25 +3003,44 @@ function TrendTracker() {
 
   const issues = data.filter(r => r.itemText !== "_clean" && r.section !== "_summary" && r.visitType !== "note");
 
-  const filtered = issues.filter(r => {
-    if (filterLoc     && !r.location.toLowerCase().includes(filterLoc.toLowerCase())) return false;
-    if (filterSection && r.section !== filterSection) return false;
-    if (filterSpec    && r.specialist !== filterSpec) return false;
-    if (filterAM      && (r.areaManager || "Unassigned") !== filterAM) return false;
-    if (filterRegion  && r.region !== filterRegion) return false;
+  // Visit-level filters. Section is deliberately excluded here: a section is an
+  // attribute of an individual finding, not of a visit, so a visit with no
+  // findings in the chosen section would otherwise vanish from the visit counts
+  // entirely and make the clean-visit rate read wrong.
+  const matchesVisit = r => {
+    if (filterLoc    && !r.location.toLowerCase().includes(filterLoc.toLowerCase())) return false;
+    if (filterSpec   && r.specialist !== filterSpec) return false;
+    if (filterAM     && (r.areaManager || "Unassigned") !== filterAM) return false;
+    if (filterRegion && r.region !== filterRegion) return false;
     if (dateFrom && r.date < dateFrom) return false;
     if (dateTo   && r.date > dateTo)   return false;
     return true;
-  });
+  };
+
+  const filtered = issues.filter(r => matchesVisit(r) && (!filterSection || r.section === filterSection));
 
   // Unique visits in filtered set
   const visitIds = [...new Set(filtered.map(r => r.visitId))];
   const totalVisits = [...new Set(data.map(r => r.visitId))].length;
 
+  // Visit-level rollup for the KPI row — every finalized visit in range, with
+  // whether it came back clean (writeTrendData leaves a "_clean" marker row).
+  const visitRollup = new Map();
+  data.filter(matchesVisit).forEach(r => {
+    const v = visitRollup.get(r.visitId) || { issues: 0, clean: false };
+    if (r.itemText === "_clean") v.clean = true;
+    else if (r.section !== "_summary" && r.visitType !== "note") v.issues++;
+    visitRollup.set(r.visitId, v);
+  });
+  const scopedVisits = visitRollup.size;
+  const cleanVisits  = [...visitRollup.values()].filter(v => v.clean).length;
+  const cleanPct     = scopedVisits ? Math.round((cleanVisits / scopedVisits) * 100) : 0;
+  const avgPerVisit  = scopedVisits ? filtered.length / scopedVisits : 0;
+
   // Top failing items
   const itemFreq = {};
   filtered.forEach(r => { itemFreq[r.itemText] = (itemFreq[r.itemText] || 0) + 1; });
-  const topItems = Object.entries(itemFreq).sort((a,b) => b[1]-a[1]).slice(0, 15);
+  const topItems = Object.entries(itemFreq).sort((a,b) => b[1]-a[1]).slice(0, 10);
 
   // Top failing locations
   const locFreq = {};
@@ -3080,7 +3078,16 @@ function TrendTracker() {
     amLocFreq[am][r.location] = (amLocFreq[am][r.location] || 0) + 1;
   });
 
-  // Time trend — issues bucketed by month (YYYY-MM), oldest to newest
+  // Where the findings came from — part-to-whole across the four source forms.
+  const sourceFreq = {};
+  filtered.forEach(r => { sourceFreq[r.visitType] = (sourceFreq[r.visitType] || 0) + 1; });
+  const sourceSegments = ISSUE_SOURCES
+    .map((s, i) => ({ label: s.label, value: sourceFreq[s.key] || 0, color: SERIES[i] }))
+    .filter(s => s.value > 0);
+
+  // Time trend — issues bucketed by month (YYYY-MM). Empty months are filled in
+  // rather than skipped: a gap-free axis is the whole point of a time series,
+  // and collapsing quiet months would overstate how steady the rate is.
   const monthFreq = {};
   filtered.forEach(r => {
     if (!r.date) return;
@@ -3089,19 +3096,42 @@ function TrendTracker() {
     const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
     monthFreq[key] = (monthFreq[key] || 0) + 1;
   });
-  const monthsSorted = Object.entries(monthFreq).sort((a,b) => a[0].localeCompare(b[0]));
+  const monthKeysPresent = Object.keys(monthFreq).sort();
   const monthLabel = (key) => {
     const [y,m] = key.split("-");
     return new Date(Number(y), Number(m)-1, 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
   };
-  const maxMonthCount = Math.max(1, ...monthsSorted.map(([,c]) => c));
+  const monthLabelFull = (key) => {
+    const [y,m] = key.split("-");
+    return new Date(Number(y), Number(m)-1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
+  const continuousMonths = [];
+  if (monthKeysPresent.length) {
+    const [fy, fm] = monthKeysPresent[0].split("-").map(Number);
+    const [ly, lm] = monthKeysPresent[monthKeysPresent.length - 1].split("-").map(Number);
+    let y = fy, m = fm;
+    // Bounded so a stray far-future date can't spin this loop.
+    while ((y < ly || (y === ly && m <= lm)) && continuousMonths.length < 240) {
+      continuousMonths.push(`${y}-${String(m).padStart(2,"0")}`);
+      if (++m > 12) { m = 1; y++; }
+    }
+  }
+  const monthWindow = continuousMonths.slice(-12);
+  const monthSeries = monthWindow.map(k => ({
+    key: k, label: monthLabel(k), full: monthLabelFull(k), value: monthFreq[k] || 0,
+  }));
+
+  // Direction of travel over the last three months vs the three before them.
   const trendDirection = (() => {
-    if (monthsSorted.length < 2) return null;
-    const recent = monthsSorted.slice(-3).reduce((s,[,c]) => s+c, 0) / Math.min(3, monthsSorted.length);
-    const prior = monthsSorted.slice(-6,-3).reduce((s,[,c]) => s+c, 0) / Math.max(1, Math.min(3, monthsSorted.length-3));
-    if (monthsSorted.length < 4) return null;
-    if (recent > prior * 1.1) return "up";
-    if (recent < prior * 0.9) return "down";
+    if (monthSeries.length < 4) return null;
+    const vals  = monthSeries.map(m => m.value);
+    const recent = vals.slice(-3);
+    const prior  = vals.slice(-6, -3);
+    if (!prior.length) return null;
+    const avg = a => a.reduce((s,v) => s+v, 0) / a.length;
+    const r = avg(recent), p = avg(prior);
+    if (r > p * 1.1) return "up";
+    if (r < p * 0.9) return "down";
     return "flat";
   })();
 
@@ -3110,6 +3140,21 @@ function TrendTracker() {
   const allSpecialists = [...new Set(data.map(r => r.specialist).filter(Boolean))].sort();
   const allAMs = [...new Set(data.map(r => r.areaManager || "Unassigned"))].sort();
   const allRegions = [...new Set(data.map(r => r.region).filter(Boolean))].sort();
+
+  const activeFilters = [
+    filterLoc     && { label: `Location: ${filterLoc}`,     clear: () => setFilterLoc("") },
+    filterSection && { label: `Section: ${filterSection}`,  clear: () => setFilterSection("") },
+    filterSpec    && { label: `Specialist: ${filterSpec}`,  clear: () => setFilterSpec("") },
+    filterRegion  && { label: `Region: ${filterRegion}`,    clear: () => setFilterRegion("") },
+    filterAM      && { label: `Area manager: ${filterAM}`,  clear: () => setFilterAM("") },
+    dateFrom      && { label: `From ${dateFrom}`,           clear: () => setDateFrom("") },
+    dateTo        && { label: `To ${dateTo}`,               clear: () => setDateTo("") },
+  ].filter(Boolean);
+
+  function clearAll() {
+    setFilterLoc(""); setFilterSection(""); setFilterSpec("");
+    setFilterAM(""); setFilterRegion(""); setDateFrom(""); setDateTo("");
+  }
 
   function exportXLSX() {
     const rows = [["Visit ID","Lawson #","Location","City","Region","Area Manager","Date","Specialist","Section","Form Ref","Item","Comment"]];
@@ -3123,9 +3168,9 @@ function TrendTracker() {
   function exportPDF() {
     window.print();
   }
-  const inputStyle = { fontSize: 12, padding: "5px 8px", border: `1px solid ${T.gray200}`, borderRadius: 5, color: T.ink, background: "#fff", width: "100%" };
-  const cardStyle  = { background: "#fff", border: `1px solid ${T.gray200}`, borderRadius: 8, overflow: "hidden", marginBottom: 16 };
-  const headStyle  = { background: BRAND, color: "#fff", padding: "10px 16px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em" };
+
+  const inputStyle = { fontSize: 13, padding: "7px 9px", border: `1px solid ${T.gray300}`, borderRadius: T.radius, color: T.ink, background: T.white, width: "100%", fontFamily: "inherit", boxSizing: "border-box" };
+  const fieldLabel = { fontSize: 11, fontWeight: 700, color: T.gray600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 };
 
   if (firestoreLoading) return (
     <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray500 }}>
@@ -3142,216 +3187,224 @@ function TrendTracker() {
     </div>
   );
 
+  const trendBadge = trendDirection && {
+    up:   { text: "Trending up",   icon: "trending-up",   color: T.error,   bg: T.errorBg },
+    down: { text: "Trending down", icon: "trending-down", color: T.success, bg: T.successBg },
+    flat: { text: "Holding flat",  icon: "minus",         color: T.gray600, bg: T.gray100 },
+  }[trendDirection];
+
   return (
-    <div style={{ padding: "16px 24px" }}>
+    <div style={{ padding: "16px 24px 40px" }}>
       {/* Header + export */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: BRAND }}>Issue Trend Analysis</div>
-          <div style={{ fontSize: 12, color: T.gray500, marginTop: 2 }}>{totalVisits} visit{totalVisits !== 1 ? "s" : ""} tracked · {issues.length} total issues recorded</div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={exportXLSX} style={{ padding: "7px 14px", fontSize: 12, background: T.success, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>⬇ Export XLSX</button>
-          <button onClick={exportPDF}  style={{ padding: "7px 14px", fontSize: 12, background: BRAND,     color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>🖨 Print / PDF</button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div style={{ background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Filter</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
-          <div>
-            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Location</div>
-            <input list="locs" value={filterLoc} onChange={e => setFilterLoc(e.target.value)} placeholder="All locations" style={inputStyle} />
-            <datalist id="locs">{allLocations.map(l => <option key={l} value={l} />)}</datalist>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Section</div>
-            <select value={filterSection} onChange={e => setFilterSection(e.target.value)} style={inputStyle}>
-              <option value="">All sections</option>
-              {allSections.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Specialist</div>
-            <select value={filterSpec} onChange={e => setFilterSpec(e.target.value)} style={inputStyle}>
-              <option value="">All specialists</option>
-              {allSpecialists.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Region</div>
-            <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} style={inputStyle}>
-              <option value="">All regions</option>
-              {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Area Manager</div>
-            <select value={filterAM} onChange={e => setFilterAM(e.target.value)} style={inputStyle}>
-              <option value="">All area managers</option>
-              {allAMs.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Date From</div>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: T.gray600, marginBottom: 3 }}>Date To</div>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={inputStyle} />
-          </div>
-          <div style={{ display: "flex", alignItems: "flex-end" }}>
-            <button onClick={() => { setFilterLoc(""); setFilterSection(""); setFilterSpec(""); setFilterAM(""); setFilterRegion(""); setDateFrom(""); setDateTo(""); }}
-              style={{ width: "100%", padding: "5px 8px", fontSize: 12, background: "#fff", border: `1px solid ${T.gray200}`, borderRadius: 5, cursor: "pointer", color: T.gray600 }}>
-              Clear Filters
-            </button>
+          <div style={{ fontSize: 19, fontWeight: 700, color: T.ink }}>Issue Trend Analysis</div>
+          <div style={{ fontSize: 12.5, color: T.gray500, marginTop: 2 }}>
+            {totalVisits} visit{totalVisits !== 1 ? "s" : ""} finalized company-wide · {issues.length} finding{issues.length !== 1 ? "s" : ""} on record
           </div>
         </div>
-        <div style={{ fontSize: 11, color: T.gray500, marginTop: 8 }}>Showing {filtered.length} issue{filtered.length !== 1 ? "s" : ""} across {visitIds.length} visit{visitIds.length !== 1 ? "s" : ""}</div>
-      </div>
-
-
-      {/* Recurring Issues — most important, show first */}
-      {recurringItems.length > 0 && (
-        <div style={cardStyle}>
-          <div style={{ ...headStyle, background: "#b71c1c" }}>🔁 Recurring Issues — Same Item Failing at Same Location ({recurringItems.length})</div>
-          <div style={{ padding: "12px 16px" }}>
-            {recurringItems.map((r, i) => (
-              <div key={i} style={{ padding: "8px 12px", marginBottom: 6, background: "#fff8f8", border: `1px solid ${T.errorBorder}`, borderRadius: 6 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: T.error, marginBottom: 2 }}>{r.loc}</div>
-                    <div style={{ fontSize: 13, color: T.ink, lineHeight: 1.4 }}>{r.item}</div>
-                  </div>
-                  <span style={{ background: T.errorBg, color: T.error, borderRadius: 10, padding: "2px 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{r.count}× failed</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Monthly issue trend */}
-      {monthsSorted.length > 0 && (
-        <div style={cardStyle}>
-          <div style={{ ...headStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>📈 Monthly Issue Trend</span>
-            {trendDirection && (
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 10,
-                background: trendDirection === "up" ? T.errorBg : trendDirection === "down" ? T.successBg : T.gray100,
-                color: trendDirection === "up" ? T.error : trendDirection === "down" ? T.success : T.gray600 }}>
-                {trendDirection === "up" ? "▲ Trending up (last 3 mo)" : trendDirection === "down" ? "▼ Trending down (last 3 mo)" : "■ Flat (last 3 mo)"}
-              </span>
-            )}
-          </div>
-          <div style={{ padding: "16px", display: "flex", alignItems: "flex-end", gap: 6, overflowX: "auto" }}>
-            {monthsSorted.map(([key, count]) => (
-              <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 36 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: BRAND, marginBottom: 4 }}>{count}</div>
-                <div style={{ width: 22, height: Math.max(4, (count / maxMonthCount) * 90), background: ACCENT, borderRadius: "3px 3px 0 0" }} />
-                <div style={{ fontSize: 10, color: T.gray500, marginTop: 4, whiteSpace: "nowrap" }}>{monthLabel(key)}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Area Manager rollup */}
-      {topAMs.length > 0 && (
-        <div style={cardStyle}>
-          <div style={headStyle}>👤 Issues by Area Manager</div>
-          <div style={{ padding: "12px 16px" }}>
-            {topAMs.map(([am, count], i) => (
-              <div key={am} style={{ marginBottom: i < topAMs.length - 1 ? 12 : 0, paddingBottom: i < topAMs.length - 1 ? 12 : 0, borderBottom: i < topAMs.length - 1 ? `1px solid ${T.gray100}` : "none" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: am === "Unassigned" ? T.gray500 : BRAND }}>{am}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ width: Math.max(4, (count / (topAMs[0]?.[1] || 1)) * 80), height: 6, background: ACCENT, borderRadius: 3 }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, minWidth: 20, textAlign: "right" }}>{count}</span>
-                  </div>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {Object.entries(amLocFreq[am] || {}).sort((a,b) => b[1]-a[1]).map(([loc, c]) => (
-                    <span key={loc} style={{ fontSize: 11, background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: 10, padding: "2px 10px", color: T.gray600 }}>
-                      {loc} <strong style={{ color: BRAND }}>{c}</strong>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-        {/* Top failing items */}
-        <div style={cardStyle}>
-          <div style={headStyle}>Top Failing Items</div>
-          <div style={{ padding: "12px 16px" }}>
-            {topItems.length === 0 && <div style={{ fontSize: 13, color: T.gray500 }}>No issues in selected range.</div>}
-            {topItems.map(([text, count], i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < topItems.length - 1 ? `1px solid ${T.gray100}` : "none", gap: 8 }}>
-                <div style={{ fontSize: 12, color: T.ink, lineHeight: 1.4, flex: 1 }}>{text}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <div style={{ width: Math.max(4, (count / (topItems[0]?.[1] || 1)) * 60), height: 6, background: T.errorBorder, borderRadius: 3 }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: T.error, minWidth: 20, textAlign: "right" }}>{count}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Top locations */}
-        <div style={cardStyle}>
-          <div style={headStyle}>Locations by Issue Count</div>
-          <div style={{ padding: "12px 16px" }}>
-            {topLocs.length === 0 && <div style={{ fontSize: 13, color: T.gray500 }}>No issues in selected range.</div>}
-            {topLocs.map(([loc, count], i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < topLocs.length - 1 ? `1px solid ${T.gray100}` : "none", gap: 8 }}>
-                <div style={{ fontSize: 12, color: T.ink, flex: 1 }}>{loc}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <div style={{ width: Math.max(4, (count / (topLocs[0]?.[1] || 1)) * 60), height: 6, background: BRAND, borderRadius: 3 }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, minWidth: 20, textAlign: "right" }}>{count}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div style={{ display: "flex", gap: 8 }} className="no-print">
+          <button onClick={exportXLSX} style={{ ...btnOutline, padding: "8px 14px" }}>⬇ Export XLSX</button>
+          <button onClick={exportPDF}  style={{ ...btnPrimary, padding: "8px 14px" }}>🖨 Print / PDF</button>
         </div>
       </div>
 
-      {/* Issues by section */}
-      <div style={cardStyle}>
-        <div style={headStyle}>Issues by Checklist Section</div>
-        <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
-          {topSections.length === 0 && <div style={{ fontSize: 13, color: T.gray500 }}>No issues in selected range.</div>}
-          {topSections.map(([sec, count], i) => (
-            <div key={i} style={{ padding: "8px 12px", background: T.gray50, borderRadius: 6, border: `1px solid ${T.gray200}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 12, color: T.gray700 }}>{sec}</div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: BRAND, background: T.blue50, borderRadius: 10, padding: "1px 8px" }}>{count}</span>
+      {/* One filter row above everything it scopes — every tile, chart and table
+          below re-renders against the same slice, so the numbers always agree. */}
+      <div className="no-print" style={{ ...cardStyle(), marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", flexWrap: "wrap" }}>
+          <button onClick={() => setFiltersOpen(o => !o)} aria-expanded={filtersOpen}
+            style={{ display: "flex", alignItems: "center", gap: 7, background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0, color: T.ink }}>
+            <Icon name={filtersOpen ? "chevron-down" : "chevron-right"} size={15} style={{ color: T.gray500 }} />
+            <Icon name="filter" size={14} style={{ color: T.gray500 }} />
+            <span style={{ fontSize: 13, fontWeight: 700 }}>Filters</span>
+          </button>
+
+          {activeFilters.map(f => (
+            <span key={f.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, background: T.blue50, color: T.blue600, border: `1px solid ${T.blueBorder}`, borderRadius: T.radiusPill, padding: "2px 6px 2px 10px", fontWeight: 600 }}>
+              {f.label}
+              <button onClick={f.clear} aria-label={`Clear ${f.label}`}
+                style={{ background: "none", border: "none", cursor: "pointer", color: T.blue600, fontSize: 13, lineHeight: 1, padding: "0 2px" }}>✕</button>
+            </span>
+          ))}
+          {activeFilters.length > 0 && (
+            <button onClick={clearAll} style={{ fontSize: 12, background: "none", border: "none", cursor: "pointer", color: T.gray600, textDecoration: "underline", fontFamily: "inherit" }}>Clear all</button>
+          )}
+
+          <span style={{ marginLeft: "auto", fontSize: 12, color: T.gray500 }}>
+            {filtered.length} finding{filtered.length !== 1 ? "s" : ""} · {visitIds.length} visit{visitIds.length !== 1 ? "s" : ""} in view
+          </span>
+        </div>
+
+        {filtersOpen && (
+          <div style={{ borderTop: `1px solid ${T.gray200}`, padding: "14px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 12 }}>
+            <div>
+              <div style={fieldLabel}>Location</div>
+              <input list="trend-locs" value={filterLoc} onChange={e => setFilterLoc(e.target.value)} placeholder="All locations" style={inputStyle} />
+              <datalist id="trend-locs">{allLocations.map(l => <option key={l} value={l} />)}</datalist>
+            </div>
+            <div>
+              <div style={fieldLabel}>Section</div>
+              <select value={filterSection} onChange={e => setFilterSection(e.target.value)} style={inputStyle}>
+                <option value="">All sections</option>
+                {allSections.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={fieldLabel}>Specialist</div>
+              <select value={filterSpec} onChange={e => setFilterSpec(e.target.value)} style={inputStyle}>
+                <option value="">All specialists</option>
+                {allSpecialists.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={fieldLabel}>Region</div>
+              <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} style={inputStyle}>
+                <option value="">All regions</option>
+                {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={fieldLabel}>Area Manager</div>
+              <select value={filterAM} onChange={e => setFilterAM(e.target.value)} style={inputStyle}>
+                <option value="">All area managers</option>
+                {allAMs.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={fieldLabel}>Date From</div>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <div style={fieldLabel}>Date To</div>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={inputStyle} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* KPI row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 14, marginBottom: 16 }}>
+        <StatTile label="Visits finalized" value={scopedVisits}
+          sub={filterSection ? "all sections — visit totals ignore the section filter" : "in the current filter range"} />
+        <StatTile label="Findings logged" value={filtered.length}
+          sub={`across ${visitIds.length} visit${visitIds.length !== 1 ? "s" : ""} with findings`} />
+        <StatTile label="Findings per visit" value={avgPerVisit.toFixed(1)}
+          sub="average across finalized visits" />
+        <StatTile label="Clean visits" value={`${cleanPct}%`}
+          tone={cleanPct >= 50 ? T.success : T.gray700}
+          meter={{ pct: cleanPct, color: cleanPct >= 50 ? T.success : SERIES[0] }}
+          sub={`${cleanVisits} of ${scopedVisits} closed with no findings`} />
+        <StatTile label="Recurring issues" value={recurringItems.length}
+          tone={recurringItems.length > 0 ? T.error : T.success}
+          icon={recurringItems.length > 0 ? "alert-circle" : "check-circle"}
+          sub="same item failing again at the same site" />
+      </div>
+
+      {/* Charts. The minmax floors are what set the column count: the two lead
+          cards want ≥560px so the month axis has room to breathe, the four
+          breakdowns pair up two-across. Everything collapses to one column on a
+          tablet. `align-items: start` keeps a short card short instead of
+          stretching it into dead space beside a tall neighbour. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(560px, 100%), 1fr))", alignItems: "start", gap: 16, marginBottom: 16 }}>
+        <ChartCard title="Findings per month" icon="trending-up"
+          hint={monthSeries.length ? `${monthLabelFull(monthWindow[0])} – ${monthLabelFull(monthWindow[monthWindow.length-1])}` : null}
+          right={trendBadge && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: T.radiusPill, background: trendBadge.bg, color: trendBadge.color, whiteSpace: "nowrap" }}>
+              <Icon name={trendBadge.icon} size={12} />{trendBadge.text}
+            </span>
+          )}>
+          {monthSeries.length
+            ? <ColumnChart data={monthSeries} valueLabel="findings" />
+            : <div style={{ fontSize: 13, color: T.gray500 }}>No dated findings in the selected range.</div>}
+        </ChartCard>
+
+        <ChartCard title="Where findings come from" icon="layers"
+          hint="Share of findings by source form">
+          <StackedShareBar segments={sourceSegments} total={filtered.length} />
+        </ChartCard>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(520px, 100%), 1fr))", alignItems: "start", gap: 16, marginBottom: 16 }}>
+        <ChartCard title="Most frequent findings" icon="alert-circle"
+          hint={`Top ${topItems.length} of ${Object.keys(itemFreq).length} distinct items`}>
+          <HBarChart data={topItems.map(([label, value]) => ({ label, value }))} />
+        </ChartCard>
+
+        <ChartCard title="Locations by finding count" icon="map-pin"
+          hint="Click a location to filter the dashboard">
+          <HBarChart data={topLocs.map(([label, value]) => ({ label, value }))}
+            onSelect={setFilterLoc} selected={filterLoc} />
+        </ChartCard>
+
+        <ChartCard title="Findings by checklist section" icon="clipboard-list"
+          hint="Click a section to filter the dashboard">
+          <HBarChart data={topSections.slice(0, 10).map(([label, value]) => ({ label, value }))}
+            onSelect={setFilterSection} selected={filterSection} />
+        </ChartCard>
+
+        <ChartCard title="Findings by area manager" icon="users"
+          hint="Click an area manager to filter the dashboard">
+          <HBarChart
+            data={topAMs.slice(0, 10).map(([label, value]) => ({
+              label, value,
+              sub: Object.entries(amLocFreq[label] || {}).sort((a,b) => b[1]-a[1]).slice(0, 3)
+                     .map(([loc, c]) => `${loc} (${c})`).join(" · "),
+            }))}
+            onSelect={setFilterAM} selected={filterAM} />
+        </ChartCard>
+      </div>
+
+      {/* Recurring issues — the highest-signal list on the page, so it opens by
+          default even though the rest of the detail is folded away. */}
+      <DrillDown title="Recurring issues — same item failing at the same location"
+        icon="repeat" count={recurringItems.length} accent={recurringItems.length ? T.error : undefined}
+        defaultOpen={recurringItems.length > 0}>
+        {/* Two across, so a long tail of repeat offenders doesn't push the
+            charts off the screen the way the old single-column list did. */}
+        <div style={{ padding: "0 18px 18px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(360px, 100%), 1fr))", gap: 8 }}>
+          {recurringItems.length === 0 && (
+            <div style={{ fontSize: 13, color: T.gray500 }}>Nothing has failed twice at the same location in this range.</div>
+          )}
+          {recurringItems.slice(0, recurringShown).map((r, i) => (
+            <div key={i} style={{ padding: "10px 14px", background: "#fff8f8", border: `1px solid ${T.errorBorder}`, borderRadius: T.radius, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.error, marginBottom: 2 }}>{r.loc}</div>
+                <div style={{ fontSize: 13.5, color: T.ink, lineHeight: 1.4 }}>{r.item}</div>
+              </div>
+              <span style={{ background: T.errorBg, color: T.error, borderRadius: T.radiusPill, padding: "2px 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{r.count}× failed</span>
             </div>
           ))}
         </div>
-      </div>
+        {recurringItems.length > recurringShown && (
+          <div className="no-print" style={{ padding: "0 18px 18px" }}>
+            <button onClick={() => setRecurringShown(n => n + 12)}
+              style={{ ...btnOutline, padding: "7px 14px", fontSize: 12.5 }}>
+              Show {Math.min(12, recurringItems.length - recurringShown)} more of {recurringItems.length}
+            </button>
+          </div>
+        )}
+      </DrillDown>
 
-      {/* Full issue log */}
-      <div style={cardStyle}>
-        <div style={headStyle}>Full Issue Log ({filtered.length} items)</div>
+      {/* Full issue log — the table view behind every chart above. Keeps every
+          value reachable without hovering, which is what lets the two lighter
+          series colours carry meaning at all. */}
+      <DrillDown title="Full finding log" icon="file-text" count={filtered.length}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: T.gray50 }}>
                 {["Date","Location","Region","Area Manager","Section","Item","Comment","Specialist"].map(h => (
-                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: T.gray700, borderBottom: `1px solid ${T.gray200}`, whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 600, color: T.gray700, borderBottom: `1px solid ${T.gray200}`, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: "20px", textAlign: "center", color: T.gray500 }}>No issues match the current filters.</td></tr>
+                <tr><td colSpan={8} style={{ padding: "20px", textAlign: "center", color: T.gray500 }}>No findings match the current filters.</td></tr>
               )}
               {filtered.map((r, i) => (
-                <tr key={i} style={{ borderBottom: `1px solid ${T.gray100}`, background: i % 2 === 0 ? "#fff" : T.gray50 }}>
+                <tr key={i} style={{ borderBottom: `1px solid ${T.gray100}`, background: i % 2 === 0 ? T.white : T.gray50 }}>
                   <td style={{ padding: "7px 12px", whiteSpace: "nowrap", color: T.gray600 }}>{r.date}</td>
                   <td style={{ padding: "7px 12px", fontWeight: 600, color: BRAND }}>{r.location}</td>
                   <td style={{ padding: "7px 12px", color: T.gray600, whiteSpace: "nowrap" }}>{r.region || "—"}</td>
@@ -3361,12 +3414,11 @@ function TrendTracker() {
                   <td style={{ padding: "7px 12px", color: T.gray600, fontStyle: r.comment ? "normal" : "italic" }}>{r.comment || "—"}</td>
                   <td style={{ padding: "7px 12px", color: T.gray600, whiteSpace: "nowrap" }}>{r.specialist}</td>
                 </tr>
-
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </DrillDown>
     </div>
   );
 }
@@ -6205,6 +6257,10 @@ function SurveyPrepApp() {
         @media print {
           .no-print { display: none !important; }
           #report-print-area { display: block !important; }
+          /* Trend dashboard drill-downs stay mounted while collapsed so a
+             printed copy carries the full tables even if they were folded
+             away on screen. */
+          .drill-body { display: block !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           textarea { border: 1px solid #ccc !important; }
         }

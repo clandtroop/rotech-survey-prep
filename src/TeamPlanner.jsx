@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { collection, doc, onSnapshot, setDoc, deleteDoc, query as fsQuery, where, getDocs, writeBatch } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import { T, Icon, cardStyle, btnPrimary, btnOutline, metaLabel, metaField } from "./theme";
+import { MyTasksView, TaskEditorModal, blankTask } from "./TeamPlannerTasks";
 import {
   PLANNER_ADMIN_EMAILS, PEOPLE_COLLECTION, TASKS_COLLECTION, ENTRIES_COLLECTION, MILESTONES_COLLECTION,
+  TASK_DONE_COLLECTION, allTagsOf,
   STATUSES, STATUS_BY_ID, OUT_STATUSES, CADENCES, MONTH_NAMES,
   toIso, fromIso, todayIso, addDays, weekStart, monthKey, quarterOf, monthsOfQuarter,
   formatDate, formatRange, monthWeekdayGrid, weekdaysOfMonth,
@@ -27,6 +29,7 @@ import {
 
 const VIEWS = [
   { id: "today",       label: "Today",        icon: "clock" },
+  { id: "mytasks",     label: "My Tasks",     icon: "list-checks" },
   { id: "tasks",       label: "Task Calendar", icon: "repeat" },
   { id: "whereabouts", label: "Whereabouts",  icon: "calendar" },
   { id: "print",       label: "Print Summary", icon: "printer" },
@@ -56,6 +59,52 @@ const EMPTY_TRAVEL = {
   },
 };
 
+// Appends an immutable audit record, mirroring the helper the survey-prep side
+// uses for the locations roster. `before` holds the full documents rather than
+// a count, so a deletion done in error can be reconstructed — this app has
+// twice had a collection found empty with no record of who or when, and bulk
+// deletion is the one action here that can repeat that.
+async function logPlannerAudit(collectionName, docId, action, before, after) {
+  try {
+    await setDoc(doc(collection(db, "auditLog")), {
+      collection: collectionName,
+      docId,
+      action,
+      before: before ?? null,
+      after: after ?? null,
+      user: auth.currentUser?.displayName || "",
+      userEmail: auth.currentUser?.email || "",
+      at: Date.now(),
+    });
+  } catch (err) {
+    console.error("Audit log write failed (change was still applied):", err);
+  }
+}
+
+// Snapshots can be hundreds of entries; Firestore caps a document at 1 MiB, so
+// the record is split rather than risking a write that fails and leaves the
+// deletion unlogged.
+const AUDIT_CHUNK = 150;
+async function logDeletedEntries(docId, action, entries) {
+  for (let i = 0; i < entries.length; i += AUDIT_CHUNK) {
+    await logPlannerAudit(ENTRIES_COLLECTION, docId, action, {
+      entries: entries.slice(i, i + AUDIT_CHUNK),
+      part: Math.floor(i / AUDIT_CHUNK) + 1,
+      ofParts: Math.ceil(entries.length / AUDIT_CHUNK),
+      totalDeleted: entries.length,
+    }, null);
+  }
+}
+
+// Firestore's writeBatch caps at 500 operations.
+async function deleteAll(refs) {
+  for (let i = 0; i < refs.length; i += 400) {
+    const batch = writeBatch(db);
+    refs.slice(i, i + 400).forEach(r => batch.delete(r));
+    await batch.commit();
+  }
+}
+
 const blankEntry = (personKey, personName, ownerEmail, iso) => ({
   personKey, personName, ownerEmail, ownerUid: auth.currentUser?.uid || null,
   startDate: iso, endDate: iso, status: "home_office", rawText: "", notes: "",
@@ -74,6 +123,7 @@ function usePlannerData(year) {
   const [tasks, setTasks] = useState([]);
   const [milestones, setMilestones] = useState([]);
   const [entries, setEntries] = useState([]);
+  const [done, setDone] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -103,7 +153,19 @@ function usePlannerData(year) {
     }, e => { setError(e?.message || "Could not load calendar entries."); setLoading(false); });
   }, [year]);
 
-  return { people, tasks, milestones, entries, loading, error };
+  // Completion records, scoped to the year in view. Every periodKey shape —
+  // 2026-W32, 2026-08, 2026-Q3, 2026-08-17 — starts with the year, so one
+  // prefix range covers them all.
+  useEffect(() => {
+    const q = fsQuery(
+      collection(db, TASK_DONE_COLLECTION),
+      where("periodKey", ">=", `${year}-`),
+      where("periodKey", "<=", `${year}-\uf8ff`),
+    );
+    return onSnapshot(q, s => setDone(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => setDone([]));
+  }, [year]);
+
+  return { people, tasks, milestones, entries, done, loading, error };
 }
 
 // ─── SHARED BITS ─────────────────────────────────────────────────────────────
@@ -145,11 +207,13 @@ export default function TeamPlanner() {
   const [view, setView] = useState("today");
   const [anchor, setAnchor] = useState(() => todayIso());   // drives month/quarter paging
   const [showRoster, setShowRoster] = useState(false);
+  const [showManage, setShowManage] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
   const [editing, setEditing] = useState(null);             // entry draft in the modal
   const [detail, setDetail] = useState(null);               // entry shown in the drawer
 
   const year = Number(anchor.slice(0, 4));
-  const { people, tasks, milestones, entries, loading, error } = usePlannerData(year);
+  const { people, tasks, milestones, entries, done, loading, error } = usePlannerData(year);
 
   const email = auth.currentUser?.email || "";
   const isAdmin = PLANNER_ADMIN_EMAILS.includes(email);
@@ -214,6 +278,11 @@ export default function TeamPlanner() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {(me || isAdmin) && (
+            <button onClick={() => setShowManage(true)} style={btnOutline}>
+              <Icon name="list-checks" size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />My Entries
+            </button>
+          )}
           {isAdmin && (
             <button onClick={() => setShowRoster(true)} style={btnOutline}>
               <Icon name="users" size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />Roster
@@ -253,7 +322,13 @@ export default function TeamPlanner() {
       </div>
 
       {view === "today"       && <TodayView {...viewProps} />}
-      {view === "tasks"       && <TaskCalendarView {...viewProps} />}
+      {view === "mytasks"     && (
+        <MyTasksView tasks={tasks} done={done} roster={activeRoster} me={me} isAdmin={isAdmin}
+          onEditTask={setEditingTask}
+          onNewTask={() => setEditingTask(blankTask(me?.personKey || "", me?.displayName || "", email))} />
+      )}
+      {view === "tasks"       && <TaskCalendarView {...viewProps} onEditTask={setEditingTask}
+        onNewTask={() => setEditingTask({ ...blankTask("", "", email), assignee: { type: "team", personKey: "", displayName: "Team" }, origin: "assigned" })} />}
       {view === "whereabouts" && <WhereaboutsView {...viewProps} />}
       {view === "print"       && <PrintSummaryView {...viewProps} />}
 
@@ -267,6 +342,13 @@ export default function TeamPlanner() {
       )}
       {showRoster && (
         <RosterPanel roster={roster} onClose={() => setShowRoster(false)} />
+      )}
+      {showManage && (
+        <ManageEntriesPanel me={me} isAdmin={isAdmin} roster={roster} onClose={() => setShowManage(false)} />
+      )}
+      {editingTask && (
+        <TaskEditorModal draft={editingTask} roster={activeRoster} isAdmin={isAdmin} allTasks={tasks}
+          onChange={setEditingTask} onClose={() => setEditingTask(null)} />
       )}
     </div>
   );
@@ -427,11 +509,13 @@ function TaskRow({ task }) {
 
 // ─── TASK CALENDAR ───────────────────────────────────────────────────────────
 
-function TaskCalendarView({ tasks, roster }) {
+function TaskCalendarView({ tasks, roster, isAdmin, onEditTask, onNewTask }) {
   const [person, setPerson] = useState("");
   const [cadence, setCadence] = useState("");
+  const [tag, setTag] = useState("");
   const [search, setSearch] = useState("");
   const [layout, setLayout] = useState("list");
+  const tagOptions = useMemo(() => allTagsOf(tasks), [tasks]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -439,11 +523,12 @@ function TaskCalendarView({ tasks, roster }) {
       .filter(t => t.active !== false)
       .filter(t => !person || t.assignee?.personKey === person || (person === "__team" && t.assignee?.type === "team"))
       .filter(t => !cadence || t.cadence?.type === cadence)
-      .filter(t => !q || `${t.name} ${t.comments} ${t.scope}`.toLowerCase().includes(q))
+      .filter(t => !tag || (t.tags || []).includes(tag))
+      .filter(t => !q || `${t.name} ${t.comments} ${t.scope} ${(t.tags || []).join(" ")}`.toLowerCase().includes(q))
       .sort((a, b) => cadenceRank(a) - cadenceRank(b)
         || (a.cadence?.date || "").localeCompare(b.cadence?.date || "")
         || String(a.name).localeCompare(String(b.name)));
-  }, [tasks, person, cadence, search]);
+  }, [tasks, person, cadence, tag, search]);
 
   // The old "Tasks by Month" tab was a quarter grid of month blocks; it held no
   // data of its own, so it is rendered here from the same task list rather than
@@ -472,8 +557,17 @@ function TaskCalendarView({ tasks, roster }) {
           <option value="">All cadences</option>
           {CADENCES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
+        <select value={tag} onChange={e => setTag(e.target.value)} aria-label="Filter by tag" style={selectStyle}>
+          <option value="">All tags</option>
+          {tagOptions.map(t => <option key={t} value={t}>#{t}</option>)}
+        </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tasks…" aria-label="Search tasks"
-          style={{ ...metaField, padding: "7px 10px", fontSize: 13.5, width: 220 }} />
+          style={{ ...metaField, padding: "7px 10px", fontSize: 13.5, width: 200 }} />
+        {isAdmin && (
+          <button onClick={onNewTask} style={{ ...btnPrimary, padding: "7px 14px", fontSize: 12.5 }}>
+            <Icon name="plus" size={13} style={{ marginRight: 5, verticalAlign: "-2px" }} />New task
+          </button>
+        )}
         <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
           {[["list", "table", "List"], ["months", "layout-grid", "By month"]].map(([id, icon, label]) => (
             <button key={id} onClick={() => setLayout(id)}
@@ -495,14 +589,14 @@ function TaskCalendarView({ tasks, roster }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: T.gray50 }}>
-                {["Task", "Cadence", "Specialist", "Applies to", "Comments"].map(h => (
+                {["Task", "Cadence", "Specialist", "Applies to", "Tags", "Comments", ""].map(h => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 11.5, fontWeight: 700, color: T.gray600, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${T.gray200}` }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: 20, color: T.gray500 }}>No tasks match these filters.</td></tr>
+                <tr><td colSpan={7} style={{ padding: 20, color: T.gray500 }}>No tasks match these filters.</td></tr>
               )}
               {filtered.map(t => (
                 <tr key={t.id} style={{ borderBottom: `1px solid ${T.gray100}` }}>
@@ -514,7 +608,24 @@ function TaskCalendarView({ tasks, roster }) {
                       : t.assignee?.displayName || <span style={{ color: T.gray400 }}>Unassigned</span>}
                   </td>
                   <td style={{ padding: "10px 14px", color: T.gray600 }}>{t.scope || "—"}</td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                      {(t.tags || []).map(x => (
+                        <span key={x} style={{ fontSize: 10.5, fontWeight: 600, padding: "1.5px 7px", borderRadius: 4, background: T.white, border: `1px solid ${T.gray300}`, color: T.gray600 }}>
+                          <span style={{ opacity: 0.45 }}>#</span>{x}
+                        </span>
+                      ))}
+                    </span>
+                  </td>
                   <td style={{ padding: "10px 14px", color: T.gray600 }}>{t.comments || ""}</td>
+                  <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                    {isAdmin && (
+                      <button onClick={() => onEditTask(t)}
+                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: T.blue600, textDecoration: "underline" }}>
+                        Edit
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -777,7 +888,7 @@ function DetailRow({ label, value, mono }) {
   );
 }
 
-function Overlay({ children, onClose, labelledBy }) {
+function Overlay({ children, onClose, labelledBy, width = 620 }) {
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -787,7 +898,7 @@ function Overlay({ children, onClose, labelledBy }) {
     <div className="no-print" role="dialog" aria-modal="true" aria-labelledby={labelledBy}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position: "fixed", inset: 0, background: "rgba(19,25,34,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1200 }}>
-      <div style={{ background: T.white, borderRadius: T.radiusCard, width: "100%", maxWidth: 620, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 50px rgba(19,25,34,.3)" }}>
+      <div style={{ background: T.white, borderRadius: T.radiusCard, width: "100%", maxWidth: width, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 50px rgba(19,25,34,.3)" }}>
         {children}
       </div>
     </div>
@@ -1123,6 +1234,210 @@ function QuarterRollup({ year, months, people, entries }) {
   );
 }
 
+// ─── MANAGE MY ENTRIES ───────────────────────────────────────────────────────
+
+// Bulk cleanup of your own calendar history. The per-entry Delete button in the
+// editor handles one day; this exists for the case the whole module was built
+// around — years of imported rows, where deleting a stale season one day at a
+// time is not a real option.
+//
+// Queries by personKey across every year rather than the calendar's loaded
+// window: "previous entries" is the main thing anyone wants to clear, and those
+// are exactly the ones the calendar isn't showing.
+function ManageEntriesPanel({ me, isAdmin, roster, onClose }) {
+  const email = auth.currentUser?.email || "";
+  const [personKey, setPersonKey] = useState(me?.personKey || (isAdmin ? roster[0]?.personKey : "") || "");
+  const [rows, setRows] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [status, setStatus] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState("");
+
+  useEffect(() => {
+    if (!personKey) { setRows([]); return; }
+    setRows(null);
+    setSelected(new Set());
+    getDocs(fsQuery(collection(db, ENTRIES_COLLECTION), where("personKey", "==", personKey)))
+      .then(s => setRows(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.startDate.localeCompare(a.startDate))))
+      .catch(e => { setRows([]); setResult(`Could not load entries: ${e.message}`); });
+  }, [personKey]);
+
+  const canDelete = entry => isAdmin || (!!entry.ownerEmail && entry.ownerEmail === email);
+
+  const shown = useMemo(() => (rows || []).filter(e =>
+    (!from || (e.endDate || e.startDate) >= from) &&
+    (!to || e.startDate <= to) &&
+    (!status || e.status === status)), [rows, from, to, status]);
+
+  const deletable = shown.filter(canDelete);
+  const blocked = shown.length - deletable.length;
+  const selectedRows = shown.filter(e => selected.has(e.id));
+  const allShownSelected = deletable.length > 0 && deletable.every(e => selected.has(e.id));
+
+  function toggle(id) {
+    setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  function toggleAllShown() {
+    setSelected(s => {
+      const n = new Set(s);
+      if (allShownSelected) deletable.forEach(e => n.delete(e.id));
+      else deletable.forEach(e => n.add(e.id));
+      return n;
+    });
+  }
+
+  // The common ask is "clear out everything before this year".
+  const thisYear = new Date().getFullYear();
+  const presets = [
+    { label: `Before ${thisYear}`, apply: () => { setFrom(""); setTo(`${thisYear - 1}-12-31`); } },
+    { label: `${thisYear - 1} only`, apply: () => { setFrom(`${thisYear - 1}-01-01`); setTo(`${thisYear - 1}-12-31`); } },
+    { label: "All dates", apply: () => { setFrom(""); setTo(""); } },
+  ];
+
+  const needsTyping = selectedRows.length > 20;
+  const confirmOk = !needsTyping || typed.trim().toUpperCase() === "DELETE";
+
+  async function runDelete() {
+    setBusy(true);
+    setResult("");
+    try {
+      const targets = selectedRows.filter(canDelete);
+      const refs = targets.map(e => doc(db, ENTRIES_COLLECTION, e.id));
+      await logDeletedEntries(personKey, "bulk-delete-entries", targets);
+      await deleteAll(refs);
+      setRows(prev => prev.filter(r => !selected.has(r.id)));
+      setSelected(new Set());
+      setConfirming(false);
+      setTyped("");
+      setResult(`Deleted ${targets.length} ${targets.length === 1 ? "entry" : "entries"}. A full snapshot is in the audit log.`);
+    } catch (err) {
+      setResult(`Delete failed: ${err.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (confirming) {
+    const dates = selectedRows.map(e => e.startDate).sort();
+    return (
+      <Overlay onClose={() => setConfirming(false)} labelledBy="tp-bulk-title">
+        <div style={{ padding: "20px 24px 14px", borderBottom: `1px solid ${T.gray200}` }}>
+          <div id="tp-bulk-title" style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.01em", color: T.error }}>
+            Delete {selectedRows.length} {selectedRows.length === 1 ? "entry" : "entries"}?
+          </div>
+        </div>
+        <div style={{ padding: "18px 24px" }}>
+          <div style={{ background: T.errorBg, border: `1px solid ${T.errorBorder}`, borderRadius: T.radius, padding: "12px 14px", marginBottom: 16, fontSize: 13.5, color: T.gray700, lineHeight: 1.7 }}>
+            Covering <strong>{formatDate(dates[0], { month: "short", day: "numeric", year: "numeric" })}</strong> to{" "}
+            <strong>{formatDate(dates[dates.length - 1], { month: "short", day: "numeric", year: "numeric" })}</strong>.
+            This removes them from the team calendar and from every print summary covering those months.
+            Hotel and flight details on any site visits go with them.
+          </div>
+          <div style={{ fontSize: 13, color: T.gray600, marginBottom: 16 }}>
+            A full snapshot is written to the audit log first, so this is recoverable — but only by reading it
+            back out of Firestore by hand.
+          </div>
+          {needsTyping && (
+            <Field label='Type "DELETE" to confirm'>
+              <input value={typed} onChange={e => setTyped(e.target.value)} autoFocus placeholder="DELETE" style={metaField} />
+            </Field>
+          )}
+        </div>
+        <div style={{ padding: "14px 24px", borderTop: `1px solid ${T.gray200}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button onClick={() => setConfirming(false)} disabled={busy} style={btnOutline}>Cancel</button>
+          <button onClick={runDelete} disabled={!confirmOk || busy}
+            style={{ ...btnPrimary, background: T.error, opacity: !confirmOk || busy ? 0.5 : 1 }}>
+            {busy ? "Deleting…" : `Delete ${selectedRows.length}`}
+          </button>
+        </div>
+      </Overlay>
+    );
+  }
+
+  return (
+    <Overlay onClose={onClose} labelledBy="tp-manage-title" width={780}>
+      <div style={{ padding: "20px 24px 14px", borderBottom: `1px solid ${T.gray200}` }}>
+        <div id="tp-manage-title" style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.01em" }}>
+          {isAdmin && personKey !== me?.personKey ? "Manage entries" : "My entries"}
+        </div>
+        <div style={{ fontSize: 13, color: T.gray600, marginTop: 3 }}>
+          Every recorded day, all years. Select what you want gone.
+        </div>
+      </div>
+
+      <div style={{ padding: "12px 24px", borderBottom: `1px solid ${T.gray200}`, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        {isAdmin && (
+          <select value={personKey} onChange={e => setPersonKey(e.target.value)} aria-label="Person" style={{ ...selectStyle, minWidth: 130 }}>
+            {roster.map(p => <option key={p.personKey} value={p.personKey}>{p.displayName}</option>)}
+          </select>
+        )}
+        <input type="date" value={from} onChange={e => setFrom(e.target.value)} aria-label="From date" style={{ ...selectStyle, minWidth: 0 }} />
+        <span style={{ fontSize: 13, color: T.gray500 }}>to</span>
+        <input type="date" value={to} onChange={e => setTo(e.target.value)} aria-label="To date" style={{ ...selectStyle, minWidth: 0 }} />
+        <select value={status} onChange={e => setStatus(e.target.value)} aria-label="Status" style={selectStyle}>
+          <option value="">Any status</option>
+          {STATUSES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+        {presets.map(p => (
+          <button key={p.label} onClick={p.apply} style={{ ...linkAction, color: T.blue600 }}>{p.label}</button>
+        ))}
+      </div>
+
+      <div style={{ padding: "10px 24px", overflowY: "auto", flex: 1, maxHeight: "48vh" }}>
+        {rows === null && <EmptyNote>Loading…</EmptyNote>}
+        {rows !== null && shown.length === 0 && <EmptyNote>No entries match these filters.</EmptyNote>}
+        {shown.length > 0 && (
+          <>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", fontSize: 13, fontWeight: 600, borderBottom: `1px solid ${T.gray200}` }}>
+              <input type="checkbox" checked={allShownSelected} onChange={toggleAllShown} disabled={deletable.length === 0} />
+              Select all {deletable.length} shown
+              {blocked > 0 && <span style={{ fontWeight: 400, color: T.gray500 }}>· {blocked} not yours to delete</span>}
+            </label>
+            {shown.map(e => {
+              const mine = canDelete(e);
+              return (
+                <label key={e.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.gray100}`, opacity: mine ? 1 : 0.5 }}>
+                  <input type="checkbox" disabled={!mine} checked={selected.has(e.id)} onChange={() => toggle(e.id)} style={{ marginTop: 3 }} />
+                  <span style={{ width: 120, flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: T.gray700 }}>
+                    {formatRange(e.startDate, e.endDate)}
+                    <span style={{ display: "block", fontWeight: 400, color: T.gray500 }}>{e.startDate.slice(0, 4)}</span>
+                  </span>
+                  <StatusChip status={e.status} />
+                  <span style={{ fontSize: 13, minWidth: 0, flex: 1 }}>
+                    {e.visit?.location || e.rawText || ""}
+                    {e.notes && <span style={{ display: "block", fontSize: 12, color: T.gray500 }}>{e.notes}</span>}
+                    {!mine && <span style={{ display: "block", fontSize: 11.5, color: T.gray500 }}>Owned by {e.ownerEmail || "nobody yet — an admin must link this person"}</span>}
+                  </span>
+                </label>
+              );
+            })}
+          </>
+        )}
+      </div>
+
+      {result && <div style={{ margin: "0 24px 10px", fontSize: 12.5, color: T.gray700, background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: T.radius, padding: "8px 12px" }}>{result}</div>}
+
+      <div style={{ padding: "14px 24px", borderTop: `1px solid ${T.gray200}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 12.5, color: T.gray600 }}>
+          {selectedRows.length > 0 ? `${selectedRows.length} selected` : `${shown.length} shown`}
+        </span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={btnOutline}>Close</button>
+          <button onClick={() => setConfirming(true)} disabled={selectedRows.length === 0}
+            style={{ ...btnPrimary, background: T.error, opacity: selectedRows.length === 0 ? 0.5 : 1, cursor: selectedRows.length === 0 ? "default" : "pointer" }}>
+            <Icon name="trash" size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />
+            Delete selected
+          </button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
 // ─── ROSTER (ADMIN) ──────────────────────────────────────────────────────────
 
 // The migration imports entries with the roster's email as ownerEmail. Where
@@ -1133,6 +1448,34 @@ function RosterPanel({ roster, onClose }) {
   const [drafts, setDrafts] = useState(() => Object.fromEntries(roster.map(p => [p.personKey, p.email || ""])));
   const [busy, setBusy] = useState("");
   const [done, setDone] = useState("");
+  const [counts, setCounts] = useState(null);      // personKey -> entry count, all years
+  const [removing, setRemoving] = useState(null);  // person queued for removal
+
+  // Counts cover every year, not just the one the calendar has loaded, because
+  // that is what the removal warning has to be honest about.
+  const loadCounts = useCallback(async () => {
+    const snap = await getDocs(collection(db, ENTRIES_COLLECTION));
+    const tally = {};
+    snap.docs.forEach(d => { const k = d.data().personKey; tally[k] = (tally[k] || 0) + 1; });
+    setCounts(tally);
+  }, []);
+  useEffect(() => { loadCounts().catch(() => setCounts({})); }, [loadCounts]);
+
+  async function toggleActive(person) {
+    setBusy(person.personKey);
+    setDone("");
+    try {
+      const next = person.active === false;
+      await setDoc(doc(db, PEOPLE_COLLECTION, person.personKey), { active: next }, { merge: true });
+      await logPlannerAudit(PEOPLE_COLLECTION, person.personKey, next ? "reactivate" : "deactivate",
+        { active: person.active !== false }, { active: next });
+      setDone(`${person.displayName} is now ${next ? "active" : "inactive"}.`);
+    } catch (err) {
+      setDone(`Could not update ${person.displayName}: ${err.message}`);
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function linkAccount(person) {
     const email = (drafts[person.personKey] || "").trim().toLowerCase();
@@ -1159,8 +1502,14 @@ function RosterPanel({ roster, onClose }) {
     }
   }
 
+  if (removing) {
+    return <RemovePersonPanel person={removing} entryCount={counts?.[removing.personKey] ?? 0}
+      onDone={msg => { setRemoving(null); setDone(msg); loadCounts().catch(() => {}); }}
+      onCancel={() => setRemoving(null)} />;
+  }
+
   return (
-    <Overlay onClose={onClose} labelledBy="tp-roster-title">
+    <Overlay onClose={onClose} labelledBy="tp-roster-title" width={720}>
       <div style={{ padding: "20px 24px 14px", borderBottom: `1px solid ${T.gray200}` }}>
         <div id="tp-roster-title" style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.01em" }}>Team Planner roster</div>
         <div style={{ fontSize: 13, color: T.gray600, marginTop: 3 }}>
@@ -1170,26 +1519,129 @@ function RosterPanel({ roster, onClose }) {
       <div style={{ padding: "14px 24px", overflowY: "auto", maxHeight: "60vh" }}>
         {roster.length === 0 && <EmptyNote>No roster people yet — run the migration script to create them.</EmptyNote>}
         {roster.map(p => (
-          <div key={p.personKey} style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${T.gray100}` }}>
-            <div style={{ width: 150, flexShrink: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>{p.displayName}</div>
-              <div style={{ fontSize: 11.5, color: p.active === false ? T.gray400 : T.gray500 }}>
-                {p.personKey}{p.active === false ? " · inactive" : ""}
+          <div key={p.personKey} style={{ padding: "10px 0", borderBottom: `1px solid ${T.gray100}` }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ width: 150, flexShrink: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: p.active === false ? T.gray500 : T.ink }}>{p.displayName}</div>
+                <div style={{ fontSize: 11.5, color: p.active === false ? T.gray400 : T.gray500 }}>
+                  {p.personKey}
+                  {p.active === false ? " · inactive" : ""}
+                  {counts && ` · ${counts[p.personKey] || 0} entries`}
+                </div>
               </div>
+              <input type="email" value={drafts[p.personKey] ?? ""} placeholder="name@rotech.com"
+                onChange={e => setDrafts(d => ({ ...d, [p.personKey]: e.target.value }))}
+                style={{ ...metaField, flex: 1, padding: "7px 10px", fontSize: 13.5 }} />
+              <button onClick={() => linkAccount(p)} disabled={busy === p.personKey || !(drafts[p.personKey] || "").trim()}
+                style={{ ...btnOutline, padding: "7px 12px", fontSize: 12.5, opacity: busy === p.personKey ? 0.6 : 1 }}>
+                {busy === p.personKey ? "Linking…" : "Link"}
+              </button>
             </div>
-            <input type="email" value={drafts[p.personKey] ?? ""} placeholder="name@rotech.com"
-              onChange={e => setDrafts(d => ({ ...d, [p.personKey]: e.target.value }))}
-              style={{ ...metaField, flex: 1, padding: "7px 10px", fontSize: 13.5 }} />
-            <button onClick={() => linkAccount(p)} disabled={busy === p.personKey || !(drafts[p.personKey] || "").trim()}
-              style={{ ...btnOutline, padding: "7px 12px", fontSize: 12.5, opacity: busy === p.personKey ? 0.6 : 1 }}>
-              {busy === p.personKey ? "Linking…" : "Link"}
-            </button>
+            <div style={{ display: "flex", gap: 8, marginTop: 7, marginLeft: 160 }}>
+              <button onClick={() => toggleActive(p)} disabled={busy === p.personKey}
+                style={{ ...linkAction, color: T.gray700 }}>
+                {p.active === false ? "Reactivate" : "Deactivate"}
+              </button>
+              <button onClick={() => setRemoving(p)} style={{ ...linkAction, color: T.error }}>
+                Remove permanently…
+              </button>
+            </div>
           </div>
         ))}
+        <div style={{ marginTop: 14, fontSize: 12, color: T.gray500, lineHeight: 1.6 }}>
+          <strong style={{ color: T.gray700 }}>Deactivate</strong> is the one to reach for when someone leaves the
+          team: they drop out of the Today counts, the print grids and the entry picker, but their history stays on
+          the calendar and it can be undone. Deactivating does not revoke their sign-in — delete the account in
+          Firebase Authentication for that.
+        </div>
         {done && <div style={{ marginTop: 12, fontSize: 12.5, color: T.gray700, background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: T.radius, padding: "8px 12px" }}>{done}</div>}
       </div>
       <div style={{ padding: "14px 24px", borderTop: `1px solid ${T.gray200}`, display: "flex", justifyContent: "flex-end" }}>
         <button onClick={onClose} style={btnPrimary}>Done</button>
+      </div>
+    </Overlay>
+  );
+}
+
+const linkAction = {
+  background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit",
+  fontSize: 12.5, fontWeight: 600, textDecoration: "underline",
+};
+
+// Removing a person deletes their entries and milestones in the same action.
+// Deleting the roster row on its own would orphan every entry that references
+// the personKey — the calendar would keep showing the days with the raw key
+// where the name should be, which is worse than either keeping or removing them.
+function RemovePersonPanel({ person, entryCount, onDone, onCancel }) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const confirmed = typed.trim().toLowerCase() === person.displayName.trim().toLowerCase();
+
+  async function remove() {
+    setBusy(true);
+    setError("");
+    try {
+      const entrySnap = await getDocs(fsQuery(collection(db, ENTRIES_COLLECTION), where("personKey", "==", person.personKey)));
+      const milestoneSnap = await getDocs(fsQuery(collection(db, MILESTONES_COLLECTION), where("personKey", "==", person.personKey)));
+
+      // Snapshot everything before touching it, so the audit trail is complete
+      // even if a later batch fails halfway.
+      await logDeletedEntries(person.personKey, "delete-person-entries",
+        entrySnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      await logPlannerAudit(PEOPLE_COLLECTION, person.personKey, "delete-person", {
+        person: { ...person },
+        milestones: milestoneSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+        entriesDeleted: entrySnap.size,
+      }, null);
+
+      await deleteAll(entrySnap.docs.map(d => d.ref));
+      await deleteAll(milestoneSnap.docs.map(d => d.ref));
+      await deleteDoc(doc(db, PEOPLE_COLLECTION, person.personKey));
+
+      onDone(`Removed ${person.displayName}: ${entrySnap.size} entries and ${milestoneSnap.size} milestones deleted. Recoverable from the audit log.`);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Overlay onClose={onCancel} labelledBy="tp-remove-title">
+      <div style={{ padding: "20px 24px 14px", borderBottom: `1px solid ${T.gray200}` }}>
+        <div id="tp-remove-title" style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.01em", color: T.error }}>
+          Remove {person.displayName}
+        </div>
+      </div>
+      <div style={{ padding: "18px 24px", overflowY: "auto" }}>
+        <div style={{ background: T.errorBg, border: `1px solid ${T.errorBorder}`, borderRadius: T.radius, padding: "12px 14px", marginBottom: 16 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: T.error, marginBottom: 6 }}>This permanently deletes:</div>
+          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13.5, color: T.gray700, lineHeight: 1.7 }}>
+            <li><strong>{entryCount}</strong> calendar {entryCount === 1 ? "entry" : "entries"} — every recorded day, across all years</li>
+            <li>their birthday and work anniversary, if recorded</li>
+            <li>their roster record</li>
+          </ul>
+        </div>
+        <div style={{ fontSize: 13.5, color: T.gray700, lineHeight: 1.65, marginBottom: 16 }}>
+          Their history disappears from the team calendar and from every past month's print summary.
+          Anything migrated from the spreadsheet is only in Firestore now — the original workbook is not
+          being kept in sync. <strong>Deactivating instead</strong> hides them from the active views and keeps all of it.
+          <br /><br />
+          A full snapshot is written to the audit log first, so this is recoverable, but only by someone
+          willing to read it back out of Firestore by hand.
+        </div>
+        <Field label={`Type "${person.displayName}" to confirm`}>
+          <input value={typed} onChange={e => setTyped(e.target.value)} autoFocus
+            placeholder={person.displayName} style={metaField} />
+        </Field>
+        {error && <div role="alert" style={{ fontSize: 12.5, color: T.error, background: T.errorBg, border: `1px solid ${T.errorBorder}`, borderRadius: T.radius, padding: "8px 10px" }}>{error}</div>}
+      </div>
+      <div style={{ padding: "14px 24px", borderTop: `1px solid ${T.gray200}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button onClick={onCancel} disabled={busy} style={btnOutline}>Cancel</button>
+        <button onClick={remove} disabled={!confirmed || busy}
+          style={{ ...btnPrimary, background: T.error, opacity: !confirmed || busy ? 0.5 : 1, cursor: !confirmed || busy ? "default" : "pointer" }}>
+          {busy ? "Removing…" : `Delete ${person.displayName} and ${entryCount} entries`}
+        </button>
       </div>
     </Overlay>
   );

@@ -17,6 +17,10 @@ export const PEOPLE_COLLECTION     = "teamPlannerPeople";
 export const TASKS_COLLECTION      = "teamPlannerTasks";
 export const ENTRIES_COLLECTION    = "teamPlannerEntries";
 export const MILESTONES_COLLECTION = "teamPlannerMilestones";
+// One document per *completed occurrence*, id `${taskId}_${periodKey}`. Completion
+// has to be per occurrence rather than per task — "QPOW done this week", not
+// "QPOW done" — and a flag on the task itself could not express that.
+export const TASK_DONE_COLLECTION  = "teamPlannerTaskDone";
 
 // ─── STATUS VOCABULARY ───────────────────────────────────────────────────────
 // The source spreadsheet had no status column — every day cell was free text
@@ -223,6 +227,142 @@ export function cadenceLabel(task) {
   if (c.type === "oneOff") return c.date ? formatDate(c.date, { month: "short", day: "numeric", year: "numeric" }) : "One-off";
   if (c.type === "month" && c.months?.length === 1) return MONTH_NAMES[c.months[0] - 1];
   return CADENCE_BY_ID[c.type]?.label || "—";
+}
+
+// ─── TASK SERIES ─────────────────────────────────────────────────────────────
+// The spreadsheet recorded the same duty twice over: a recurring rule on Sheet1
+// ("QPOW, weekly") and a dated row per occurrence on 3 Yr Planner saying whose
+// turn it was. 128 of the 142 dated rows repeat a rule this way. Listed flat
+// that gives one specialist thirteen rows all called QPOW, so they are grouped
+// back into the duty they belong to.
+//
+// The dated rows are not redundant and must not be discarded: the rule says the
+// duty exists, the dated rows carry the rotation. Grouping keeps both — one row
+// per duty, showing the dates that belong to you.
+
+export function seriesKeyOf(task) {
+  if (task.seriesKey) return task.seriesKey;
+  return String(task.name || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+// ISO-8601 week, so a completion in the same week resolves to the same key
+// regardless of which day it was ticked.
+export function isoWeekKey(iso) {
+  const d = fromIso(iso);
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7));   // Thursday of this week
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  return `${d.getFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+// The period a completion belongs to. Standing duties return null — they are
+// ongoing ownership with nothing to finish, and showing them as permanently
+// unticked would read as a backlog that never clears.
+export function periodKeyFor(task, iso) {
+  const type = task.cadence?.type;
+  switch (type) {
+    case "oneOff":     return task.cadence.date || iso;
+    case "weekly":     return isoWeekKey(iso);
+    case "quarterly":  return `${iso.slice(0, 4)}-Q${quarterOf(Number(iso.slice(5, 7)))}`;
+    case "monthly":
+    case "month":
+    case "monthRange": return monthKey(iso);
+    default:           return null;   // standing
+  }
+}
+
+export function isCompletable(task) {
+  return task.cadence?.type !== "standing";
+}
+
+// Collapses a person's tasks into one row per duty.
+//
+// `personKey` selects what is theirs; team-assigned tasks come back separately
+// so the view can keep them in their own section rather than mixing work that
+// is specifically yours with work that is everyone's.
+export function buildTaskSeries(tasks, personKey, iso) {
+  const relevant = tasks.filter(t => t.active !== false).filter(t =>
+    t.assignee?.personKey === personKey || t.assignee?.type === "team");
+
+  const groups = new Map();
+  for (const task of relevant) {
+    const key = `${seriesKeyOf(task)}::${task.assignee?.type === "team" ? "team" : "mine"}`;
+    if (!groups.has(key)) groups.set(key, { key, rule: null, occurrences: [], tasks: [] });
+    const g = groups.get(key);
+    g.tasks.push(task);
+    if (task.cadence?.type === "oneOff") g.occurrences.push(task);
+    // Prefer a real recurring rule as the group's identity; a standing duty is
+    // the fallback, since it carries the ownership but no schedule.
+    else if (!g.rule || (g.rule.cadence?.type === "standing" && task.cadence?.type !== "standing")) g.rule = task;
+  }
+
+  return [...groups.values()].map(g => {
+    g.occurrences.sort((a, b) => (a.cadence.date || "").localeCompare(b.cadence.date || ""));
+    // With no recurring rule, the earliest occurrence stands in as the row's
+    // identity so a purely dated task still has a name, scope and comments.
+    const head = g.rule || g.occurrences[0];
+    const dates = g.occurrences.map(o => o.cadence.date).filter(Boolean);
+    const next = g.occurrences.find(o => (o.cadence.date || "") >= iso) || null;
+    return {
+      key: g.key,
+      head,
+      isTeam: head?.assignee?.type === "team",
+      rule: g.rule,
+      occurrences: g.occurrences,
+      dates,
+      next,
+      // What a tick actually marks done: the upcoming occurrence if there is
+      // one, otherwise the rule's current period.
+      target: next || g.rule || head,
+      tags: [...new Set(g.tasks.flatMap(t => t.tags || []))].sort(),
+    };
+  }).filter(s => s.head);
+}
+
+// Which section of My Tasks a series belongs in.
+export function seriesBucket(series, iso) {
+  const head = series.head;
+  if (head.cadence?.type === "standing" && !series.occurrences.length) return "standing";
+  if (series.next) {
+    const d = series.next.cadence.date;
+    if (d === iso) return "today";
+    const ws = weekStart(iso);
+    if (d >= ws && d <= addDays(ws, 6)) return "week";
+    if (monthKey(d) === monthKey(iso)) return "month";
+    return "later";
+  }
+  // No dated occurrence left — fall back to the rule's own cadence.
+  const bucket = series.rule ? taskDueBucket(series.rule, iso) : null;
+  if (bucket) return bucket;
+  // Occurrences all in the past and nothing recurring: it was due and wasn't done.
+  return series.occurrences.length ? "overdue" : "later";
+}
+
+// ─── TASK PERMISSIONS ────────────────────────────────────────────────────────
+// Whether you may edit a task is a permission, not a label — nothing in the UI
+// badges a task as "compliance". `origin` exists only to answer these two
+// questions and is never displayed.
+
+export function canEditTask(task, email, isAdmin) {
+  if (isAdmin) return true;
+  return task.origin === "personal" && !!task.ownerEmail && task.ownerEmail === email;
+}
+
+// Tagging is how someone organises their own list, so it can't be admin-only —
+// otherwise a specialist can't tag the standing duties that make up most of
+// what they see. Anyone the task is assigned to may change its tags, and the
+// security rule allows that write only when `tags` is the sole field touched.
+export function canTagTask(task, email, isAdmin, personKey) {
+  if (canEditTask(task, email, isAdmin)) return true;
+  return task.assignee?.personKey === personKey || task.assignee?.type === "team";
+}
+
+export function normalizeTag(raw) {
+  return String(raw || "").trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 24);
+}
+
+export function allTagsOf(tasks) {
+  return [...new Set(tasks.flatMap(t => t.tags || []))].sort();
 }
 
 // ─── PEOPLE ──────────────────────────────────────────────────────────────────

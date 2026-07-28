@@ -92,11 +92,54 @@ service cloud.firestore {
       allow write: if plannerAdmin();
     }
 
-    // Recurring compliance tasks + standing duties. Same shape as locations
-    // and policyDates: read for any signed-in specialist, admin-only writes.
+    // Recurring compliance tasks, standing duties, and the personal tasks
+    // specialists add for themselves. `origin` is what separates them: every
+    // migrated task is "assigned" and admin-owned; anything a specialist
+    // creates is "personal" and theirs. It is a permission, never a label —
+    // nothing in the UI badges a task with it.
     match /teamPlannerTasks/{taskId} {
       allow read: if request.auth != null;
-      allow write: if plannerAdmin();
+
+      allow create: if plannerAdmin()
+                    || (request.auth != null
+                        && request.resource.data.origin == 'personal'
+                        && request.resource.data.ownerEmail == request.auth.token.email);
+
+      // Three ways to update: you're an admin; it's your own personal task; or
+      // you're only re-tagging. That last case is what lets a specialist
+      // organise the assigned work that makes up most of their list — without
+      // it, tagging would be useless to everyone but an admin. hasOnly pins the
+      // write to `tags` so nothing else can ride along, the same technique the
+      // follow-up checklists already use.
+      allow update: if plannerAdmin()
+                    || (request.auth != null
+                        && resource.data.origin == 'personal'
+                        && resource.data.ownerEmail == request.auth.token.email
+                        && request.resource.data.ownerEmail == request.auth.token.email)
+                    || (request.auth != null
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['tags', 'seriesKey', 'updatedAt', 'updatedBy']));
+
+      allow delete: if plannerAdmin()
+                    || (request.auth != null
+                        && resource.data.origin == 'personal'
+                        && resource.data.ownerEmail == request.auth.token.email);
+    }
+
+    // One document per completed occurrence of a task, id `${taskId}_${period}`.
+    // Recurring work has to be marked done per period — "QPOW done this week",
+    // not "QPOW done" — so completion cannot live on the task itself.
+    // Everyone sees the team's progress; you may only tick as yourself.
+    match /teamPlannerTaskDone/{doneId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.doneByEmail == request.auth.token.email
+                    && request.resource.data.keys().hasAll(['taskId', 'periodKey', 'doneByEmail', 'doneAt']);
+      allow update: if plannerAdmin();
+      // Unticking is just as ordinary as ticking, so the person who marked it
+      // can clear it; admins can clear anyone's.
+      allow delete: if plannerAdmin()
+                    || (request.auth != null && resource.data.doneByEmail == request.auth.token.email);
     }
 
     // Birthdays and work anniversaries. Reference data, same access as tasks.

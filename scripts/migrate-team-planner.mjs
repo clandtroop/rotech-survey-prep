@@ -38,7 +38,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import XLSX from "xlsx";
+import * as XLSX from "xlsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -443,7 +443,13 @@ function build(workbookPath) {
     process.exit(1);
   }
 
-  const wb = XLSX.readFile(workbookPath, { cellDates: true });
+  // Read the bytes here rather than calling XLSX.readFile. The version this
+  // repo pins (xlsx.mjs from cdn.sheetjs.com) ships an ESM build that never
+  // wires up node's fs, so readFile throws "Cannot access file <path>" for a
+  // file that is plainly there — and it does it identically whether the path
+  // is wrong or the build is just fs-less, which makes it a confusing failure.
+  // XLSX.read on a buffer behaves the same across every build.
+  const wb = XLSX.read(fs.readFileSync(workbookPath), { type: "buffer", cellDates: true });
   const warnings = [];
   const need = name => {
     const ws = wb.Sheets[name];

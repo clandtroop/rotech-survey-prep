@@ -73,6 +73,58 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ─── TEAM PLANNER ──────────────────────────────────────────────────────
+    // Separate module from survey prep: team oversight, visit and PTO
+    // planning, migrated off Team_Planner_5.21.2026.xlsx. Deliberately its own
+    // set of collections — survey due dates stay in visitTrends/locations and
+    // nothing here merges with them.
+
+    function plannerAdmin() {
+      return request.auth != null
+             && request.auth.token.email in ['tasmith@rotech.com', 'cody.landtroop@rotech.com'];
+    }
+
+    // Roster mapping spreadsheet names to Auth accounts. Everyone reads it
+    // (the whole calendar is labelled from it); only admins edit, because
+    // changing someone's email here changes who can edit their entries.
+    match /teamPlannerPeople/{personKey} {
+      allow read: if request.auth != null;
+      allow write: if plannerAdmin();
+    }
+
+    // Recurring compliance tasks + standing duties. Same shape as locations
+    // and policyDates: read for any signed-in specialist, admin-only writes.
+    match /teamPlannerTasks/{taskId} {
+      allow read: if request.auth != null;
+      allow write: if plannerAdmin();
+    }
+
+    // Birthdays and work anniversaries. Reference data, same access as tasks.
+    match /teamPlannerMilestones/{milestoneId} {
+      allow read: if request.auth != null;
+      allow write: if plannerAdmin();
+    }
+
+    // Daily status / visit entries. Everyone sees the whole team's calendar;
+    // you may only write your own. Ownership is keyed on ownerEmail rather
+    // than a uid (the pattern inProgressVisits uses) because entries migrated
+    // out of the spreadsheet have to carry an owner before that person has
+    // ever signed in to the module — there is no uid to record at import time.
+    // The update rule pins ownerEmail on both sides so an entry can't be
+    // handed to someone else, and admins retain write access for roster fixes.
+    match /teamPlannerEntries/{entryId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && (plannerAdmin()
+                        || request.resource.data.ownerEmail == request.auth.token.email);
+      allow update: if request.auth != null
+                    && (plannerAdmin()
+                        || (resource.data.ownerEmail == request.auth.token.email
+                            && request.resource.data.ownerEmail == request.auth.token.email));
+      allow delete: if request.auth != null
+                    && (plannerAdmin() || resource.data.ownerEmail == request.auth.token.email);
+    }
+
     // Lock down everything else
     match /{document=**} {
       allow read, write: if false;

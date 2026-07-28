@@ -224,20 +224,64 @@ original string. Applied to the 980 2026 entries:
 `site_visit` is the fallback bucket, so it is the one to review: contiguous
 weekday runs collapse into ~74 multi-day trips.
 
-## 4. Open questions (blocking the migration run)
+## 4. Decisions taken
 
-1. **Auth emails.** `ownerEmail` needs the Firebase Auth address for each of the
-   seven specialists. Only two are known from `ADMIN_EMAILS`
-   (`tasmith@rotech.com`, `cody.landtroop@rotech.com`). Default if unanswered:
-   migrate with `ownerEmail` blank and add an admin roster panel to map people to
-   accounts after deploy — migrated entries are read-only until that mapping exists.
-2. **2027 rows.** `3 Yr Planner` has 23 rows dated 2027 (QPOW rotation already
-   scheduled ahead). Default: include them — forward-scheduled work is not backfill.
-3. **Survey-due rows.** `Sheet1` r33–36 and 3 rows in `3 Yr Planner`
-   ("Annual Application Due 12/13/2026") are survey due dates. Default: **excluded**,
-   per "survey due dates stay where they are".
-4. **Former specialists.** David, Billy and Jason have no 2026 data. Default: added
-   to `teamPlannerPeople` as `active: false` so the later backfill needs no schema
-   change.
-5. **PTO-sheet-only people.** Tamara (4 entries) and Laura appear on the `PTO` sheet
-   with no calendar tab of their own. Default: skipped in Phase 1, flagged here.
+These were the open questions; all were resolved on the defaults below.
+
+1. **Auth emails.** `ownerEmail` is set from the roster. Only Tammy
+   (`tasmith@rotech.com`) and Cody (`cody.landtroop@rotech.com`) were known, so the
+   other five import un-owned. The app's admin **Roster** panel links a person to an
+   email and backfills `ownerEmail` onto every entry with that `personKey`, which is
+   what makes their migrated history editable. Until then those entries are
+   admin-editable only.
+2. **2027 rows.** Included — 2026 and 2027 dated occurrences both migrate.
+3. **Survey-due rows.** Excluded (`Sheet1` r33–36, the "Annual Application Due …"
+   rows in `3 Yr Planner`, and the whole `Survey Structure` sheet).
+4. **Former specialists.** David, Billy and Jason are on `teamPlannerPeople` with
+   `active: false`. No 2026 entries.
+5. **PTO-sheet-only people.** Tamara and Laura are skipped — no calendar tab, and
+   the `PTO` sheet otherwise duplicates the person tabs. Tamara's birthday and work
+   anniversary do come across as milestones (they are on `Sheet1`), so they carry a
+   `personKey` with no matching roster row; the stored label is what renders.
+
+## 5. Migration results (dry run)
+
+`node scripts/migrate-team-planner.mjs <xlsx>` parses and reports without writing;
+`--write` needs `TP_ADMIN_EMAIL`/`TP_ADMIN_PASSWORD` for an account on the admin
+allowlist. Document IDs are deterministic (`personKey`, `sheet+row`,
+`personKey+date`) so a re-run updates in place rather than duplicating.
+
+| Collection | Documents |
+| --- | --- |
+| `teamPlannerPeople` | 10 (7 active) |
+| `teamPlannerTasks` | 226 — Sheet1 31, Assigned Duties 53, 3 Yr Planner 142 |
+| `teamPlannerEntries` | 960 |
+| `teamPlannerMilestones` | 13 |
+
+Tasks by cadence: 142 one-off, 54 standing, 17 specific-month, 6 weekly, 3 monthly,
+3 quarterly, 1 month-range. 304 dated rows from 2023–2025 skipped for the backfill
+phase. Entries by status: 578 home office, 177 site visit, 93 travel, 38 holiday,
+37 PTO, 15 limited availability, 13 meeting, 9 flex holiday.
+
+Four warnings, all genuine gaps in the source: Paige's, Hector's and Cody's work
+anniversaries have no date, and `3 Yr Planner` r469 ("Weekly Fluview Email") has
+"Oct - March" where a date belongs — it is already captured as the month-range rule
+from `Sheet1` r31.
+
+### Two things worth knowing about the import
+
+**Site visits import one entry per day, not one per trip.** Each day of a swing
+carries its own location (`Travel Day` → `Searcy, AR` → `Little Rock, AR`), and
+collapsing the run into a single multi-day entry would throw those away. Only
+identical consecutive absences merge — a week of `PTO` becomes one entry (26 merges
+across 2026). Multi-day entries created in the app use the same start/end fields, so
+a trip entered going forward can be one document with hotel and flight attached.
+
+**A parser bug worth recording.** The first pass treated a row as a week's
+day-number row only if it held three or more numbers. A month's last week is often
+just "30 31", so those rows were read as status text: entries named `"30"` appeared,
+and the following week's real statuses were absorbed into the previous week's notes
+(Aundrea's 6/22 note read `Sunday Travel · AM Approved · Training Cody · 29 ·
+Tulsa, OK · Cody w/me`, with 6/29's Tulsa visit missing entirely). The rule is now
+"every non-empty cell in the row is a day number", which recovered 33 day-cells
+that the first pass had swallowed.

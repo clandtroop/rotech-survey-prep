@@ -518,17 +518,40 @@ async function write(data) {
     process.exit(1);
   }
 
-  // Firebase config comes from the same .env.local the Vite build uses.
+  // Firebase config: real environment variables win, .env.local fills the
+  // gaps. The committed .env.local is a placeholder stub (the real values live
+  // in the repo's GitHub Actions secrets and are only injected at build time),
+  // and that file is tracked — so pasting live config into it would stage
+  // credentials into a commit. Passing them inline avoids that entirely.
   const envPath = path.join(REPO_ROOT, ".env.local");
-  if (!fs.existsSync(envPath)) {
-    console.error(`\n${envPath} not found — it holds the VITE_FIREBASE_* config. Aborting.`);
+  const fileEnv = fs.existsSync(envPath)
+    ? Object.fromEntries(
+        fs.readFileSync(envPath, "utf8").split("\n")
+          .map(l => l.trim()).filter(l => l && !l.startsWith("#"))
+          .map(l => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, "")]; }),
+      )
+    : {};
+  const read = key => process.env[key] || fileEnv[key] || "";
+  const env = Object.fromEntries(
+    ["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID",
+     "VITE_FIREBASE_STORAGE_BUCKET", "VITE_FIREBASE_MESSAGING_SENDER_ID", "VITE_FIREBASE_APP_ID"]
+      .map(k => [k, read(k)]),
+  );
+
+  // The stub's placeholders fail deep inside the Auth SDK with an opaque
+  // "api-key-not-valid" — catch them here where the cause is still obvious.
+  const placeholders = Object.entries(env).filter(([, v]) => !v || /^YOUR_/.test(v));
+  if (placeholders.length) {
+    console.error(`\nFirebase config is missing or still placeholder:`);
+    placeholders.forEach(([k, v]) => console.error(`  ${k} = ${v || "(empty)"}`));
+    console.error(`\nGet the real values from the Firebase console (Project settings ->`);
+    console.error(`Your apps -> SDK setup and configuration) and pass them inline, e.g.:\n`);
+    console.error(`  VITE_FIREBASE_API_KEY=AIza… VITE_FIREBASE_APP_ID=1:… \\`);
+    console.error(`    TP_ADMIN_EMAIL=… TP_ADMIN_PASSWORD=… \\`);
+    console.error(`    node scripts/migrate-team-planner.mjs <xlsx> --write\n`);
+    console.error(`Do not paste them into .env.local — that file is tracked by git.`);
     process.exit(1);
   }
-  const env = Object.fromEntries(
-    fs.readFileSync(envPath, "utf8").split("\n")
-      .map(l => l.trim()).filter(l => l && !l.startsWith("#"))
-      .map(l => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, "")]; }),
-  );
 
   const { initializeApp } = await import("firebase/app");
   const { getAuth, signInWithEmailAndPassword } = await import("firebase/auth");

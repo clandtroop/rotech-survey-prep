@@ -1,8 +1,8 @@
 # Team Planner — source file analysis & proposed schema
 
-Phase 1 exploration output. Source: `Team_Planner_5.21.2026.xlsx` (19 sheets, 5 hidden).
-Nothing has been migrated yet — this document is the schema proposal that gates the
-migration script.
+Phase 1 record. Source: `Team_Planner_5.21.2026.xlsx` (19 sheets, 5 hidden).
+Written up as the schema proposal that gated the migration; §5 records what was
+actually loaded on 2026-07-28.
 
 ## 1. What the workbook actually contains
 
@@ -44,7 +44,7 @@ first-line strings appear in 2026 alone (`Home Office`, `HOME`, `Home office`,
 Status has to be *inferred* from the text; see §3.
 
 Rows 2+ of a day cell are notes (`With Aundrea`, `Aundrea appt 12:30-4:30pm`) —
-135 of the 980 2026 day-entries have more than one line.
+113 of the imported 2026 entries carry one.
 
 ### There is no hotel or flight data in the workbook
 
@@ -68,16 +68,19 @@ forward-looking feature with nothing to migrate into it.
 
 ### 2026 volume
 
-| Person | 2026 range | Day-entries |
-| --- | --- | --- |
-| Tammy | Jan 5 – Dec 25 | 180 |
-| Aundrea | Jan 8 – Dec 31 | 195 |
-| Janet | Jan 28 – Dec 31 | 217 |
-| Deanne | Jan 6 – Dec 25 | 147 |
-| Cody | May 25 – Dec 31 | 134 |
-| Hector | May 25 – Dec 25 | 48 |
-| Paige | May 25 – Dec 31 | 59 |
-| **Total** | | **980** |
+Day-cells are what the grid holds; entries are what was written, after
+consecutive identical absences merge into one range (see §5).
+
+| Person | 2026 range | Day-cells | Entries |
+| --- | --- | --- | --- |
+| Tammy | Jan 5 – Dec 25 | 188 | 174 |
+| Aundrea | Jan 8 – Dec 31 | 201 | 186 |
+| Janet | Jan 28 – Dec 31 | 228 | 216 |
+| Deanne | Jan 6 – Dec 25 | 153 | 151 |
+| Cody | May 25 – Dec 31 | 136 | 135 |
+| Hector | May 25 – Dec 25 | 48 | 46 |
+| Paige | May 25 – Dec 31 | 59 | 50 |
+| **Total** | | **1,013** | **958** |
 
 Cody, Hector and Paige start 2026-05-25 ("WELCOME TO THE TEAM!!"). David, Billy and
 Jason have no 2026 rows at all — their tabs end in 2024/2025 and are hidden.
@@ -255,18 +258,23 @@ allowlist. Document IDs are deterministic (`personKey`, `sheet+row`,
 | --- | --- |
 | `teamPlannerPeople` | 10 (7 active) |
 | `teamPlannerTasks` | 226 — Sheet1 31, Assigned Duties 53, 3 Yr Planner 142 |
-| `teamPlannerEntries` | 960 |
+| `teamPlannerEntries` | 958 |
 | `teamPlannerMilestones` | 13 |
 
 Tasks by cadence: 142 one-off, 54 standing, 17 specific-month, 6 weekly, 3 monthly,
 3 quarterly, 1 month-range. 304 dated rows from 2023–2025 skipped for the backfill
 phase. Entries by status: 578 home office, 177 site visit, 93 travel, 38 holiday,
-37 PTO, 15 limited availability, 13 meeting, 9 flex holiday.
+35 PTO, 15 limited availability, 13 meeting, 9 flex holiday. 113 entries carry a
+day-level note.
 
-Four warnings, all genuine gaps in the source: Paige's, Hector's and Cody's work
-anniversaries have no date, and `3 Yr Planner` r469 ("Weekly Fluview Email") has
-"Oct - March" where a date belongs — it is already captured as the month-range rule
-from `Sheet1` r31.
+**Loaded to Firestore 2026-07-28** and verified by reading back: 10 / 226 / 13 / 958.
+The survey-prep collections were untouched (`locations` still reads 322 docs).
+
+Twenty warnings. Four are genuine gaps in the source — Paige's, Hector's and Cody's
+work anniversaries have no date, and `3 Yr Planner` r469 ("Weekly Fluview Email") has
+"Oct - March" where a date belongs, already captured as the month-range rule from
+`Sheet1` r31. The other sixteen are mistyped day numbers the importer corrected
+(eight of them in 2026), described below.
 
 ### Two things worth knowing about the import
 
@@ -277,11 +285,31 @@ identical consecutive absences merge — a week of `PTO` becomes one entry (26 m
 across 2026). Multi-day entries created in the app use the same start/end fields, so
 a trip entered going forward can be one document with hotel and flight attached.
 
-**A parser bug worth recording.** The first pass treated a row as a week's
-day-number row only if it held three or more numbers. A month's last week is often
-just "30 31", so those rows were read as status text: entries named `"30"` appeared,
-and the following week's real statuses were absorbed into the previous week's notes
-(Aundrea's 6/22 note read `Sunday Travel · AM Approved · Training Cody · 29 ·
-Tulsa, OK · Cody w/me`, with 6/29's Tulsa visit missing entirely). The rule is now
-"every non-empty cell in the row is a day number", which recovered 33 day-cells
-that the first pass had swallowed.
+**The day numbers in the source are not trustworthy.** Two separate parser bugs
+came out of this, both worth recording because the backfill phase will hit them
+again.
+
+The first pass treated a row as a week's day-number row only if it held three or
+more numbers. A month's last week is often just "30 31", so those rows were read as
+status text: entries named `"30"` appeared, and the following week's real statuses
+were absorbed into the previous week's notes (Aundrea's 6/22 note read `Sunday
+Travel · AM Approved · Training Cody · 29 · Tulsa, OK · Cody w/me`, with 6/29's
+Tulsa visit missing entirely). The rule is now "every non-empty cell in the row is a
+day number", which recovered 33 day-cells.
+
+Worse, the numbers themselves are sometimes wrong. The week of 2026-07-20 is
+labelled `20 21 21 23 24` on *every* tab — Wednesday numbered 21 instead of 22 — and
+2026-03-23's week has Wednesday as 28. Because document IDs are `personKey+date`,
+two columns resolving to the same date meant one day's status silently overwrote the
+other's: Tammy's and Hector's St. George visit was replaced by the Las Vegas one, and
+the collision broke run-merging so Janet's week of PTO arrived as four disconnected
+entries. The importer now derives every date from the column's position — column 0
+is Monday, column 4 is Friday, and that never varies. Each typed number votes for
+which Monday the row starts on, but only when its own weekday agrees with the column
+it occupies; the majority wins and a mistyped number is outvoted by its neighbours.
+Every disagreement is reported as a warning.
+
+This was caught only because a read-back after the first write returned 956 entries
+where 960 had been written. Four documents from that first pass were left behind at
+dates that no longer exist in the corrected data (two of them on a Saturday) and
+were deleted after checking each one.

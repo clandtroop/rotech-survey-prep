@@ -180,15 +180,9 @@ function parsePersonSheet(ws, person, warnings) {
       rr++;
     }
 
-    nums.forEach((day, col) => {
-      if (!day) return;
-      const iso = `${cur.year}-${String(cur.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      // A day number that doesn't exist in that month means the source grid was
-      // typed wrong (May 2020 has "25 26 27 29 29"). Record it and move on.
-      if (new Date(`${iso}T00:00:00Z`).getUTCDate() !== day) {
-        warnings.push(`${person.sheet}: ${cur.year}-${cur.month} has no day ${day} — skipped`);
-        return;
-      }
+    const dates = weekDates(cur, nums, person, warnings, r);
+    (dates || []).forEach((iso, col) => {
+      if (!iso) return;
       const lines = body.map(b => b[col]).filter(Boolean);
       if (!lines.length) return;
       out.push({ iso, lines, row: r });
@@ -197,6 +191,49 @@ function parsePersonSheet(ws, person, warnings) {
     r = rr;
   }
   return out;
+}
+
+// Work out the real date behind each column of a week row.
+//
+// The typed day numbers cannot be trusted: the week of 2026-07-20 is labelled
+// "20 21 21 23 24" on every tab (Wednesday numbered 21 instead of 22), and
+// 2026-11-02's week is "2 3 4 7 6". Taking those at face value made two columns
+// resolve to the same date, and since document IDs are personKey+date, one
+// day's status silently overwrote the other's.
+//
+// A column's position is the reliable signal — column 0 is Monday, column 4 is
+// Friday, and that never varies. So each typed number votes for which Monday
+// the row starts on, but only when the number's own weekday agrees with the
+// column it sits in; the majority vote wins and every column is then derived
+// from the calendar. A mistyped number is outvoted by its neighbours instead of
+// corrupting the row.
+function weekDates(cur, nums, person, warnings, rowNum) {
+  const votes = new Map();
+  nums.forEach((n, i) => {
+    if (!n) return;
+    const d = new Date(Date.UTC(cur.year, cur.month - 1, n));
+    if (d.getUTCMonth() !== cur.month - 1) return;   // day doesn't exist this month
+    if (d.getUTCDay() !== i + 1) return;             // number disagrees with its column
+    d.setUTCDate(d.getUTCDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    votes.set(key, (votes.get(key) || 0) + 1);
+  });
+  if (!votes.size) {
+    warnings.push(`${person.sheet} r${rowNum}: week "${nums.filter(Boolean).join(" ")}" doesn't line up with ${cur.year}-${cur.month} — skipped`);
+    return null;
+  }
+
+  const monday = [...votes.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  return nums.map((n, i) => {
+    if (!n) return null;
+    const d = new Date(`${monday}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    if (+iso.slice(8, 10) !== n) {
+      warnings.push(`${person.sheet} r${rowNum}: column ${i + 1} is labelled "${n}" but that column is ${iso} — using the calendar date`);
+    }
+    return iso;
+  });
 }
 
 // Consecutive weekdays with an identical status and identical text are one

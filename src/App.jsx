@@ -4393,6 +4393,12 @@ function SurveyPrepApp() {
   // the highlight and the number have to agree. 541T has its own count.
   const op541Mismatches = op541Stats.mismatch;
 
+  // A section where every item is N/A — usually the "Mark All N/A" bulk toggle
+  // on a sheet that doesn't apply to this location — has nothing to report, so
+  // it's dropped from the report/PDF entirely: no header, no counts, no items.
+  const isAllNaSection = s => s.total > 0 && s.na === s.total;
+  const visibleReportLines = reportLines.filter(s => !isAllNaSection(s));
+
   const specialistFirstName = (meta.specialist || "").trim().split(/\s+/)[0] || "there";
 
   const navItems = [
@@ -5544,8 +5550,8 @@ function SurveyPrepApp() {
           {/* ── SUMMARY SCORES ── */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 0, marginBottom: 20, marginTop: 16 }}>
             {[
-              ["Total Compliant", reportLines.reduce((a, s) => a + s.yes, 0), T.success, T.successBg, `2px solid ${T.success}`],
-              ["Total Issues",    reportLines.reduce((a, s) => a + s.no, 0),  T.error, T.errorBg, `2px solid ${T.error}`],
+              ["Total Compliant", visibleReportLines.reduce((a, s) => a + s.yes, 0), T.success, T.successBg, `2px solid ${T.success}`],
+              ["Total Issues",    visibleReportLines.reduce((a, s) => a + s.no, 0),  T.error, T.errorBg, `2px solid ${T.error}`],
             ].map(([l, n, tc, bg, border]) => (
               <div key={l} style={{ background: bg, borderBottom: border, padding: "10px 12px", textAlign: "center", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
                 <div style={{ fontSize: 26, fontWeight: 700, color: tc }}>{n}</div>
@@ -5559,12 +5565,14 @@ function SurveyPrepApp() {
           </div>
 
           {/* ── SECTION DIVIDER ── */}
-          <div style={{ fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: `2px solid ${BRAND}`, paddingBottom: 4, marginBottom: 10, WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
-            Section Detail
-          </div>
+          {visibleReportLines.length > 0 && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: BRAND, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: `2px solid ${BRAND}`, paddingBottom: 4, marginBottom: 10, WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+              Section Detail
+            </div>
+          )}
 
           {/* ── SECTION CARDS ── */}
-          {reportLines.map((s, i) => {
+          {visibleReportLines.map((s, i) => {
             const hasIssues = s.no > 0 || s.issues.length > 0;
             const hasPending = s.pending > 0;
             const accentColor = hasIssues ? T.error : hasPending ? T.warning : T.success;

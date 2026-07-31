@@ -1882,6 +1882,12 @@ const TAB = {
 // checklist — "Checklist" in the header nav bounces off these back to tab 0.
 const REFERENCE_TABS = [TAB.policy, TAB.trends, TAB.followUp, TAB.roster];
 
+// Per-patient forms, as opposed to the location's own binders — they group
+// separately in the binder picker and carry Global ID / Current RX.
+const PATIENT_FORM_IDS = ["pstSetup", "pstMaintenance", "clinician", "vent"];
+// Group headings for the binder dropdown, in the order they're listed.
+const TAB_GROUPS = ["Checklist Binders", "Patient Visit Forms", "Self-Audits & Personnel", "Reference"];
+
 function initStates() {
   const s = {}, c = {};
   SECTIONS.forEach((sec, si) => sec.items.forEach((_, ii) => {
@@ -3061,8 +3067,26 @@ function SurveyPrepApp() {
     );
     return started ? "form" : "dashboard";
   });
-  // Live filter over the checklist tab rail — UI-only, never persisted.
+  // Live filter over the binder list — UI-only, never persisted.
   const [tabSearch, setTabSearch] = useState("");
+  // Binder picker. Sixteen tabs in a scrolling rail was the busiest thing on
+  // the page, so navigation collapses into this one dropdown; the progress
+  // strip underneath is what keeps the rail's at-a-glance status.
+  const [showSectionMenu, setShowSectionMenu] = useState(false);
+  const sectionMenuRef = useRef(null);
+  useEffect(() => {
+    if (!showSectionMenu) return;
+    const onDocClick = e => {
+      if (!sectionMenuRef.current?.contains(e.target)) setShowSectionMenu(false);
+    };
+    const onEsc = e => { if (e.key === "Escape") setShowSectionMenu(false); };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [showSectionMenu]);
   // Overflow menu holding the destructive "Clear & Start Over" action.
   const [showMoreActions, setShowMoreActions] = useState(false);
   const moreActionsRef = useRef(null);
@@ -4431,6 +4455,7 @@ function SurveyPrepApp() {
       const st = getSectionStats(i);
       return {
         idx: i, label: s.label, progress: st,
+        group: PATIENT_FORM_IDS.includes(s.id) ? "Patient Visit Forms" : "Checklist Binders",
         badges: [
           ...(st.no > 0 ? [tabBadge("no", T.errorBg, T.error, st.no)] : []),
           ...doneBadge(st, "ok"),
@@ -4438,7 +4463,7 @@ function SurveyPrepApp() {
       };
     }),
     {
-      idx: TAB.op541, label: "OP 541 Readiness",
+      idx: TAB.op541, label: "OP 541 Readiness", group: "Self-Audits & Personnel",
       progress: op541Sections.length ? { ...op541Stats, total: op541Stats.yes + op541Stats.no + op541Stats.na + op541Stats.pending } : null,
       badges: [
         ...(!op541FileName ? [<span key="up" style={{ fontSize: 11, color: T.gray500, marginLeft: 6 }}>+ Upload</span>] : []),
@@ -4448,7 +4473,7 @@ function SurveyPrepApp() {
       ],
     },
     {
-      idx: TAB.op541t, label: "OP 541T Transfill",
+      idx: TAB.op541t, label: "OP 541T Transfill", group: "Self-Audits & Personnel",
       progress: op541tSections.length ? { ...op541tStats, total: op541tStats.yes + op541tStats.no + op541tStats.na + op541tStats.pending } : null,
       badges: [
         ...(!op541tFileName ? [<span key="up" style={{ fontSize: 11, color: T.gray500, marginLeft: 6 }}>+ Upload</span>] : []),
@@ -4458,7 +4483,7 @@ function SurveyPrepApp() {
       ],
     },
     {
-      idx: TAB.jc427, label: "JC 427 Personnel", progress: null,
+      idx: TAB.jc427, label: "JC 427 Personnel", progress: null, group: "Self-Audits & Personnel",
       badges: [
         ...(jc427TemplateStatus === "loading" ? [<span key="ld" style={{ fontSize: 11, color: T.gray500, marginLeft: 6 }}>Loading…</span>] : []),
         ...(jc427TemplateStatus === "error"   ? [<span key="er" style={{ fontSize: 11, color: T.error, marginLeft: 6 }}>⚠ Load failed</span>] : []),
@@ -4468,14 +4493,24 @@ function SurveyPrepApp() {
         ...(jc427Stats && jc427Stats.no === 0 && jc427Stats.expired === 0 && jc427Stats.expiring === 0 ? [okBadge("ok")] : []),
       ],
     },
-    { idx: TAB.policy,   label: "Policy Dates",     progress: null, badges: [] },
-    { idx: TAB.trends,   label: "Issue Trends",     progress: null, badges: [] },
-    { idx: TAB.followUp, label: "Follow-Ups",       progress: null, badges: [] },
-    { idx: TAB.roster,   label: "Location Roster",  progress: null, badges: [] },
+    { idx: TAB.policy,   label: "Policy Dates",     progress: null, badges: [], group: "Reference" },
+    { idx: TAB.trends,   label: "Issue Trends",     progress: null, badges: [], group: "Reference" },
+    { idx: TAB.followUp, label: "Follow-Ups",       progress: null, badges: [], group: "Reference" },
+    { idx: TAB.roster,   label: "Location Roster",  progress: null, badges: [], group: "Reference" },
   ];
 
   const tabQuery = tabSearch.trim().toLowerCase();
   const visibleTabs = tabQuery ? tabDefs.filter(t => t.label.toLowerCase().includes(tabQuery)) : tabDefs;
+  const activeTabDef = tabDefs.find(t => t.idx === activeTab) || tabDefs[0];
+  // Only the tabs that track answers get a segment in the progress strip —
+  // the reference lookups have nothing to be partway through.
+  const progressTabs = tabDefs.filter(t => t.progress);
+
+  function selectTab(idx) {
+    setActiveTab(idx);
+    setShowSectionMenu(false);
+    setTabSearch("");
+  }
 
   return (
     <div style={{ fontFamily: T.font, margin: "0 auto", background: T.gray50, minHeight: "100vh", color: T.ink }}>
@@ -4857,62 +4892,119 @@ function SurveyPrepApp() {
             </div>
           </div>
 
-          {/* Tab rail — searchable, each tab carrying its own progress bar */}
+          {/* Binder picker — one dropdown in place of the old 16-tab rail,
+              with the progress strip below carrying the status the rail used
+              to show all at once. */}
           <div style={{ maxWidth: WIDTH_FORM, margin: "18px auto 0", padding: "0 28px" }}>
-            <div style={{ position: "relative", maxWidth: 280, marginBottom: 10 }}>
-              <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: T.gray400, pointerEvents: "none" }} />
-              {/* Filtering the rail without moving the selection leaves the
-                  content below showing a binder that is no longer on screen —
-                  so if the search hides the active tab, jump to the first hit. */}
-              <input value={tabSearch} aria-label="Search binders" placeholder="Search binders…"
-                onChange={e => {
-                  const next = e.target.value;
-                  setTabSearch(next);
-                  const q = next.trim().toLowerCase();
-                  if (!q) return;
-                  const hits = tabDefs.filter(t => t.label.toLowerCase().includes(q));
-                  if (hits.length && !hits.some(t => t.idx === activeTab)) setActiveTab(hits[0].idx);
-                }}
-                style={{ width: "100%", padding: "7px 10px 7px 32px", fontSize: 13.5, border: `1.5px solid ${T.gray300}`, borderRadius: T.radiusPill, fontFamily: "inherit", boxSizing: "border-box", color: T.ink, outline: "none" }} />
+            <div ref={sectionMenuRef} style={{ position: "relative", maxWidth: 440 }}>
+              <button onClick={() => setShowSectionMenu(v => !v)}
+                aria-haspopup="menu" aria-expanded={showSectionMenu} aria-label={`Binder: ${activeTabDef.label}. Change binder`}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%",
+                  padding: "10px 14px", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit",
+                  background: T.white, color: T.ink, textAlign: "left", cursor: "pointer",
+                  border: `1.5px solid ${showSectionMenu ? T.blue600 : T.gray300}`,
+                  borderRadius: 10, boxShadow: T.shadowSoft, boxSizing: "border-box",
+                }}>
+                <Icon name="list-checks" size={16} style={{ color: T.blue600, flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeTabDef.label}</span>
+                {activeTabDef.badges}
+                <span aria-hidden="true" style={{ marginLeft: "auto", paddingLeft: 8, color: T.gray500, fontSize: 11, flexShrink: 0 }}>▼</span>
+              </button>
+
+              {showSectionMenu && (
+                <div role="menu" aria-label="Checklist binders" style={{
+                  position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 1000,
+                  background: T.white, border: `1px solid ${T.gray200}`, borderRadius: 10,
+                  boxShadow: "0 10px 28px rgba(19,25,34,.18)", overflow: "hidden",
+                }}>
+                  <div style={{ position: "relative", padding: 8, borderBottom: `1px solid ${T.gray100}` }}>
+                    <Icon name="search" size={14} style={{ position: "absolute", left: 18, top: "50%", transform: "translateY(-50%)", color: T.gray400, pointerEvents: "none" }} />
+                    {/* Enter picks the top hit so the whole thing is keyboard-
+                        driveable: open, type three letters, Enter. */}
+                    <input autoFocus value={tabSearch} aria-label="Search binders" placeholder="Search binders…"
+                      onChange={e => setTabSearch(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && visibleTabs.length) selectTab(visibleTabs[0].idx); }}
+                      style={{ width: "100%", padding: "7px 10px 7px 30px", fontSize: 13.5, border: `1.5px solid ${T.gray300}`, borderRadius: T.radiusPill, fontFamily: "inherit", boxSizing: "border-box", color: T.ink, outline: "none" }} />
+                  </div>
+                  <div style={{ maxHeight: "58vh", overflowY: "auto", padding: "4px 0 6px" }}>
+                    {TAB_GROUPS.map(group => {
+                      const rows = visibleTabs.filter(t => t.group === group);
+                      if (!rows.length) return null;
+                      return (
+                        <div key={group}>
+                          <div style={{ padding: "8px 14px 4px", fontSize: 10.5, fontWeight: 700, color: T.gray500, textTransform: "uppercase", letterSpacing: "0.07em" }}>{group}</div>
+                          {rows.map(t => {
+                            const active = activeTab === t.idx;
+                            // Same two-segment fill the rail used: answered
+                            // (Y/N) then N/A, as a share of the item count.
+                            const p = t.progress;
+                            const total = p?.total || 0;
+                            const answeredPct = total ? ((p.yes + p.no) / total) * 100 : 0;
+                            const naPct       = total ? (p.na / total) * 100 : 0;
+                            const complete    = total > 0 && p.pending === 0;
+                            return (
+                              <button key={t.idx} role="menuitem" aria-current={active} onClick={() => selectTab(t.idx)}
+                                style={{
+                                  display: "block", width: "100%", textAlign: "left", padding: "7px 14px 8px",
+                                  background: active ? T.blue50 : "none", border: "none", cursor: "pointer",
+                                  fontFamily: "inherit", borderLeft: `3px solid ${active ? T.blue600 : "transparent"}`,
+                                }}>
+                                <div style={{ display: "flex", alignItems: "center", fontSize: 13.5, color: active ? T.blue600 : T.ink, fontWeight: active ? 700 : 500 }}>
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.label}</span>
+                                  {t.badges}
+                                </div>
+                                {p && (
+                                  <div aria-hidden="true" style={{ height: 4, background: T.gray300, borderRadius: 2, marginTop: 5, overflow: "hidden", display: "flex" }}>
+                                    <div style={{ width: `${answeredPct}%`, background: complete ? T.success : T.blue600 }} />
+                                    <div style={{ width: `${naPct}%`, background: T.gray400 }} />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                    {visibleTabs.length === 0 && (
+                      <div style={{ padding: "14px", fontSize: 13.5, color: T.gray500 }}>No binders match “{tabSearch}”</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            <div role="tablist" aria-label="Checklist binders" style={{ display: "flex", gap: 6, overflowX: "auto", borderBottom: `1px solid ${T.gray200}` }}>
-              {visibleTabs.map(t => {
+
+            {/* Progress strip — one segment per answerable binder, in tab
+                order, so closing the dropdown doesn't cost the overview the
+                rail gave. Segments are clickable shortcuts. */}
+            <div style={{ display: "flex", gap: 3, marginTop: 10, paddingBottom: 12, borderBottom: `1px solid ${T.gray200}` }}>
+              {progressTabs.map(t => {
                 const active = activeTab === t.idx;
-                // Two-segment fill: answered (Y/N) then N/A, both as a share of
-                // the section's item count. Green once nothing is left pending.
                 const p = t.progress;
-                const total = p?.total || 0;
+                const total = p.total || 0;
                 const answeredPct = total ? ((p.yes + p.no) / total) * 100 : 0;
                 const naPct       = total ? (p.na / total) * 100 : 0;
                 const complete    = total > 0 && p.pending === 0;
+                // The rail put issue counts in a badge next to each label; with
+                // the labels gone, the fill itself has to carry that — red for
+                // a binder with open issues, green once it's fully answered.
+                const fill = p.no > 0 ? T.error : complete ? T.success : T.blue600;
+                const summary = `${t.label} — ${p.yes} compliant, ${p.no} issue${p.no === 1 ? "" : "s"}, ${p.na} N/A, ${p.pending} pending`;
                 return (
-                  // flexShrink:0 is load-bearing — without it 16 tabs compress to
-                  // fit the rail instead of overflowing it, and the nowrap labels
-                  // spill out of their own boxes and overlap each other.
-                  <div key={t.idx} style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
-                    <button role="tab" aria-selected={active} onClick={() => setActiveTab(t.idx)}
-                      style={{
-                        padding: "10px 16px", fontSize: 13.5, whiteSpace: "nowrap", background: "none", border: "none",
-                        borderBottom: active ? `2px solid ${T.blue600}` : "2px solid transparent",
-                        color: active ? T.blue600 : T.gray600, cursor: "pointer",
-                        fontWeight: active ? 700 : 500, fontFamily: "inherit",
-                        display: "flex", alignItems: "center",
-                      }}>
-                      {t.label}{t.badges}
-                    </button>
-                    {/* Reference tabs have no progress to show, but still need
-                        the same vertical rhythm as the checklist tabs. */}
-                    <div aria-hidden="true" style={{ height: 4, background: p ? T.gray300 : "transparent", borderRadius: 2, margin: "4px 16px 6px", overflow: "hidden", display: "flex" }}>
-                      {p && <div style={{ width: `${answeredPct}%`, background: complete ? T.success : T.blue600 }} />}
-                      {p && <div style={{ width: `${naPct}%`, background: T.gray400 }} />}
-                    </div>
-                  </div>
+                  <button key={t.idx} onClick={() => setActiveTab(t.idx)} title={summary} aria-label={`Go to ${summary}`}
+                    style={{
+                      flex: 1, minWidth: 12, height: 8, padding: 0, display: "flex", overflow: "hidden",
+                      background: T.gray300, border: "none", borderRadius: 3, cursor: "pointer",
+                      // Ring the active segment with a shadow rather than an
+                      // outline so the browser's focus outline still shows.
+                      boxShadow: active ? `0 0 0 2px ${T.blue600}` : "none",
+                    }}>
+                    <div style={{ width: `${answeredPct}%`, background: fill }} />
+                    <div style={{ width: `${naPct}%`, background: T.gray400 }} />
+                  </button>
                 );
               })}
             </div>
-            {visibleTabs.length === 0 && (
-              <div style={{ padding: "14px 4px", fontSize: 13.5, color: T.gray500 }}>No binders match “{tabSearch}”</div>
-            )}
           </div>
           {/* Regular section content */}
           {!isExtraTab && (

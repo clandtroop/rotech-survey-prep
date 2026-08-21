@@ -11,6 +11,8 @@
   "dependencies": {
     "bootstrap": "^5.3.3",
     "firebase": "^12.15.0",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
     "jszip": "^3.10.1",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",

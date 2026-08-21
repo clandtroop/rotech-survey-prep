@@ -8,6 +8,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile 
 import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline, BRAND } from "./theme";
 import { TREND_KEY, TRENDS_COLLECTION, loadTrendData } from "./trendData";
 import TrendDashboard from "./TrendDashboard";
+import ReadinessDashboard from "./ReadinessDashboard";
 import TeamPlanner from "./TeamPlanner";
 
 // What the assessment module is called in the nav, on its dashboard card, and
@@ -1877,10 +1878,11 @@ const TAB = {
   trends:   SECTIONS.length + 4,
   followUp: SECTIONS.length + 5,
   roster:   SECTIONS.length + 6,
+  readiness: SECTIONS.length + 7,
 };
 // Reference tabs are read-only lookups rather than part of the visit's
 // checklist — "Checklist" in the header nav bounces off these back to tab 0.
-const REFERENCE_TABS = [TAB.policy, TAB.trends, TAB.followUp, TAB.roster];
+const REFERENCE_TABS = [TAB.policy, TAB.trends, TAB.followUp, TAB.roster, TAB.readiness];
 
 // Per-patient forms, as opposed to the location's own binders — they group
 // separately in the binder picker and carry Global ID / Current RX.
@@ -4362,6 +4364,7 @@ function SurveyPrepApp() {
   const isTrendsTab   = activeTab === TAB.trends;
   const isFollowUpTab = activeTab === TAB.followUp;
   const isRosterTab   = activeTab === TAB.roster;
+  const isReadinessTab = activeTab === TAB.readiness;
   const isExtraTab = isOp541Tab || isOp541tTab || isJc427Tab || isPolicyTab || isTrendsTab || isFollowUpTab || isRosterTab;
   const sec = isExtraTab ? null : SECTIONS[activeTab];
   const op541Stats  = getOp541Stats();
@@ -4497,6 +4500,7 @@ function SurveyPrepApp() {
     { idx: TAB.trends,   label: "Issue Trends",     progress: null, badges: [], group: "Reference" },
     { idx: TAB.followUp, label: "Follow-Ups",       progress: null, badges: [], group: "Reference" },
     { idx: TAB.roster,   label: "Location Roster",  progress: null, badges: [], group: "Reference" },
+    { idx: TAB.readiness, label: "Location Readiness", progress: null, badges: [], group: "Reference" },
   ];
 
   const tabQuery = tabSearch.trim().toLowerCase();
@@ -4739,6 +4743,7 @@ function SurveyPrepApp() {
               { accent: T.teal,    titleColor: T.tealDeep, icon: "book-open",      title: "Policy Dates",         desc: "Reference revision dates for policies cited in the checklist",                      stat: `${Object.keys(policyDates).length} policies on file`,                  cta: "View Policy Dates",   onClick: () => goTab(TAB.policy) },
               { accent: T.blue400, titleColor: T.blue600,  icon: "list-checks",    title: "Follow-Ups",           desc: "Company-wide progress on open follow-up checklists by location",                    stat: "Open items by location",                                               cta: "View Follow-Ups",     onClick: () => goTab(TAB.followUp) },
               { accent: T.gray600, titleColor: T.ink,      icon: "map-pin",        title: "Location Roster",      desc: "Reference lookup of locations, Lawson #s, and area managers",                       stat: `${locations.length} locations on file`,                                cta: "View Roster",         onClick: () => goTab(TAB.roster) },
+              { accent: T.blue600, titleColor: T.blue600,  icon: "bar-chart",      title: "Location Readiness",   desc: "Live OP 541 / OP 512 / JC 427 semiannual status per location, with PDF export",     stat: "From the Location Readiness Platform",                                 cta: "View Readiness",      onClick: () => goTab(TAB.readiness) },
               { accent: T.tealDeep, titleColor: T.tealDeep, icon: "calendar",      title: "Team Planner",         desc: "Recurring duties, team whereabouts, PTO and visit planning",                        stat: "Replaces the Team Planner spreadsheet",                                cta: "Open Team Planner",   onClick: goPlanner },
               // Mismatches are the highest-signal thing in the app, so this card
               // goes amber and shouts the count the moment there is one.
@@ -5520,6 +5525,8 @@ function SurveyPrepApp() {
           {isFollowUpTab && <FollowUpDashboard />}
           {/* Location Roster tab content */}
           {isRosterTab && <LocationRoster locations={locations} onReload={reloadLocations} />}
+
+          {isReadinessTab && <ReadinessDashboard />}
         </div>
       )}
 

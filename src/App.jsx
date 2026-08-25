@@ -3133,14 +3133,31 @@ function SurveyPrepApp() {
     }, 60 * 1000);
     return () => clearInterval(t);
   }, []);
-  // Pull this specialist's in-progress visits from Firestore once on load and
-  // merge them into the localStorage-seeded list — this is what makes a visit
-  // saved on one device (e.g. an iPad) show up under "Load" on another (e.g.
-  // a desktop) after signing in there. Firestore wins for any id present in
-  // both; anything local-only (not yet synced, e.g. saved while offline)
-  // still shows up.
-  useEffect(() => {
-    loadVisitsFromFirestore()
+  // Pull this specialist's in-progress visits from Firestore and merge them
+  // into the localStorage-seeded list — this is what makes a visit saved on
+  // one device (e.g. an iPad) show up under "Load" on another (e.g. a
+  // desktop). Firestore wins for any id present in both; anything local-only
+  // (not yet synced, e.g. saved while offline) still shows up.
+  //
+  // This used to be a one-shot effect that ran only once, right when the
+  // component first mounted. Two problems with that:
+  //   1. It read `auth.currentUser` synchronously instead of subscribing to
+  //      auth state, so it could in principle run before Firebase Auth had
+  //      finished restoring a persisted session (that restore is async).
+  //      Subscribing via onAuthStateChanged is the robust way to do this,
+  //      whatever this component's mount timing turns out to be relative to
+  //      AuthGate.
+  //   2. It never ran again after that first mount. A specialist who leaves
+  //      the app open for a whole shift — normal on a tablet that's rarely
+  //      force-closed — would never see a visit saved from another device in
+  //      the meantime, no matter how many times they opened "Saved Visits,"
+  //      short of a full page reload. That's the most likely explanation for
+  //      visits "not showing up on the iPad" surviving a sign-out/sign-in:
+  //      neither of those re-fetches this list on its own. Now it also
+  //      re-fetches every time "Saved Visits" is opened (see the button
+  //      below), so an already-open session always sees current cloud state.
+  const refreshVisitsFromFirestore = useCallback(() => {
+    return loadVisitsFromFirestore()
       .then(remoteVisits => {
         setSavedVisits(local => {
           const remoteIds = new Set(remoteVisits.map(v => v.id));
@@ -3152,6 +3169,10 @@ function SurveyPrepApp() {
       })
       .catch(() => {}); // offline, or not yet signed in — local-only view still works
   }, []);
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, user => { if (user) refreshVisitsFromFirestore(); });
+  }, [refreshVisitsFromFirestore]);
   const [pdfHistory, setPdfHistory]   = useState(loadPdfHistory);
   const [showVisits, setShowVisits] = useState(false);
   const [showPdfReminder, setShowPdfReminder] = useState(false);
@@ -4865,7 +4886,15 @@ function SurveyPrepApp() {
                   {visitFinalized ? "✓ Visit Finalized" : "Finalize Visit"}
                 </button>
               )}
-              <button onClick={() => setShowVisits(v => !v)} style={showVisits ? { ...btnOutline, background: T.blue50 } : btnOutline}>
+              <button
+                onClick={() => {
+                  setShowVisits(v => {
+                    const next = !v;
+                    if (next) refreshVisitsFromFirestore(); // pick up anything saved from another device since this tab loaded
+                    return next;
+                  });
+                }}
+                style={showVisits ? { ...btnOutline, background: T.blue50 } : btnOutline}>
                 Saved Visits{savedVisits.length > 0 ? ` (${savedVisits.length})` : ""}
               </button>
               <button onClick={generateOutputs} style={btnPrimary}>Generate Email &amp; Report</button>

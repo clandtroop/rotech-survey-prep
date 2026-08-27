@@ -2,3 +2,7 @@ node_modules
 node_modules
 .env.local
 .env.*.local
+
+# Dry-run output of scripts/migrate-team-planner.mjs — a full copy of the
+# spreadsheet's contents, regenerated on every run.
+scripts/team-planner-migration-preview.json

@@ -73,6 +73,101 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ─── TEAM PLANNER ──────────────────────────────────────────────────────
+    // Separate module from survey prep: team oversight, visit and PTO
+    // planning, migrated off Team_Planner_5.21.2026.xlsx. Deliberately its own
+    // set of collections — survey due dates stay in visitTrends/locations and
+    // nothing here merges with them.
+
+    function plannerAdmin() {
+      return request.auth != null
+             && request.auth.token.email in ['tasmith@rotech.com', 'cody.landtroop@rotech.com'];
+    }
+
+    // Roster mapping spreadsheet names to Auth accounts. Everyone reads it
+    // (the whole calendar is labelled from it); only admins edit, because
+    // changing someone's email here changes who can edit their entries.
+    match /teamPlannerPeople/{personKey} {
+      allow read: if request.auth != null;
+      allow write: if plannerAdmin();
+    }
+
+    // Recurring compliance tasks, standing duties, and the personal tasks
+    // specialists add for themselves. `origin` is what separates them: every
+    // migrated task is "assigned" and admin-owned; anything a specialist
+    // creates is "personal" and theirs. It is a permission, never a label —
+    // nothing in the UI badges a task with it.
+    match /teamPlannerTasks/{taskId} {
+      allow read: if request.auth != null;
+
+      allow create: if plannerAdmin()
+                    || (request.auth != null
+                        && request.resource.data.origin == 'personal'
+                        && request.resource.data.ownerEmail == request.auth.token.email);
+
+      // Three ways to update: you're an admin; it's your own personal task; or
+      // you're only re-tagging. That last case is what lets a specialist
+      // organise the assigned work that makes up most of their list — without
+      // it, tagging would be useless to everyone but an admin. hasOnly pins the
+      // write to `tags` so nothing else can ride along, the same technique the
+      // follow-up checklists already use.
+      allow update: if plannerAdmin()
+                    || (request.auth != null
+                        && resource.data.origin == 'personal'
+                        && resource.data.ownerEmail == request.auth.token.email
+                        && request.resource.data.ownerEmail == request.auth.token.email)
+                    || (request.auth != null
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['tags', 'seriesKey', 'updatedAt', 'updatedBy']));
+
+      allow delete: if plannerAdmin()
+                    || (request.auth != null
+                        && resource.data.origin == 'personal'
+                        && resource.data.ownerEmail == request.auth.token.email);
+    }
+
+    // One document per completed occurrence of a task, id `${taskId}_${period}`.
+    // Recurring work has to be marked done per period — "QPOW done this week",
+    // not "QPOW done" — so completion cannot live on the task itself.
+    // Everyone sees the team's progress; you may only tick as yourself.
+    match /teamPlannerTaskDone/{doneId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.doneByEmail == request.auth.token.email
+                    && request.resource.data.keys().hasAll(['taskId', 'periodKey', 'doneByEmail', 'doneAt']);
+      allow update: if plannerAdmin();
+      // Unticking is just as ordinary as ticking, so the person who marked it
+      // can clear it; admins can clear anyone's.
+      allow delete: if plannerAdmin()
+                    || (request.auth != null && resource.data.doneByEmail == request.auth.token.email);
+    }
+
+    // Birthdays and work anniversaries. Reference data, same access as tasks.
+    match /teamPlannerMilestones/{milestoneId} {
+      allow read: if request.auth != null;
+      allow write: if plannerAdmin();
+    }
+
+    // Daily status / visit entries. Everyone sees the whole team's calendar;
+    // you may only write your own. Ownership is keyed on ownerEmail rather
+    // than a uid (the pattern inProgressVisits uses) because entries migrated
+    // out of the spreadsheet have to carry an owner before that person has
+    // ever signed in to the module — there is no uid to record at import time.
+    // The update rule pins ownerEmail on both sides so an entry can't be
+    // handed to someone else, and admins retain write access for roster fixes.
+    match /teamPlannerEntries/{entryId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && (plannerAdmin()
+                        || request.resource.data.ownerEmail == request.auth.token.email);
+      allow update: if request.auth != null
+                    && (plannerAdmin()
+                        || (resource.data.ownerEmail == request.auth.token.email
+                            && request.resource.data.ownerEmail == request.auth.token.email));
+      allow delete: if request.auth != null
+                    && (plannerAdmin() || resource.data.ownerEmail == request.auth.token.email);
+    }
+
     // Lock down everything else
     match /{document=**} {
       allow read, write: if false;

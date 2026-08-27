@@ -10,11 +10,13 @@
   },
   "dependencies": {
     "firebase": "^12.15.0",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
     "jszip": "^3.10.1",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",

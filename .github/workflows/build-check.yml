@@ -1,0 +1,37 @@
+name: Build check
+
+# Deploy runs on push to main only, so until now nothing built a branch before
+# it merged — a dependency break (jspdf's dompurify optional dep going missing
+# from the lockfile) reached main unnoticed and broke the Pages deploy. This
+# runs the same install and build on every PR so that surfaces pre-merge.
+#
+# Build only — no deploy. Publishing to Pages stays in deploy.yml, gated on
+# push to main, so an unmerged branch can never reach the live site.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: build-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # `npm install`, not `npm ci`, to match how deploy.yml resolves deps —
+      # a check that installs differently from the deploy can pass while the
+      # deploy still fails.
+      - run: npm install
+      # No VITE_FIREBASE_* secrets here. They're only read into a config object
+      # consumed at runtime in the browser, so nothing fails at build time
+      # without them, and this keeps repo secrets out of PR-triggered runs.
+      - run: npm run build

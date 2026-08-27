@@ -9,10 +9,10 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
-    "dompurify": "^2.5.9",
+    "dompurify": "^3.4.14",
     "firebase": "^12.15.0",
-    "jspdf": "^2.5.2",
-    "jspdf-autotable": "^3.8.4",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "jszip": "^3.10.1",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",

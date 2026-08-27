@@ -6,3 +6,9 @@ node_modules
 # Dry-run output of scripts/migrate-team-planner.mjs — a full copy of the
 # spreadsheet's contents, regenerated on every run.
 scripts/team-planner-migration-preview.json
+
+# Built output. This was committed, which published a Firebase web API key and
+# the full application bundle into a public repository. GitHub Pages is built
+# and deployed by .github/workflows/deploy.yml from source, so nothing needs the
+# checked-in copy.
+dist

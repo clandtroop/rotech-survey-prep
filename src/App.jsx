@@ -38,6 +38,10 @@ const PDF_HISTORY_KEY = "rotech_pdf_history";
 
 // Firestore collection holding per-visit follow-up checklists (see firestore.rules).
 const CHECKLISTS_COLLECTION = "followUpChecklists";
+// Maps a visit to the random, unguessable id its shared checklist lives under.
+// Specialists only — a location manager never reads this, they just follow the
+// link they were sent.
+const CHECKLIST_SHARES_COLLECTION = "checklistShares";
 // In-progress (not-yet-finalized) visits, synced per-specialist so "Save
 // Progress" on one device can be picked back up with "Load" on another
 // (e.g. starting a visit on an iPad, finishing it at a desk). Keyed by the
@@ -602,10 +606,34 @@ function buildChecklistItems(visit) {
 // the shareable checklist URL (?checklist=<visitId>). Regenerating the link
 // after updating findings always syncs the latest items, preserving any
 // checkmarks already recorded (done flags come from the existing doc if present).
-async function ensureChecklistDoc(visit, visitId) {
-  const ref = doc(db, CHECKLISTS_COLLECTION, visitId);
+// The checklist is opened with no login at all — a location manager follows the
+// link and ticks items off. That makes the URL itself the credential, so the id
+// in it has to be unguessable. It used to be the visit id
+// (`visit_<LocationName>_<epoch-ms>`), which is a public branch name plus a
+// timestamp: anyone could work out a valid one and read another location's
+// findings, which name individual employees. The share id is now a random
+// UUID, stored per visit so regenerating the link returns the same checklist
+// rather than orphaning the checkmarks already recorded against it.
+async function getOrCreateShareId(visitId) {
+  const ref = doc(db, CHECKLIST_SHARES_COLLECTION, visitId);
   const existing = await getDoc(ref);
-  const newItems = buildChecklistItems(visit);
+  if (existing.exists() && existing.data().shareId) return existing.data().shareId;
+
+  const shareId = crypto.randomUUID();
+  await setDoc(ref, { shareId, visitId, createdAt: Date.now() });
+  return shareId;
+}
+
+async function ensureChecklistDoc(visit, visitId) {
+  const shareId = await getOrCreateShareId(visitId);
+  const ref = doc(db, CHECKLISTS_COLLECTION, shareId);
+  const existing = await getDoc(ref);
+  // Findings text carries no done flag: completion lives in a separate `done`
+  // map, which is the only part of the document an unauthenticated visitor is
+  // allowed to write. Keeping them in one array meant a checkmark and a rewrite
+  // of the finding itself were the same write, so the rules could not tell them
+  // apart — anyone with the link could silently reword a compliance finding.
+  const newItems = buildChecklistItems(visit).map(({ done, ...item }) => item);
 
   if (!existing.exists()) {
     await setDoc(ref, {
@@ -616,19 +644,28 @@ async function ensureChecklistDoc(visit, visitId) {
         specialist: visit.meta?.specialist || "",
       },
       categories: newItems,
+      done: {},
       notes: "",
       createdAt: Date.now(),
     });
   } else {
-    // Merge: preserve done state for items that still exist by id
-    const prevById = {};
-    (existing.data().categories || []).forEach(it => { prevById[it.id] = it; });
-    const merged = newItems.map(it => ({ ...it, done: prevById[it.id]?.done || false }));
-    await updateDoc(ref, { categories: merged, updatedAt: Date.now() });
+    // Refresh the findings, preserving completion for items that still exist.
+    // Reads both shapes so checklists created before the split still work.
+    const prev = existing.data();
+    const prevDone = { ...(prev.done || {}) };
+    (prev.categories || []).forEach(it => {
+      if (prevDone[it.id] === undefined && it.done) prevDone[it.id] = true;
+    });
+    const liveIds = new Set(newItems.map(it => it.id));
+    const done = {};
+    for (const [id, value] of Object.entries(prevDone)) {
+      if (liveIds.has(id) && value) done[id] = true;
+    }
+    await updateDoc(ref, { categories: newItems, done, updatedAt: Date.now() });
   }
 
   const url = new URL(window.location.href);
-  url.search = `?checklist=${encodeURIComponent(visitId)}`;
+  url.search = `?checklist=${encodeURIComponent(shareId)}`;
   return url.toString();
 }
 
@@ -2008,10 +2045,25 @@ function ChecklistView({ visitId }) {
     return () => unsub();
   }, [visitId]);
 
+  // Completion state only. The findings themselves are never written from this
+  // view — the security rules reject any unauthenticated write that touches
+  // anything but `done`, `notes` and `updatedAt`.
+  function isDone(item) {
+    // `?? item.done` reads checklists created before completion moved out of
+    // the findings array.
+    return doc_?.done?.[item.id] ?? item.done ?? false;
+  }
+
   function toggleItem(itemId) {
     if (!doc_) return;
-    const categories = doc_.categories.map(it => it.id === itemId ? { ...it, done: !it.done } : it);
-    updateDoc(doc(db, CHECKLISTS_COLLECTION, visitId), { categories, updatedAt: Date.now() }).catch(() => {});
+    const done = { ...(doc_.done || {}) };
+    // Seed from the legacy shape the first time an older checklist is touched.
+    (doc_.categories || []).forEach(it => {
+      if (done[it.id] === undefined && it.done) done[it.id] = true;
+    });
+    if (done[itemId]) delete done[itemId];
+    else done[itemId] = true;
+    updateDoc(doc(db, CHECKLISTS_COLLECTION, visitId), { done, updatedAt: Date.now() }).catch(() => {});
   }
 
   function onNotesChange(value) {
@@ -2040,7 +2092,7 @@ function ChecklistView({ visitId }) {
   }
 
   const total = doc_.categories.length;
-  const done = doc_.categories.filter(it => it.done).length;
+  const done = doc_.categories.filter(isDone).length;
 
   return (
     <ChecklistPageShell>
@@ -2075,8 +2127,8 @@ function ChecklistView({ visitId }) {
                     {sh && <div style={{ fontSize: 13, fontWeight: 600, color: T.gray700, marginBottom: 4, paddingBottom: 3, borderBottom: `2px solid ${BRAND}` }}>{sh}</div>}
                     {bySubheader[sh].map(item => (
                       <label key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.gray200}`, cursor: "pointer" }}>
-                        <input type="checkbox" checked={!!item.done} onChange={() => toggleItem(item.id)} style={{ marginTop: 3, width: 16, height: 16 }} />
-                        <span style={{ fontSize: 14, color: item.done ? T.gray500 : T.ink, textDecoration: item.done ? "line-through" : "none" }}>
+                        <input type="checkbox" checked={isDone(item)} onChange={() => toggleItem(item.id)} style={{ marginTop: 3, width: 16, height: 16 }} />
+                        <span style={{ fontSize: 14, color: isDone(item) ? T.gray500 : T.ink, textDecoration: isDone(item) ? "line-through" : "none" }}>
                           {item.text}{item.comment ? <span style={{ color: T.gray600 }}> — {item.comment}</span> : null}
                         </span>
                       </label>
@@ -2327,7 +2379,7 @@ function FollowUpDashboard() {
         const rows = snap.docs.map(d => {
           const data = d.data();
           const total = data.categories?.length || 0;
-          const done = data.categories?.filter(c => c.done).length || 0;
+          const done = data.categories?.filter(c => data.done?.[c.id] ?? c.done).length || 0;
           return {
             id: d.id, meta: data.meta || {}, total, done, remaining: total - done,
             createdAt: data.createdAt || 0, updatedAt: data.updatedAt || data.createdAt || 0,

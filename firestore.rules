@@ -2,16 +2,63 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Follow-up checklists — looked up by unguessable visit ID. Location
-    // managers open and check these off with no login (read/update must stay
-    // open), but only a signed-in specialist can create a new one.
-    match /followUpChecklists/{visitId} {
-      allow read: if true;
+    // The admin allowlist. Must be kept in sync with ADMIN_EMAILS in App.jsx
+    // and PLANNER_ADMIN_EMAILS in teamPlannerData.js. Declared up here because
+    // it now guards collections above the Team Planner section too.
+    function plannerAdmin() {
+      return request.auth != null
+             && request.auth.token.email in ['tasmith@rotech.com', 'cody.landtroop@rotech.com'];
+    }
+
+    // Follow-up checklists. A location manager opens one from a link with no
+    // login at all, so the URL is the credential and the document id must be
+    // unguessable: it is a random UUID minted per visit (see getOrCreateShareId
+    // in src/App.jsx), NOT the visit id. The visit id was
+    // `visit_<LocationName>_<epoch-ms>` — a public branch name plus a timestamp
+    // — so anyone could derive a valid one and read another location's
+    // findings, which name individual employees.
+    //
+    // The update rule used to have no auth condition at all and allowed
+    // `categories`, which is the findings text itself: anyone holding a link
+    // could silently reword or delete a compliance finding. Completion now
+    // lives in a separate `done` map, so an unauthenticated visitor can tick
+    // items and leave notes and nothing else. Rewriting the findings requires a
+    // signed-in specialist.
+    match /followUpChecklists/{shareId} {
+      // `get`, not `read`. `read` also covers `list`, which let anyone dump
+      // every checklist for every location in one query — no link needed and
+      // no id to guess. A link-holder may fetch exactly the one document their
+      // link names; only a signed-in specialist may enumerate them (which the
+      // specialist-facing roll-up does).
+      allow get: if true;
+      allow list: if request.auth != null;
+
       allow create: if request.auth != null
                     && request.resource.data.keys().hasAll(['meta', 'categories', 'notes', 'createdAt'])
                     && request.resource.data.notes is string;
+
+      // Signed-in specialist refreshing the findings for a visit.
+      allow update: if request.auth != null;
+
+      // Unauthenticated location manager working the checklist: completion
+      // state and notes only, with the notes bounded so the document cannot be
+      // used as free storage.
       allow update: if request.resource.data.diff(resource.data).affectedKeys()
-                      .hasOnly(['categories', 'notes', 'updatedAt']);
+                      .hasOnly(['done', 'notes', 'updatedAt'])
+                    && request.resource.data.done is map
+                    && request.resource.data.notes is string
+                    && request.resource.data.notes.size() < 20000;
+
+      allow delete: if false;
+    }
+
+    // visitId -> shareId, so regenerating a link returns the same checklist
+    // instead of orphaning the checkmarks already recorded against it. Only
+    // signed-in specialists ever touch this; a location manager just follows
+    // the link they were sent. Deliberately NOT world-readable — that would
+    // turn a known visit id straight back into the share id.
+    match /checklistShares/{visitId} {
+      allow read, create, update: if request.auth != null;
       allow delete: if false;
     }
 
@@ -25,7 +72,10 @@ service cloud.firestore {
                              && request.resource.data.keys().hasAll(['visitId', 'records', 'finalizedAt'])
                              && request.resource.data.records is list
                              && request.resource.data.visitId is string;
-      allow delete: if request.auth != null;
+      // Deleting a finalized visit record is destructive and unrecoverable, and
+      // the roster has already been found wiped twice with no record of who or
+      // when. Restrict it to the same admin allowlist that guards the roster.
+      allow delete: if plannerAdmin();
     }
 
     // Company-wide location roster. Read is open to any signed-in specialist
@@ -78,11 +128,6 @@ service cloud.firestore {
     // planning, migrated off Team_Planner_5.21.2026.xlsx. Deliberately its own
     // set of collections — survey due dates stay in visitTrends/locations and
     // nothing here merges with them.
-
-    function plannerAdmin() {
-      return request.auth != null
-             && request.auth.token.email in ['tasmith@rotech.com', 'cody.landtroop@rotech.com'];
-    }
 
     // Roster mapping spreadsheet names to Auth accounts. Everyone reads it
     // (the whole calendar is labelled from it); only admins edit, because

@@ -21,9 +21,24 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/clandtroop\.github\.io\/rotech-survey-prep\/.*/i,
-            handler: "CacheFirst",
+            // NetworkFirst, not CacheFirst. CacheFirst answered from this
+            // cache without ever consulting the network, for up to the 30-day
+            // expiry below — so a device could keep running months-old
+            // JavaScript long after a fix had deployed, with nothing on screen
+            // to suggest it was out of date. Combined with registerType
+            // "prompt" (which waits for the specialist to tap Update Now),
+            // that is how an already-shipped fix can still look broken: the
+            // code the browser is executing predates it.
+            //
+            // NetworkFirst keeps the app fully offline-capable — it falls back
+            // to this same cache the moment the network is unreachable — while
+            // making a reachable network the source of truth. The timeout
+            // stops a weak connection in the field from stalling the page
+            // instead of falling back to cache.
+            handler: "NetworkFirst",
             options: {
               cacheName: "rotech-survey-prep-cache",
+              networkTimeoutSeconds: 5,
               expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },

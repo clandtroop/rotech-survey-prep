@@ -487,14 +487,11 @@ async function saveVisitToFirestore(visit) {
     updatedAt: new Date().toISOString(),
   });
 }
-async function loadVisitsFromFirestore() {
-  if (!auth.currentUser) return [];
-  const q = fsQuery(collection(db, IN_PROGRESS_VISITS_COLLECTION), where("ownerUid", "==", auth.currentUser.uid));
-  const snap = await getDocs(q);
-  const visits = [];
-  snap.forEach(d => visits.push(d.data()));
-  visits.sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
-  return visits;
+// The query behind the live subscription further down. Its ownerUid equality
+// is also what makes the read legal under firestore.rules, which restricts
+// each specialist to their own in-progress visits.
+function visitsQueryFor(uid) {
+  return fsQuery(collection(db, IN_PROGRESS_VISITS_COLLECTION), where("ownerUid", "==", uid));
 }
 async function deleteVisitFromFirestore(id) {
   await deleteDoc(doc(db, IN_PROGRESS_VISITS_COLLECTION, id));
@@ -3140,26 +3137,27 @@ function SurveyPrepApp() {
   // desktop). Firestore wins for any id present in both; anything local-only
   // (not yet synced, e.g. saved while offline) still shows up.
   //
-  // This used to be a one-shot effect that ran only once, right when the
-  // component first mounted. Two problems with that:
-  //   1. It read `auth.currentUser` synchronously instead of subscribing to
-  //      auth state, so it could in principle run before Firebase Auth had
-  //      finished restoring a persisted session (that restore is async).
-  //      Subscribing via onAuthStateChanged is the robust way to do this,
-  //      whatever this component's mount timing turns out to be relative to
-  //      AuthGate.
-  //   2. It never ran again after that first mount. A specialist who leaves
-  //      the app open for a whole shift — normal on a tablet that's rarely
-  //      force-closed — would never see a visit saved from another device in
-  //      the meantime, no matter how many times they opened "Saved Visits,"
-  //      short of a full page reload. That's the most likely explanation for
-  //      visits "not showing up on the iPad" surviving a sign-out/sign-in:
-  //      neither of those re-fetches this list on its own. Now it also
-  //      re-fetches every time "Saved Visits" is opened (see the button
-  //      below), so an already-open session always sees current cloud state.
-  const refreshVisitsFromFirestore = useCallback(() => {
-    return loadVisitsFromFirestore()
-      .then(remoteVisits => {
+  // This is a live subscription, not a fetch. Earlier versions re-read the
+  // list with a one-shot getDocs() — first only on mount, then also whenever
+  // "Saved Visits" was opened. Both still left a window where the desktop
+  // showed a stale list, and one that matters in practice: the dashboard.
+  // "Recent Visits" lives there, the dashboard is where a desktop sits all
+  // day, and it has no "Saved Visits" button to trigger a re-fetch — so a
+  // visit saved on the iPad stayed invisible there until a full page reload,
+  // which is the most likely reason this still looked broken after the last
+  // fix. onSnapshot removes the whole class of problem: there is no longer a
+  // moment at which this list can be out of date.
+  const [visitSyncError, setVisitSyncError] = useState("");
+  useEffect(() => {
+    let unsubVisits = null;
+    const stopVisits = () => { if (unsubVisits) { unsubVisits(); unsubVisits = null; } };
+    // Subscribing to auth rather than reading auth.currentUser: restoring a
+    // persisted session is async, so the uid may not exist yet at mount.
+    const unsubAuth = onAuthStateChanged(auth, user => {
+      stopVisits();
+      if (!user) return;
+      unsubVisits = onSnapshot(visitsQueryFor(user.uid), snap => {
+        const remoteVisits = snap.docs.map(d => d.data());
         setSavedVisits(local => {
           const remoteIds = new Set(remoteVisits.map(v => v.id));
           const merged = [...remoteVisits, ...local.filter(v => !remoteIds.has(v.id))]
@@ -3167,13 +3165,17 @@ function SurveyPrepApp() {
           try { localStorage.setItem(VISITS_KEY, JSON.stringify(merged.slice(0, 20))); } catch {}
           return merged;
         });
-      })
-      .catch(() => {}); // offline, or not yet signed in — local-only view still works
+        setVisitSyncError("");
+      }, e => {
+        // Previously swallowed with an empty catch. A read failure is exactly
+        // the case where the specialist needs to be told that the list in
+        // front of them is missing visits saved on another device — silence
+        // here is indistinguishable from "you have no other visits".
+        setVisitSyncError(e?.message || "Could not reach the cloud.");
+      });
+    });
+    return () => { stopVisits(); unsubAuth(); };
   }, []);
-
-  useEffect(() => {
-    return onAuthStateChanged(auth, user => { if (user) refreshVisitsFromFirestore(); });
-  }, [refreshVisitsFromFirestore]);
   const [pdfHistory, setPdfHistory]   = useState(loadPdfHistory);
   const [showVisits, setShowVisits] = useState(false);
   const [showPdfReminder, setShowPdfReminder] = useState(false);
@@ -4456,6 +4458,17 @@ function SurveyPrepApp() {
 
   const specialistFirstName = (meta.specialist || "").trim().split(/\s+/)[0] || "there";
 
+  // Shown wherever the saved-visit list is. Without it a failed read looks
+  // exactly like "you have no visits from other devices", which is how a sync
+  // problem stays invisible for weeks.
+  const visitSyncBanner = visitSyncError ? (
+    <div role="alert" style={{ display: "flex", alignItems: "center", gap: 8, background: T.warningBg,
+      color: T.warning, borderRadius: T.radius, padding: "9px 13px", fontSize: 12.5, marginBottom: 12 }}>
+      <Icon name="alert-circle" size={14} />
+      <span>Visits saved on another device may be missing from this list — {visitSyncError}</span>
+    </div>
+  ) : null;
+
   const navItems = [
     { key: "dashboard", label: "Dashboard",    icon: "home",            active: view === "dashboard",                     onClick: () => { setView("dashboard"); window.scrollTo({ top: 0 }); } },
     { key: "form",      label: MODULE_LABEL,   icon: "clipboard-list",  active: view === "form" && !REFERENCE_TABS.includes(activeTab), onClick: goChecklist },
@@ -4604,6 +4617,7 @@ function SurveyPrepApp() {
               Close
             </button>
           </div>
+          {visitSyncBanner}
           {savedVisits.length === 0 ? (
             <div style={{ fontSize: 13, color: T.gray500 }}>No saved visits yet. Use "Save Progress" to save the current visit.</div>
           ) : (
@@ -4734,6 +4748,11 @@ function SurveyPrepApp() {
               </div>
             ))}
           </div>
+
+          {/* Outside the card below, which only renders when there is at least
+              one visit — a sync failure with an empty local list is exactly
+              when this warning most needs to be visible. */}
+          {visitSyncBanner}
 
           {/* Recent visits */}
           {savedVisits.length > 0 && (
@@ -4898,14 +4917,10 @@ function SurveyPrepApp() {
                   {visitFinalized ? "✓ Visit Finalized" : "Finalize Visit"}
                 </button>
               )}
+              {/* No re-fetch on open any more — the list is live (see the
+                  onSnapshot subscription above), so it is already current. */}
               <button
-                onClick={() => {
-                  setShowVisits(v => {
-                    const next = !v;
-                    if (next) refreshVisitsFromFirestore(); // pick up anything saved from another device since this tab loaded
-                    return next;
-                  });
-                }}
+                onClick={() => setShowVisits(v => !v)}
                 style={showVisits ? { ...btnOutline, background: T.blue50 } : btnOutline}>
                 Saved Visits{savedVisits.length > 0 ? ` (${savedVisits.length})` : ""}
               </button>

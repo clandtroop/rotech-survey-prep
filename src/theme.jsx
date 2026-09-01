@@ -95,6 +95,8 @@ export const ICON_PATHS = {
   plus:            'M12 5v14|M5 12h14',
   "square-pen":    'M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7|M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4z',
   trash:           'M3 6h18|M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2|M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6|M10 11v6|M14 11v6',
+  // Added for Site Circuit (leadership visit-schedule email).
+  mail:            'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z|M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7',
 };
 
 export function Icon({ name, size = 16, style }) {

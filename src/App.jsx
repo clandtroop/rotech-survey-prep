@@ -10,6 +10,7 @@ import { TREND_KEY, TRENDS_COLLECTION, loadTrendData } from "./trendData";
 import TrendDashboard from "./TrendDashboard";
 import ReadinessDashboard from "./ReadinessDashboard";
 import TeamPlanner from "./TeamPlanner";
+import SiteCircuit from "./SiteCircuit";
 
 // What the assessment module is called in the nav, on its dashboard card, and
 // in any CTA pointing at it. Kept in one place so renaming it is a one-line
@@ -4427,6 +4428,12 @@ function SurveyPrepApp() {
     setView("planner");
     window.scrollTo({ top: 0 });
   }
+  // Site Circuit reads the planner's site visits and writes the leadership
+  // email — same standalone-module rule as the planner, no checklist state.
+  function goCircuit() {
+    setView("circuit");
+    window.scrollTo({ top: 0 });
+  }
 
   // The report is empty until something has actually been marked — drives the
   // empty state instead of rendering a report full of zeroes. N/A counts as
@@ -4455,6 +4462,7 @@ function SurveyPrepApp() {
     { key: "report",    label: "Report",       icon: "file-text",       active: view === "report" || view === "email",     onClick: goReport },
     { key: "trends",    label: "Issue Trends", icon: "trending-up",     active: view === "form" && isTrendsTab,            onClick: () => goTab(TAB.trends) },
     { key: "planner",   label: "Team Planner", icon: "calendar",        active: view === "planner",                        onClick: goPlanner },
+    { key: "circuit",   label: "Site Circuit", icon: "mail",            active: view === "circuit",                        onClick: goCircuit },
   ];
 
   const headerBtn = {
@@ -4766,6 +4774,7 @@ function SurveyPrepApp() {
               { accent: T.gray600, titleColor: T.ink,      icon: "map-pin",        title: "Location Roster",      desc: "Reference lookup of locations, Lawson #s, and area managers",                       stat: `${locations.length} locations on file`,                                cta: "View Roster",         onClick: () => goTab(TAB.roster) },
               { accent: T.blue600, titleColor: T.blue600,  icon: "bar-chart",      title: "Location Readiness",   desc: "Live OP 541 / OP 512 / JC 427 semiannual status per location, with PDF export",     stat: "From the Location Readiness Platform",                                 cta: "View Readiness",      onClick: () => goTab(TAB.readiness) },
               { accent: T.tealDeep, titleColor: T.tealDeep, icon: "calendar",      title: "Team Planner",         desc: "Recurring duties, team whereabouts, PTO and visit planning",                        stat: "Replaces the Team Planner spreadsheet",                                cta: "Open Team Planner",   onClick: goPlanner },
+              { accent: T.blue700, titleColor: T.blue700,  icon: "mail",           title: "Site Circuit",         desc: "Email leadership one consolidated schedule of the month's virtual and onsite visits", stat: "Built from Team Planner site visits",                                  cta: "Open Site Circuit",   onClick: goCircuit },
               // Mismatches are the highest-signal thing in the app, so this card
               // goes amber and shouts the count the moment there is one.
               { accent: op541Mismatches > 0 ? T.warning : T.error, titleColor: op541Mismatches > 0 ? T.warning : T.error, icon: "git-compare", title: "OP 541 Self-Audit", desc: "Compares the location's uploaded self-audit against your on-site findings", stat: op541FileName ? `${op541Stats.mismatch} mismatches flagged` : "No self-audit uploaded yet", alert: op541Mismatches > 0, cta: "View Self-Audit", onClick: () => goTab(TAB.op541) },
@@ -4796,6 +4805,9 @@ function SurveyPrepApp() {
 
       {/* TEAM PLANNER — separate module, no shared state with the checklist */}
       {view === "planner" && <TeamPlanner />}
+
+      {/* SITE CIRCUIT — reads the planner's site visits, owns no visit data */}
+      {view === "circuit" && <SiteCircuit onOpenPlanner={goPlanner} />}
 
       {/* FORM VIEW */}
       {view === "form" && (

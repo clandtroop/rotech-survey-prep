@@ -7,6 +7,8 @@ import {
   PLANNER_ADMIN_EMAILS, PEOPLE_COLLECTION, TASKS_COLLECTION, ENTRIES_COLLECTION, MILESTONES_COLLECTION,
   TASK_DONE_COLLECTION, allTagsOf,
   STATUSES, STATUS_BY_ID, OUT_STATUSES, CADENCES, MONTH_NAMES,
+  VISIT_MODES, VISIT_CONFIRMATIONS, DEFAULT_VISIT_MODE, DEFAULT_VISIT_CONFIRMATION,
+  visitModeOf, visitConfirmationOf,
   toIso, fromIso, todayIso, addDays, weekStart, monthKey, quarterOf, monthsOfQuarter,
   formatDate, formatRange, monthWeekdayGrid, weekdaysOfMonth,
   entryCovers, entryDayCount, isMultiDay, hasTravelDetail,
@@ -108,7 +110,12 @@ async function deleteAll(refs) {
 const blankEntry = (personKey, personName, ownerEmail, iso) => ({
   personKey, personName, ownerEmail, ownerUid: auth.currentUser?.uid || null,
   startDate: iso, endDate: iso, status: "home_office", rawText: "", notes: "",
-  visit: { location: "", purpose: "", multiDay: false },
+  visit: {
+    location: "", purpose: "", multiDay: false,
+    // Read by Site Circuit, which groups the month's leadership email by mode
+    // and reports each visit's confirmation state.
+    mode: DEFAULT_VISIT_MODE, confirmation: DEFAULT_VISIT_CONFIRMATION, time: "",
+  },
   travel: structuredClone(EMPTY_TRAVEL),
 });
 
@@ -815,6 +822,9 @@ function EntryDetail({ entry, nameOf, canEdit, onClose, onEdit }) {
           <DetailBlock icon="map-pin" title="Visit">
             <DetailRow label="Location" value={entry.visit?.location} />
             <DetailRow label="Purpose" value={entry.visit?.purpose} />
+            <DetailRow label="Mode" value={VISIT_MODES.find(m => m.id === visitModeOf(entry))?.label} />
+            <DetailRow label="Confirmation" value={VISIT_CONFIRMATIONS.find(c => c.id === visitConfirmationOf(entry))?.label} />
+            <DetailRow label="Time" value={entry.visit?.time} />
             <DetailRow label="Duration" value={isMultiDay(entry) ? `${entryDayCount(entry)} days (${formatRange(entry.startDate, entry.endDate)})` : "Single day"} />
           </DetailBlock>
         )}
@@ -971,10 +981,30 @@ function EntryModal({ draft, roster, isAdmin, me, onChange, onSave, onDelete, on
           </Field>
 
           {isVisit && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <Field label="Location"><input value={draft.visit?.location || ""} placeholder="Little Rock, AR" style={metaField} onChange={e => setVisit({ location: e.target.value })} /></Field>
-              <Field label="Purpose"><input value={draft.visit?.purpose || ""} placeholder="Site visit / transfill" style={metaField} onChange={e => setVisit({ purpose: e.target.value })} /></Field>
-            </div>
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <Field label="Location"><input value={draft.visit?.location || ""} placeholder="Little Rock, AR" style={metaField} onChange={e => setVisit({ location: e.target.value })} /></Field>
+                <Field label="Purpose"><input value={draft.visit?.purpose || ""} placeholder="Site visit / transfill" style={metaField} onChange={e => setVisit({ purpose: e.target.value })} /></Field>
+              </div>
+              {/* Mode, confirmation and time drive the Site Circuit email to
+                  leadership — they are edited here so a visit is described once,
+                  where it is scheduled, rather than twice in two modules. */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                <Field label="Mode" hint="Groups the leadership email">
+                  <select value={visitModeOf(draft)} style={metaField} onChange={e => setVisit({ mode: e.target.value })}>
+                    {VISIT_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </Field>
+                <Field label="Confirmation">
+                  <select value={visitConfirmationOf(draft)} style={metaField} onChange={e => setVisit({ confirmation: e.target.value })}>
+                    {VISIT_CONFIRMATIONS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </Field>
+                <Field label="Time" hint="Optional">
+                  <input value={draft.visit?.time || ""} placeholder="10:00 AM CT" style={metaField} onChange={e => setVisit({ time: e.target.value })} />
+                </Field>
+              </div>
+            </>
           )}
 
           <Field label="Notes" hint="Shows on the calendar as a dot; full text in this detail view">

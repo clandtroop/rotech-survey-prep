@@ -50,6 +50,34 @@ export const STATUS_BY_ID = Object.fromEntries(STATUSES.map(s => [s.id, s]));
 // is reachable, which is the whole point of recording it separately.
 export const OUT_STATUSES = STATUSES.filter(s => s.out).map(s => s.id);
 
+// ─── SITE VISIT DETAIL ───────────────────────────────────────────────────────
+// Extra fields on a `site_visit` entry's `visit` map, added for Site Circuit —
+// the leadership notification is grouped by mode and reports each visit's
+// confirmation state, and neither could be derived from what entries already
+// carried. Both live here rather than in SiteCircuit.jsx because the Team
+// Planner entry editor writes them too, and a vocabulary owned by one of two
+// consumers drifts.
+//
+// A visit saved before these existed has neither. Treat a missing mode as
+// onsite (every migrated spreadsheet visit was a trip) and a missing
+// confirmation as scheduled, rather than dropping the visit from the email.
+// ─────────────────────────────────────────────────────────────────────────────
+export const VISIT_MODES = [
+  { id: "onsite",  label: "Onsite" },
+  { id: "virtual", label: "Virtual" },
+];
+export const DEFAULT_VISIT_MODE = "onsite";
+
+export const VISIT_CONFIRMATIONS = [
+  { id: "scheduled",        label: "Scheduled" },
+  { id: "confirmed",        label: "Confirmed" },
+  { id: "needs-reschedule", label: "Needs reschedule" },
+];
+export const DEFAULT_VISIT_CONFIRMATION = "scheduled";
+
+export const visitModeOf = entry => entry?.visit?.mode || DEFAULT_VISIT_MODE;
+export const visitConfirmationOf = entry => entry?.visit?.confirmation || DEFAULT_VISIT_CONFIRMATION;
+
 // ─── CADENCE VOCABULARY ──────────────────────────────────────────────────────
 // Covers all three task sources in one collection: Sheet1's recurring rules,
 // Assigned Duties' standing ownership, and 3 Yr Planner's dated occurrences.

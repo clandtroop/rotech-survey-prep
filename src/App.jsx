@@ -477,10 +477,101 @@ function deleteVisitFromStorage(id) {
 // each specialist to their own in-progress visits. localStorage stays as an
 // immediate local cache (saveProgress writes both); Firestore is what makes
 // "Save Progress" on one device show up under "Load" on another.
+// Answer maps keyed by question/employee id. Merged key-by-key so a device that
+// never saw a section can't erase it.
+const VISIT_ANSWER_MAPS = [
+  "states", "comments",
+  "op541States", "op541Comments", "op541tStates", "op541tComments",
+  "personnelAnswers", "personnelDates", "personnelComments",
+  "jc427Answers", "jc427Dates", "jc427Comments",
+  "op541VehicleInfo", "meta",
+];
+// Maps of tab id -> a small object (or, for tabComments, a string), so they need
+// one more level of merging than the flat answer maps above.
+const VISIT_NESTED_MAPS = ["tabComments", "tabPatientInfo"];
+// Structure parsed out of an uploaded workbook. These describe the *shape* of a
+// section rather than answers, so merging them entry-by-entry would splice two
+// different uploads together; take one side whole.
+const VISIT_STRUCTURE_ARRAYS = [
+  "op541Sections", "op541tSections",
+  "personnelSlots", "personnelItems", "personnelSheetNames",
+  "jc427Slots", "jc427Items", "jc427SheetNames",
+];
+
+const isBlank = v => v === undefined || v === null || v === "";
+const isPlainObject = v => v !== null && typeof v === "object" && !Array.isArray(v);
+// local wins, but only where local actually has something. A blank local value
+// is treated as "this device never filled that in" rather than as an edit,
+// because the failure being fixed here is work disappearing, not a stale value
+// lingering. Deliberately clearing a field on one device can therefore be
+// undone by another device's copy — an annoyance, and the safer direction to
+// err in than losing an afternoon of answers.
+const preferLocal = (remoteVal, localVal) => (isBlank(localVal) ? remoteVal : localVal);
+function mergeMap(remoteMap, localMap) {
+  if (!isPlainObject(remoteMap)) return localMap;
+  if (!isPlainObject(localMap)) return remoteMap;
+  const out = { ...remoteMap };
+  for (const [k, v] of Object.entries(localMap)) out[k] = preferLocal(remoteMap[k], v);
+  return out;
+}
+
+// Merges a visit read back from Firestore with the copy this device is about to
+// write. Without this, saveVisitToFirestore's setDoc() is a blind whole-document
+// overwrite: with the same visit open on an iPad and a desktop, whichever saves
+// last silently erases every section the other device had filled in and it
+// doesn't have locally. That is the reported "sections filled in on the iPad
+// never showed up on desktop" bug.
+function mergeVisitForWrite(remote, local) {
+  if (!isPlainObject(remote)) return local;
+  const merged = { ...remote, ...local };
+
+  // Never introduce an undefined value that wasn't already there: Firestore
+  // rejects undefined field values outright, and a field missing from both
+  // sides should stay exactly as the plain spread above left it.
+  const assign = (key, value) => { if (value !== undefined) merged[key] = value; };
+
+  for (const key of VISIT_ANSWER_MAPS) {
+    assign(key, mergeMap(remote[key], local[key]));
+  }
+
+  for (const key of VISIT_NESTED_MAPS) {
+    const r = remote[key], l = local[key];
+    if (!isPlainObject(r)) { assign(key, l); continue; }
+    if (!isPlainObject(l)) { assign(key, r); continue; }
+    const out = { ...r };
+    for (const [tabId, localVal] of Object.entries(l)) {
+      const remoteVal = r[tabId];
+      // tabPatientInfo holds { globalId, currentRx }; tabComments holds a plain
+      // string. Only recurse when both sides really are objects.
+      out[tabId] = (isPlainObject(remoteVal) && isPlainObject(localVal))
+        ? mergeMap(remoteVal, localVal)
+        : preferLocal(remoteVal, localVal);
+    }
+    assign(key, out);
+  }
+
+  for (const key of VISIT_STRUCTURE_ARRAYS) {
+    const r = Array.isArray(remote[key]) ? remote[key] : [];
+    const l = Array.isArray(local[key]) ? local[key] : [];
+    merged[key] = l.length ? l : r;
+  }
+
+  return merged;
+}
+
 async function saveVisitToFirestore(visit) {
   const ref = doc(db, IN_PROGRESS_VISITS_COLLECTION, visit.id);
+  let toWrite = visit;
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists()) toWrite = mergeVisitForWrite(snap.data(), visit);
+  } catch {
+    // Offline or the read was denied — fall through and write what this device
+    // has. That is the old blind-overwrite behaviour, but only in the case
+    // where we genuinely cannot see the remote copy to merge against.
+  }
   await setDoc(ref, {
-    ...visit,
+    ...toWrite,
     ownerUid: auth.currentUser?.uid || null,
     ownerEmail: auth.currentUser?.email || null,
     updatedAt: new Date().toISOString(),
@@ -3184,6 +3275,10 @@ function SurveyPrepApp() {
   // create a stray duplicate entry instead of updating the right one.
   const [currentVisitId, setCurrentVisitId] = useState(() => draft?.currentVisitId ?? null);
   const [visitFinalized, setVisitFinalized] = useState(false);
+  // Set whenever a cloud write fails, cleared on the next success. Surfaced as a
+  // banner on the checklist screen so a specialist working offline finds out
+  // there before they close the tab, not the next time they open Saved Visits.
+  const [visitSyncError, setVisitSyncError] = useState(false);
 
   // Fail-safe: the browser print dialog never tells JS whether the user actually
   // saved a PDF or hit cancel, so once it closes, prompt them to double check.
@@ -3952,10 +4047,11 @@ function SurveyPrepApp() {
     setAdditionalComments("");
   }
 
-  async function saveProgress() {
-    // Reuse the existing visit ID so repeated saves update in place rather than creating duplicates
-    const id = currentVisitId || `visit_${meta.location?.replace(/\s+/g,"_") || "unknown"}_${Date.now()}`;
-    const visit = {
+  // The visit document as this device currently sees it. Shared by the explicit
+  // "Save Progress" button and the periodic background sync below so the two can
+  // never drift into writing different shapes.
+  function buildVisitPayload(id) {
+    return {
       id,
       label: `${meta.location || "Unknown Location"} — ${meta.date}`,
       savedAt: new Date().toISOString(),
@@ -3966,6 +4062,12 @@ function SurveyPrepApp() {
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
       tabComments, tabPatientInfo, additionalComments,
     };
+  }
+
+  async function saveProgress() {
+    // Reuse the existing visit ID so repeated saves update in place rather than creating duplicates
+    const id = currentVisitId || `visit_${meta.location?.replace(/\s+/g,"_") || "unknown"}_${Date.now()}`;
+    const visit = buildVisitPayload(id);
     saveVisitToStorage(visit);
     // Trend data is NOT written here — use "Finalize Visit" to commit to trend tracking
     setSavedVisits(loadVisits());
@@ -3974,11 +4076,48 @@ function SurveyPrepApp() {
     setShowSaveReminder(false);
     try {
       await saveVisitToFirestore(visit);
+      setVisitSyncError(false);
       alert(`Visit saved: ${visit.label}`);
     } catch {
+      setVisitSyncError(true);
       alert(`Visit saved on this device: ${visit.label}\n\nCould not sync to the cloud, so it won't show up on another device yet — check your connection and save again once you're back online.`);
     }
   }
+
+  // Silent cloud autosave.
+  //
+  // Auth persistence is already handled (see the comment in firebase.js), but
+  // Safari on iPad purges site storage after roughly a week idle or under
+  // storage pressure, and that takes the local draft with it. Anything the
+  // specialist had not explicitly "Save Progress"-ed at that moment has no
+  // cloud copy left to fall back on — which is how a whole section filled in on
+  // an iPad disappeared after a "timeout". This shrinks that exposure to ~90s.
+  //
+  // It writes through the same merge-safe saveVisitToFirestore path as the
+  // button, so a background write can never clobber another device's sections.
+  const autosaveRef = useRef(null);
+  useEffect(() => {
+    // Refreshed after every render so the interval below never closes over a
+    // stale payload builder or visit id.
+    autosaveRef.current = { currentVisitId, location: meta.location, buildVisitPayload };
+  });
+  useEffect(() => {
+    const t = setInterval(() => {
+      const snap = autosaveRef.current;
+      if (!snap?.location || !auth.currentUser) return;
+      const id = snap.currentVisitId || `visit_${snap.location.replace(/\s+/g, "_")}_${Date.now()}`;
+      const visit = snap.buildVisitPayload(id);
+      saveVisitToStorage(visit);
+      setSavedVisits(loadVisits());
+      // Claim the generated id so the next autosave updates in place instead of
+      // creating a second document for the same visit.
+      setCurrentVisitId(id);
+      saveVisitToFirestore(visit)
+        .then(() => setVisitSyncError(false))
+        .catch(() => setVisitSyncError(true));
+    }, 90 * 1000);
+    return () => clearInterval(t);
+  }, []);
 
   async function finalizeVisit() {
     if (!currentVisitId) {
@@ -5816,6 +5955,22 @@ function SurveyPrepApp() {
               style={{ width: "100%", fontSize: 13, padding: "8px", border: `1px solid ${T.gray200}`, borderRadius: 4, resize: "vertical", color: T.ink, boxSizing: "border-box" }} />
           </div>
 
+        </div>
+      )}
+
+      {/* Cloud sync warning — sits on the checklist screen itself. The specialist
+          spends the whole visit here, so a sync failure that only showed on the
+          dashboard could go unnoticed until the work was already gone. Offset
+          above the floating save button so the two never overlap. */}
+      {view === "form" && visitSyncError && (
+        <div className="no-print" role="status"
+          style={{ position: "fixed", bottom: showFloatingSave ? 88 : 24, right: 24, zIndex: 1099, maxWidth: 340, padding: "12px 16px", background: T.warningBg, color: T.warning, border: `1px solid ${T.warning}`, borderRadius: T.radiusCard, boxShadow: "0 8px 20px rgba(19,25,34,0.18)", fontSize: 13, lineHeight: 1.45, display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <Icon name="alert-circle" size={17} />
+          <span>
+            <strong>Not syncing to the cloud.</strong> Your work is saved on this device only,
+            so it won't reach your other devices yet. Check your connection — it will sync
+            automatically once you're back online.
+          </span>
         </div>
       )}
 

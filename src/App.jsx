@@ -3278,10 +3278,15 @@ function SurveyPrepApp() {
   // create a stray duplicate entry instead of updating the right one.
   const [currentVisitId, setCurrentVisitId] = useState(() => draft?.currentVisitId ?? null);
   const [visitFinalized, setVisitFinalized] = useState(false);
-  // Set whenever a cloud write fails, cleared on the next success. Surfaced as a
-  // banner on the checklist screen so a specialist working offline finds out
-  // there before they close the tab, not the next time they open Saved Visits.
-  const [visitSyncError, setVisitSyncError] = useState(false);
+  // The write-side counterpart to visitSyncError above, and deliberately a
+  // separate flag: that one means "the visit list you are looking at may be
+  // incomplete" (a read failed), this one means "what you are typing is not
+  // reaching the cloud" (a write failed). Same underlying connection, but the
+  // specialist needs to be told different things, in different places — so
+  // folding them into one state would put the wrong message on screen.
+  // Set on any failed write, cleared on the next success, and surfaced on the
+  // checklist screen so it is seen before the tab is closed.
+  const [visitSaveError, setVisitSaveError] = useState(false);
 
   // Fail-safe: the browser print dialog never tells JS whether the user actually
   // saved a PDF or hit cancel, so once it closes, prompt them to double check.
@@ -4079,10 +4084,10 @@ function SurveyPrepApp() {
     setShowSaveReminder(false);
     try {
       await saveVisitToFirestore(visit);
-      setVisitSyncError(false);
+      setVisitSaveError(false);
       alert(`Visit saved: ${visit.label}`);
     } catch {
-      setVisitSyncError(true);
+      setVisitSaveError(true);
       alert(`Visit saved on this device: ${visit.label}\n\nCould not sync to the cloud, so it won't show up on another device yet — check your connection and save again once you're back online.`);
     }
   }
@@ -4116,8 +4121,8 @@ function SurveyPrepApp() {
       // creating a second document for the same visit.
       setCurrentVisitId(id);
       saveVisitToFirestore(visit)
-        .then(() => setVisitSyncError(false))
-        .catch(() => setVisitSyncError(true));
+        .then(() => setVisitSaveError(false))
+        .catch(() => setVisitSaveError(true));
     }, 90 * 1000);
     return () => clearInterval(t);
   }, []);
@@ -5989,7 +5994,7 @@ function SurveyPrepApp() {
           spends the whole visit here, so a sync failure that only showed on the
           dashboard could go unnoticed until the work was already gone. Offset
           above the floating save button so the two never overlap. */}
-      {view === "form" && visitSyncError && (
+      {view === "form" && visitSaveError && (
         <div className="no-print" role="status"
           style={{ position: "fixed", bottom: showFloatingSave ? 88 : 24, right: 24, zIndex: 1099, maxWidth: 340, padding: "12px 16px", background: T.warningBg, color: T.warning, border: `1px solid ${T.warning}`, borderRadius: T.radiusCard, boxShadow: "0 8px 20px rgba(19,25,34,0.18)", fontSize: 13, lineHeight: 1.45, display: "flex", alignItems: "flex-start", gap: 10 }}>
           <Icon name="alert-circle" size={17} />

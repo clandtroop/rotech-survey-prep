@@ -46,6 +46,14 @@ const CHECKLISTS_COLLECTION = "followUpChecklists";
 // ownerUid (see firestore.rules — read/write is restricted to the owner).
 const IN_PROGRESS_VISITS_COLLECTION = "inProgressVisits";
 
+// Stamped into cell D1 of every Follow-Up Tracker sheet. Column D is hidden
+// and carries the machine-readable metadata the follow-up email importer
+// needs: D1 format tag, D2 visit id, D3 the full (untruncated) section
+// label, D4 a header, D5+ a stable key per finding. Bump the version if the
+// column layout changes so importers can tell the formats apart. Trackers
+// exported before this existed simply have no column D.
+const TRACKER_FORMAT_TAG = "RSP-FOLLOWUP-V2";
+
 // Maps each SECTIONS id to its follow-up checklist category.
 const SECTION_TO_CHECKLIST_CATEGORY = {
   morning: "Binders",
@@ -4221,7 +4229,8 @@ function SurveyPrepApp() {
     SECTIONS.forEach((sec, si) => {
       const issues = sec.items.flatMap((item, ii) => {
         const key = `${si}-${ii}`;
-        if (states[key] === "no") return [{ text: item.text, comment: comments[key] || "" }];
+        if (states[key] === "no")
+          return [{ text: item.text, comment: comments[key] || "", rowKey: `sec:${key}` }];
         return [];
       });
       if (issues.length > 0) tabGroups.push({ label: sec.label, ref: sec.ref, issues });
@@ -4231,7 +4240,7 @@ function SurveyPrepApp() {
     op541Sections.forEach(sec => {
       const issues = sec.items.flatMap(item => {
         if (op541States[item.key] === "no")
-          return [{ text: item.text, comment: op541Comments[item.key] || "", mismatch: item.locAns === "Y" }];
+          return [{ text: item.text, comment: op541Comments[item.key] || "", mismatch: item.locAns === "Y", rowKey: `op541:${item.key}` }];
         return [];
       });
       if (issues.length > 0)
@@ -4242,7 +4251,7 @@ function SurveyPrepApp() {
     op541tSections.forEach(sec => {
       const issues = sec.items.flatMap(item => {
         if (op541tStates[item.key] === "no")
-          return [{ text: item.text, comment: op541tComments[item.key] || "", mismatch: item.locAns === "Y" }];
+          return [{ text: item.text, comment: op541tComments[item.key] || "", mismatch: item.locAns === "Y", rowKey: `op541t:${item.key}` }];
         return [];
       });
       if (issues.length > 0)
@@ -4275,40 +4284,46 @@ function SurveyPrepApp() {
       // since renumbering the cellXfs table would require re-indexing every
       // other style id too.
       const DATA_START_ROW = 5;
-      const buildSheetXml = (issues) => {
+      const buildSheetXml = (tg, visitId) => {
+        const issues = tg.issues;
         const maxRow = issues.length + DATA_START_ROW - 1;
 
-        const titleRow = `<row r="1" ht="26" customHeight="1" spans="1:3">` +
-          strCell("A1", "Rotech Survey Prep Virtual Follow-Up Tracker", 1) +
+        const titleRow = `<row r="1" ht="26" customHeight="1" spans="1:4">` +
+          strCell("A1", `Rotech Survey Prep Virtual Follow-Up Tracker — ${tg.label}`, 1) +
           `<c r="B1" s="1"/><c r="C1" s="1"/>` +
+          strCell("D1", TRACKER_FORMAT_TAG) +
           `</row>`;
 
-        const metaRow1 = `<row r="2" spans="1:3">` +
+        const metaRow1 = `<row r="2" spans="1:4">` +
           strCell("A2", `Location: ${meta.location || "—"}`, 3) +
           strCell("B2", `Visit Date: ${meta.date || "—"}`, 3) +
           strCell("C2", `Specialist: ${meta.specialist || "—"}`, 3) +
+          strCell("D2", visitId || "") +
           `</row>`;
 
-        const metaRow2 = `<row r="3" spans="1:3">` +
+        const metaRow2 = `<row r="3" spans="1:4">` +
           strCell("A3", `City / State: ${meta.city || "—"}`, 3) +
           strCell("B3", `Export Date: ${new Date().toLocaleDateString("en-US")}`, 3) +
           strCell("C3", "Rotech Survey Prep", 3) +
+          strCell("D3", tg.label) +
           `</row>`;
 
-        const colHeaderRow = `<row r="4" ht="20" customHeight="1" spans="1:3">` +
+        const colHeaderRow = `<row r="4" ht="20" customHeight="1" spans="1:4">` +
           strCell("A4", "Item / Finding", 4) +
           strCell("B4", "Corrected? (Yes / No / Pending)", 4) +
           strCell("C4", "Notes / Comments", 4) +
+          strCell("D4", "Row Key") +
           `</row>`;
 
         const dataRows = issues.map((iss, idx) => {
           const r = idx + DATA_START_ROW;
           const noteText = [iss.comment, iss.mismatch ? "⚠ Mismatch — location self-audit marked compliant" : ""]
             .filter(Boolean).join(" | ");
-          return `<row r="${r}" spans="1:3">` +
+          return `<row r="${r}" spans="1:4">` +
             strCell(`A${r}`, iss.text, 5) +
             `<c r="B${r}" s="6" t="inlineStr"><is><t></t></is></c>` +
             strCell(`C${r}`, noteText, 5) +
+            strCell(`D${r}`, iss.rowKey || "") +
             `</row>`;
         }).join("");
 
@@ -4334,7 +4349,8 @@ function SurveyPrepApp() {
         // Col widths: A=58, B=30, C=45
         const cols = `<cols><col min="1" max="1" width="58" customWidth="1"/>` +
           `<col min="2" max="2" width="30" customWidth="1"/>` +
-          `<col min="3" max="3" width="45" customWidth="1"/></cols>`;
+          `<col min="3" max="3" width="45" customWidth="1"/>` +
+          `<col min="4" max="4" width="0" hidden="1" customWidth="1"/></cols>`;
 
         // Freeze everything above the data rows so the title/meta/column
         // headers stay put while scrolling through a long findings list.
@@ -4468,7 +4484,7 @@ function SurveyPrepApp() {
       zip.file("xl/_rels/workbook.xml.rels", wbRelsXml);
       zip.file("xl/styles.xml", stylesXml);
       sheetMeta.forEach((s, i) => {
-        zip.file(`xl/worksheets/sheet${i + 1}.xml`, buildSheetXml(s.issues));
+        zip.file(`xl/worksheets/sheet${i + 1}.xml`, buildSheetXml(s, currentVisitId || ""));
       });
 
       // ── Download ──

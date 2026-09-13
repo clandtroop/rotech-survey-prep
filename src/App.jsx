@@ -11,6 +11,7 @@ import TrendDashboard from "./TrendDashboard";
 import ReadinessDashboard from "./ReadinessDashboard";
 import TeamPlanner from "./TeamPlanner";
 import SiteCircuit from "./SiteCircuit";
+import FollowUpEmail from "./FollowUpEmail";
 
 // What the assessment module is called in the nav, on its dashboard card, and
 // in any CTA pointing at it. Kept in one place so renaming it is a one-line
@@ -4596,6 +4597,13 @@ function SurveyPrepApp() {
     setView("circuit");
     window.scrollTo({ top: 0 });
   }
+  // The follow-up email screen takes a filled-in tracker file as its whole
+  // input, so like the planner and Site Circuit it stands apart from the
+  // visit in progress and never touches checklist state.
+  function goFollowUp() {
+    setView("followup");
+    window.scrollTo({ top: 0 });
+  }
 
   // The report is empty until something has actually been marked — drives the
   // empty state instead of rendering a report full of zeroes. N/A counts as
@@ -4636,6 +4644,7 @@ function SurveyPrepApp() {
     { key: "trends",    label: "Issue Trends", icon: "trending-up",     active: view === "form" && isTrendsTab,            onClick: () => goTab(TAB.trends) },
     { key: "planner",   label: "Team Planner", icon: "calendar",        active: view === "planner",                        onClick: goPlanner },
     { key: "circuit",   label: "Site Circuit", icon: "mail",            active: view === "circuit",                        onClick: goCircuit },
+    { key: "followup",  label: "Follow-Up Email", icon: "file-spreadsheet", active: view === "followup",                     onClick: goFollowUp },
   ];
 
   const headerBtn = {
@@ -4987,6 +4996,9 @@ function SurveyPrepApp() {
 
       {/* SITE CIRCUIT — reads the planner's site visits, owns no visit data */}
       {view === "circuit" && <SiteCircuit onOpenPlanner={goPlanner} />}
+
+      {/* FOLLOW-UP EMAIL — reads an uploaded tracker, writes nothing */}
+      {view === "followup" && <FollowUpEmail />}
 
       {/* FORM VIEW */}
       {view === "form" && (

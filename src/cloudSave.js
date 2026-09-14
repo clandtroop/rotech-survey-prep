@@ -114,27 +114,32 @@ export function findFirestoreProblems(value, { maxDepth = 20, limit = 25 } = {})
     if (problems.length >= limit) return;
 
     if (node === undefined) {
-      problems.push({ path, problem: 'is undefined — Firestore cannot store undefined values' });
+      // NOT fatal: the Firestore instance is created with
+      // ignoreUndefinedProperties, so the SDK drops these fields itself. Worth
+      // reporting — an undefined here means a merge produced a key neither side
+      // has a value for — but blocking the save over it would be this check
+      // causing the very outage it was added to diagnose.
+      problems.push({ path, problem: 'is undefined — Firestore cannot store undefined values', fatal: false });
       return;
     }
     if (typeof node === 'number' && !Number.isFinite(node)) {
-      problems.push({ path, problem: `is ${String(node)}, which cannot be stored` });
+      problems.push({ path, problem: `is ${String(node)}, which cannot be stored`, fatal: true });
       return;
     }
     if (typeof node === 'function' || typeof node === 'symbol') {
-      problems.push({ path, problem: `is a ${typeof node}, which cannot be stored` });
+      problems.push({ path, problem: `is a ${typeof node}, which cannot be stored`, fatal: true });
       return;
     }
     if (node === null || typeof node !== 'object' || node instanceof Date) return;
 
     if (depth > maxDepth) {
-      problems.push({ path, problem: `is nested more than ${maxDepth} levels deep` });
+      problems.push({ path, problem: `is nested more than ${maxDepth} levels deep`, fatal: true });
       return;
     }
 
     if (Array.isArray(node)) {
       if (insideArray) {
-        problems.push({ path, problem: 'is an array directly inside another array — Firestore does not support nested arrays' });
+        problems.push({ path, problem: 'is an array directly inside another array — Firestore does not support nested arrays', fatal: true });
         return;
       }
       node.forEach((item, i) => walk(item, `${path}[${i}]`, depth + 1, true));
@@ -143,11 +148,11 @@ export function findFirestoreProblems(value, { maxDepth = 20, limit = 25 } = {})
 
     for (const [key, child] of Object.entries(node)) {
       if (key === '') {
-        problems.push({ path, problem: 'has a field with an empty name' });
+        problems.push({ path, problem: 'has a field with an empty name', fatal: true });
         continue;
       }
       if (/^__.*__$/.test(key)) {
-        problems.push({ path: `${path}.${key}`, problem: 'uses a reserved __field__ name' });
+        problems.push({ path: `${path}.${key}`, problem: 'uses a reserved __field__ name', fatal: true });
         continue;
       }
       walk(child, path ? `${path}.${key}` : key, depth + 1, false);
@@ -156,6 +161,14 @@ export function findFirestoreProblems(value, { maxDepth = 20, limit = 25 } = {})
 
   walk(value, '', 0, false);
   return problems;
+}
+
+/**
+ * Only the problems that will actually make Firestore refuse the write.
+ * Undefined values are excluded: ignoreUndefinedProperties handles those.
+ */
+export function fatalProblems(problems) {
+  return (problems || []).filter(p => p.fatal);
 }
 
 /** Thrown before a write whose content Firestore is guaranteed to reject. */

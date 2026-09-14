@@ -15,10 +15,57 @@ export const FIRESTORE_DOC_LIMIT = 1048576;
 // usually a little smaller than the one that actually gets sent.
 export const SAFE_DOC_LIMIT = Math.floor(FIRESTORE_DOC_LIMIT * 0.85);
 
-/** Serialized byte size of a value, as Firestore would count it. */
+const utf8 = (s) => new TextEncoder().encode(String(s)).length;
+
+/**
+ * Firestore's own storage accounting, which is NOT the same as JSON length.
+ *
+ * Per Google's documented rules: a string costs its UTF-8 bytes + 1, but every
+ * number costs a flat 8 bytes, a boolean 1, null 1; a map costs the sum of
+ * (field name + 1) plus its values; and a document carries 32 bytes of
+ * overhead on top of its name.
+ *
+ * The difference matters here rather than being pedantry. Parsed spreadsheet
+ * cells are largely numbers, and JSON.stringify writes those as 1–3 characters
+ * while Firestore charges 8 bytes each — so a JSON measurement can report a
+ * document comfortably under the limit that Firestore then rejects for being
+ * over it. Measuring the wrong thing is how an oversize document hides.
+ */
+export function fieldValueBytes(value) {
+  if (value === null || value === undefined) return 1;
+  switch (typeof value) {
+    case 'string': return utf8(value) + 1;
+    case 'number': return 8;
+    case 'boolean': return 1;
+    case 'bigint': return 8;
+    default: break;
+  }
+  if (value instanceof Date) return 8;
+  if (Array.isArray(value)) {
+    let total = 0;
+    for (const item of value) total += fieldValueBytes(item);
+    return total;
+  }
+  if (typeof value === 'object') {
+    let total = 0;
+    for (const [k, v] of Object.entries(value)) total += utf8(k) + 1 + fieldValueBytes(v);
+    return total;
+  }
+  return 1;
+}
+
+/** Full document size as Firestore counts it, including name and overhead. */
+export function estimateFirestoreBytes(doc, docPath = '') {
+  return utf8(docPath) + 1 + fieldValueBytes(doc) + 32;
+}
+
+/**
+ * Kept as the name the rest of the app calls, now backed by Firestore's real
+ * accounting rather than JSON length.
+ */
 export function measureBytes(value) {
   try {
-    return new TextEncoder().encode(JSON.stringify(value ?? null)).length;
+    return fieldValueBytes(value);
   } catch {
     return 0;
   }
@@ -41,6 +88,83 @@ export function formatBytes(n) {
   if (n >= 1048576) return `${(n / 1048576).toFixed(2)} MB`;
   if (n >= 1024) return `${Math.round(n / 1024)} KB`;
   return `${n} bytes`;
+}
+
+/**
+ * Everything Firestore refuses to store, with the exact path to it.
+ *
+ * `invalid-argument` is the least useful error Firestore returns: it covers a
+ * dozen unrelated defects and names none of them. These are the ones this
+ * visit payload can realistically contain:
+ *
+ *  - undefined values. mergeVisitForWrite guards its top-level assigns, but
+ *    preferLocal() returns `remoteVal` whenever the local value is blank — and
+ *    that is itself undefined when the key exists on neither side, so a nested
+ *    undefined slips through into a merged answer map.
+ *  - nested arrays. Workbooks are parsed with sheet_to_json(ws, { header: 1 }),
+ *    which yields an array of row arrays; stored inside another array that is
+ *    an array-of-arrays, which Firestore rejects outright.
+ *  - non-finite numbers, which JSON.stringify silently turns into null.
+ *  - reserved __field__ names, empty field names, and maps nested past 20 deep.
+ */
+export function findFirestoreProblems(value, { maxDepth = 20, limit = 25 } = {}) {
+  const problems = [];
+
+  const walk = (node, path, depth, insideArray) => {
+    if (problems.length >= limit) return;
+
+    if (node === undefined) {
+      problems.push({ path, problem: 'is undefined — Firestore cannot store undefined values' });
+      return;
+    }
+    if (typeof node === 'number' && !Number.isFinite(node)) {
+      problems.push({ path, problem: `is ${String(node)}, which cannot be stored` });
+      return;
+    }
+    if (typeof node === 'function' || typeof node === 'symbol') {
+      problems.push({ path, problem: `is a ${typeof node}, which cannot be stored` });
+      return;
+    }
+    if (node === null || typeof node !== 'object' || node instanceof Date) return;
+
+    if (depth > maxDepth) {
+      problems.push({ path, problem: `is nested more than ${maxDepth} levels deep` });
+      return;
+    }
+
+    if (Array.isArray(node)) {
+      if (insideArray) {
+        problems.push({ path, problem: 'is an array directly inside another array — Firestore does not support nested arrays' });
+        return;
+      }
+      node.forEach((item, i) => walk(item, `${path}[${i}]`, depth + 1, true));
+      return;
+    }
+
+    for (const [key, child] of Object.entries(node)) {
+      if (key === '') {
+        problems.push({ path, problem: 'has a field with an empty name' });
+        continue;
+      }
+      if (/^__.*__$/.test(key)) {
+        problems.push({ path: `${path}.${key}`, problem: 'uses a reserved __field__ name' });
+        continue;
+      }
+      walk(child, path ? `${path}.${key}` : key, depth + 1, false);
+    }
+  };
+
+  walk(value, '', 0, false);
+  return problems;
+}
+
+/** Thrown before a write whose content Firestore is guaranteed to reject. */
+export class VisitInvalidError extends Error {
+  constructor(problems) {
+    super(`Visit contains ${problems.length} value(s) Firestore cannot store.`);
+    this.code = 'visit/invalid';
+    this.problems = problems;
+  }
 }
 
 /** Thrown by saveVisitToFirestore before it attempts a write it knows will fail. */
@@ -92,15 +216,33 @@ export function describeSaveError(error) {
     };
   }
 
+  if (code === 'visit/invalid') {
+    const list = (error.problems || []).slice(0, 3)
+      .map(p => `${p.path || '(root)'} ${p.problem}`)
+      .join('; ');
+    const extra = (error.problems || []).length > 3
+      ? ` …and ${error.problems.length - 3} more.`
+      : '';
+    return {
+      code,
+      title: 'This visit contains something the cloud cannot store',
+      detail: `Firestore refuses these values: ${list}.${extra}`,
+      action:
+        'Your work is saved on this device and is not lost. Send this message to Cody — it names the exact '
+        + 'fields, which is what the fix needs.',
+    };
+  }
+
   if (code === 'invalid-argument') {
     return {
       code,
       title: 'The cloud rejected this visit as invalid',
       detail:
-        'Firestore refused the document itself — most often because it is over the 1 MB per-document limit, '
-        + 'or because a field holds a value it cannot store. This is rejected before the security rules run, '
-        + 'so it never appears as a "deny" in the Firebase console.',
-      action: 'Your work is saved on this device. ' + SUPPORT,
+        'Firestore refused the document itself — either it is over the 1 MB per-document limit, or a field '
+        + 'holds a value it cannot store (an undefined value, or an array directly inside another array). '
+        + 'This is rejected before the security rules run, so it never appears as a "deny" in the Firebase '
+        + 'console.',
+      action: 'Your work is saved on this device. Send this message to Cody. ' + SUPPORT,
     };
   }
 

@@ -5,7 +5,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { db, auth } from "./firebase";
 import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, where, orderBy, limit, writeBatch } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
-import { describeSaveError, measureBytes, largestFields, formatBytes, SAFE_DOC_LIMIT, FIRESTORE_DOC_LIMIT, VisitTooLargeError } from "./cloudSave";
+import { describeSaveError, measureBytes, largestFields, formatBytes, findFirestoreProblems, SAFE_DOC_LIMIT, FIRESTORE_DOC_LIMIT, VisitTooLargeError, VisitInvalidError } from "./cloudSave";
 import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline, BRAND } from "./theme";
 import { TREND_KEY, TRENDS_COLLECTION, loadTrendData } from "./trendData";
 import TrendDashboard from "./TrendDashboard";
@@ -616,6 +616,15 @@ async function saveVisitToFirestore(visit) {
   const bytes = measureBytes(payload);
   if (bytes > SAFE_DOC_LIMIT) {
     throw new VisitTooLargeError(bytes, largestFields(payload));
+  }
+
+  // Firestore answers every content defect with the same opaque
+  // "invalid-argument" and names none of them. Find them here instead, where
+  // the exact path can be reported: a nested undefined from preferLocal(), or
+  // an array of row arrays from sheet_to_json(ws, { header: 1 }).
+  const problems = findFirestoreProblems(payload);
+  if (problems.length) {
+    throw new VisitInvalidError(problems);
   }
 
   await withSaveTimeout(setDoc(ref, payload));

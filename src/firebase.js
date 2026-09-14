@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence } from "firebase/auth";
 
 const firebaseConfig = {
@@ -20,7 +20,21 @@ const app = initializeApp(firebaseConfig);
 // queues writes locally and reflects them immediately in-session even when
 // the target database doesn't exist, so it looked like it worked until the
 // session/cache reset and the phantom data vanished.
-export const db = getFirestore(app, "surveyprep");
+//
+// KEEP THE "surveyprep" ARGUMENT. It is the third argument to
+// initializeFirestore(app, settings, databaseId) — the same database name that
+// getFirestore(app, "surveyprep") carried before. Dropping it points the app at
+// a "(default)" database that does not exist in this project, which is the
+// exact regression described above.
+//
+// ignoreUndefinedProperties: a single undefined anywhere in the visit makes
+// Firestore reject the entire write with "invalid-argument". The visit is
+// assembled by merging two devices' copies, and preferLocal() hands back the
+// remote value whenever the local one is blank — which is itself undefined when
+// neither side has the key. Dropping those fields is what the merge already
+// intends ("a field missing from both sides should stay as it was"); this makes
+// the SDK enforce it everywhere rather than only at the top level.
+export const db = initializeFirestore(app, { ignoreUndefinedProperties: true }, "surveyprep");
 
 // Sign-ins never expire on their own — Firebase keeps sessions alive
 // indefinitely by refreshing tokens, as long as its stored credentials

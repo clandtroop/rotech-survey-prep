@@ -5,6 +5,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { db, auth } from "./firebase";
 import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, where, orderBy, limit, writeBatch } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
+import { describeSaveError, measureBytes, largestFields, SAFE_DOC_LIMIT, VisitTooLargeError } from "./cloudSave";
 import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline, BRAND } from "./theme";
 import { TREND_KEY, TRENDS_COLLECTION, loadTrendData } from "./trendData";
 import TrendDashboard from "./TrendDashboard";
@@ -569,23 +570,55 @@ function mergeVisitForWrite(remote, local) {
   return merged;
 }
 
+// Fails a promise that never settles. The Firestore SDK treats "cannot reach
+// the backend" as temporary and retries internally without limit, so setDoc()
+// can sit pending forever on a filtered network — leaving the save neither
+// confirmed nor failed, and the warning banner never shown.
+function withSaveTimeout(promise, ms = 20000) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const e = new Error("Timed out waiting for the cloud database.");
+      e.code = "cloud/timeout";
+      reject(e);
+    }, ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
 async function saveVisitToFirestore(visit) {
   const ref = doc(db, IN_PROGRESS_VISITS_COLLECTION, visit.id);
   let toWrite = visit;
   try {
-    const snap = await getDoc(ref);
+    const snap = await withSaveTimeout(getDoc(ref));
     if (snap.exists()) toWrite = mergeVisitForWrite(snap.data(), visit);
   } catch {
     // Offline or the read was denied — fall through and write what this device
     // has. That is the old blind-overwrite behaviour, but only in the case
     // where we genuinely cannot see the remote copy to merge against.
   }
-  await setDoc(ref, {
+
+  const payload = {
     ...toWrite,
     ownerUid: auth.currentUser?.uid || null,
     ownerEmail: auth.currentUser?.email || null,
     updatedAt: new Date().toISOString(),
-  });
+  };
+
+  // Check the size before sending rather than learning about it from a
+  // rejection. A visit carries whole parsed workbooks (op541Sections,
+  // personnelItems, jc427Items) inline, and mergeVisitForWrite only ever grows
+  // the document, so crossing Firestore's 1 MB per-document ceiling mid-visit
+  // is a real outcome. It presents as "worked this morning, stopped this
+  // afternoon, on every device" — because it is the document that is too big,
+  // not the device that is broken. Firestore rejects an oversize write before
+  // evaluating security rules, so it never appears as a denial in the console.
+  const bytes = measureBytes(payload);
+  if (bytes > SAFE_DOC_LIMIT) {
+    throw new VisitTooLargeError(bytes, largestFields(payload));
+  }
+
+  await withSaveTimeout(setDoc(ref, payload));
 }
 // The query behind the live subscription further down. Its ownerUid equality
 // is also what makes the read legal under firestore.rules, which restricts
@@ -3295,7 +3328,10 @@ function SurveyPrepApp() {
   // folding them into one state would put the wrong message on screen.
   // Set on any failed write, cleared on the next success, and surfaced on the
   // checklist screen so it is seen before the tab is closed.
-  const [visitSaveError, setVisitSaveError] = useState(false);
+  // Holds the DESCRIBED error ({ code, title, detail, action }) rather than a
+  // bare boolean, so the banner can say which of a dozen unrelated causes
+  // actually fired instead of just "not syncing".
+  const [visitSaveError, setVisitSaveError] = useState(null);
 
   // Fail-safe: the browser print dialog never tells JS whether the user actually
   // saved a PDF or hit cancel, so once it closes, prompt them to double check.
@@ -4093,11 +4129,15 @@ function SurveyPrepApp() {
     setShowSaveReminder(false);
     try {
       await saveVisitToFirestore(visit);
-      setVisitSaveError(false);
+      setVisitSaveError(null);
       alert(`Visit saved: ${visit.label}`);
-    } catch {
-      setVisitSaveError(true);
-      alert(`Visit saved on this device: ${visit.label}\n\nCould not sync to the cloud, so it won't show up on another device yet — check your connection and save again once you're back online.`);
+    } catch (err) {
+      // Keep the error. Discarding it here is what made this failure
+      // undiagnosable from the app and invisible in the Firebase console.
+      const info = describeSaveError(err);
+      setVisitSaveError(info);
+      console.error("Cloud save failed", err);
+      alert(`Visit saved on this device: ${visit.label}\n\nNOT saved to the cloud — ${info.title}.\n\n${info.detail}\n\n${info.action}`);
     }
   }
 
@@ -4130,8 +4170,11 @@ function SurveyPrepApp() {
       // creating a second document for the same visit.
       setCurrentVisitId(id);
       saveVisitToFirestore(visit)
-        .then(() => setVisitSaveError(false))
-        .catch(() => setVisitSaveError(true));
+        .then(() => setVisitSaveError(null))
+        .catch(err => {
+          console.error("Background cloud save failed", err);
+          setVisitSaveError(describeSaveError(err));
+        });
     }, 90 * 1000);
     return () => clearInterval(t);
   }, []);
@@ -6026,10 +6069,17 @@ function SurveyPrepApp() {
         <div className="no-print" role="status"
           style={{ position: "fixed", bottom: showFloatingSave ? 88 : 24, right: 24, zIndex: 1099, maxWidth: 340, padding: "12px 16px", background: T.warningBg, color: T.warning, border: `1px solid ${T.warning}`, borderRadius: T.radiusCard, boxShadow: "0 8px 20px rgba(19,25,34,0.18)", fontSize: 13, lineHeight: 1.45, display: "flex", alignItems: "flex-start", gap: 10 }}>
           <Icon name="alert-circle" size={17} />
+          {/* The old copy always blamed the connection and always promised it would
+              sync itself. For an oversize visit, an expired sign-in or a missing
+              database that is untrue twice over: retrying changes nothing, and
+              waiting for it to fix itself loses the visit. Name the cause. */}
           <span>
-            <strong>Not syncing to the cloud.</strong> Your work is saved on this device only,
-            so it won't reach your other devices yet. Check your connection — it will sync
-            automatically once you're back online.
+            <strong>Not syncing to the cloud — {visitSaveError.title}.</strong>{" "}
+            {visitSaveError.detail}
+            <strong style={{ display: "block", marginTop: 6 }}>{visitSaveError.action}</strong>
+            <span style={{ display: "block", marginTop: 4, fontSize: 11, opacity: 0.75 }}>
+              code: {visitSaveError.code}
+            </span>
           </span>
         </div>
       )}

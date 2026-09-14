@@ -5,7 +5,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { db, auth } from "./firebase";
 import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, where, orderBy, limit, writeBatch } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
-import { describeSaveError, measureBytes, largestFields, SAFE_DOC_LIMIT, VisitTooLargeError } from "./cloudSave";
+import { describeSaveError, measureBytes, largestFields, formatBytes, SAFE_DOC_LIMIT, FIRESTORE_DOC_LIMIT, VisitTooLargeError } from "./cloudSave";
 import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline, BRAND } from "./theme";
 import { TREND_KEY, TRENDS_COLLECTION, loadTrendData } from "./trendData";
 import TrendDashboard from "./TrendDashboard";
@@ -3332,6 +3332,11 @@ function SurveyPrepApp() {
   // bare boolean, so the banner can say which of a dozen unrelated causes
   // actually fired instead of just "not syncing".
   const [visitSaveError, setVisitSaveError] = useState(null);
+  // Measured size of the visit as last written, plus its biggest fields.
+  // Computed only on save/load, never per render — JSON.stringify of a
+  // near-megabyte visit on every keystroke would be its own bug.
+  const [visitSize, setVisitSize] = useState(null);
+  const [showSizeDetail, setShowSizeDetail] = useState(false);
 
   // Fail-safe: the browser print dialog never tells JS whether the user actually
   // saved a PDF or hit cancel, so once it closes, prompt them to double check.
@@ -4127,6 +4132,7 @@ function SurveyPrepApp() {
     setCurrentVisitId(id);
     saveReminderAnchor.current = Date.now();
     setShowSaveReminder(false);
+    setVisitSize({ bytes: measureBytes(visit), fields: largestFields(visit) });
     try {
       await saveVisitToFirestore(visit);
       setVisitSaveError(null);
@@ -4169,6 +4175,7 @@ function SurveyPrepApp() {
       // Claim the generated id so the next autosave updates in place instead of
       // creating a second document for the same visit.
       setCurrentVisitId(id);
+      setVisitSize({ bytes: measureBytes(visit), fields: largestFields(visit) });
       saveVisitToFirestore(visit)
         .then(() => setVisitSaveError(null))
         .catch(err => {
@@ -4205,6 +4212,9 @@ function SurveyPrepApp() {
   }
 
   function loadVisit(visit) {
+    // Measure on load too: a visit that is already too big to save can then be
+    // diagnosed by opening it, without having to trigger the failure first.
+    setVisitSize({ bytes: measureBytes(visit), fields: largestFields(visit) });
     setCurrentVisitId(visit.id ?? null);
     setChecklistLink("");
     setMeta(visit.meta ?? {});
@@ -5122,6 +5132,57 @@ function SurveyPrepApp() {
                 </div>
               ))}
             </div>
+            {/* Visit size readout.
+                Firestore rejects any single document over 1 MB, and a visit
+                carries whole parsed workbooks inline while mergeVisitForWrite
+                only ever grows it — so a visit can quietly cross that ceiling
+                mid-day, after which every save fails on every device at once.
+                Showing the number in the app is the only way a specialist on an
+                iPad can see it coming: there is no console to check on iPadOS. */}
+            {visitSize && visitSize.bytes > SAFE_DOC_LIMIT * 0.6 && (() => {
+              const over = visitSize.bytes > SAFE_DOC_LIMIT;
+              const fg = over ? T.error : T.warning;
+              const bg = over ? T.errorBg : T.warningBg;
+              return (
+                <div style={{ marginBottom: 10, padding: "10px 12px", borderRadius: T.radiusCard, fontSize: 12.5, lineHeight: 1.5, background: bg, color: fg, border: `1px solid ${fg}` }}>
+                  <strong>
+                    Visit size: {formatBytes(visitSize.bytes)} of {formatBytes(FIRESTORE_DOC_LIMIT)}
+                    {over ? " — too large to save to the cloud" : " — approaching the cloud limit"}
+                  </strong>
+                  <div style={{ marginTop: 4 }}>
+                    {over
+                      ? "This visit can no longer sync. Your work is safe on this device — finalize it, or start a new visit for the remaining sections."
+                      : "Once this reaches the limit the visit will stop syncing. Consider finalizing it soon."}
+                  </div>
+                  <button type="button" onClick={() => setShowSizeDetail(v => !v)}
+                    style={{ marginTop: 6, background: "none", border: "none", padding: 0, font: "inherit", fontSize: 12, textDecoration: "underline", cursor: "pointer", color: "inherit" }}>
+                    {showSizeDetail ? "Hide details" : "What's taking up the space?"}
+                  </button>
+                  {showSizeDetail && (
+                    <div style={{ marginTop: 6 }}>
+                      {visitSize.fields.map(f => (
+                        <div key={f.key} style={{ fontFamily: "monospace", fontSize: 11.5 }}>
+                          {f.key}: {formatBytes(f.bytes)}
+                        </div>
+                      ))}
+                      <button type="button"
+                        onClick={() => {
+                          const report = `Rotech Survey Prep — visit size report\n${new Date().toString()}\n`
+                            + `Visit: ${meta.location || "(no location)"} ${meta.date || ""}\n`
+                            + `Total: ${formatBytes(visitSize.bytes)} of ${formatBytes(FIRESTORE_DOC_LIMIT)}\n`
+                            + visitSize.fields.map(f => `  ${f.key}: ${formatBytes(f.bytes)}`).join("\n")
+                            + (visitSaveError ? `\nLast cloud error: ${visitSaveError.code} — ${visitSaveError.title}` : "");
+                          navigator.clipboard?.writeText(report);
+                          alert("Size report copied — paste it into an email or message.");
+                        }}
+                        style={{ marginTop: 6, background: "none", border: "none", padding: 0, font: "inherit", fontSize: 12, textDecoration: "underline", cursor: "pointer", color: "inherit" }}>
+                        Copy this report
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button onClick={saveProgress} style={btnOutline}>Save Progress</button>
               {currentVisitId && (

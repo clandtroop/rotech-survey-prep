@@ -5,7 +5,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { db, auth } from "./firebase";
 import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, where, orderBy, limit, writeBatch } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
-import { describeSaveError, measureBytes, largestFields, formatBytes, findFirestoreProblems, SAFE_DOC_LIMIT, FIRESTORE_DOC_LIMIT, VisitTooLargeError, VisitInvalidError } from "./cloudSave";
+import { describeSaveError, measureBytes, largestFields, formatBytes, findFirestoreProblems, fatalProblems, SAFE_DOC_LIMIT, FIRESTORE_DOC_LIMIT, VisitTooLargeError, VisitInvalidError } from "./cloudSave";
 import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline, BRAND } from "./theme";
 import { TREND_KEY, TRENDS_COLLECTION, loadTrendData } from "./trendData";
 import TrendDashboard from "./TrendDashboard";
@@ -522,7 +522,22 @@ function mergeMap(remoteMap, localMap) {
   if (!isPlainObject(remoteMap)) return localMap;
   if (!isPlainObject(localMap)) return remoteMap;
   const out = { ...remoteMap };
-  for (const [k, v] of Object.entries(localMap)) out[k] = preferLocal(remoteMap[k], v);
+  for (const [k, v] of Object.entries(localMap)) {
+    // preferLocal returns the REMOTE value whenever the local one is blank, and
+    // "" counts as blank — so an item the specialist has left without a comment,
+    // whose key the remote copy has never seen, resolves to undefined. Every
+    // freshly uploaded OP 541 item starts exactly that way (initialised to ""),
+    // which is how a single upload put 25 undefined values into op541Comments
+    // and made Firestore reject the whole document as invalid-argument.
+    //
+    // Fall back to the local value so the key keeps its "" rather than becoming
+    // undefined — it also has to stay a string to keep the comment textarea a
+    // controlled input. Only when neither side has anything at all is the key
+    // left out, which is what the top-level assign() guard already does.
+    const chosen = preferLocal(remoteMap[k], v);
+    if (chosen !== undefined) out[k] = chosen;
+    else if (v !== undefined) out[k] = v;
+  }
   return out;
 }
 
@@ -554,9 +569,12 @@ function mergeVisitForWrite(remote, local) {
       const remoteVal = r[tabId];
       // tabPatientInfo holds { globalId, currentRx }; tabComments holds a plain
       // string. Only recurse when both sides really are objects.
-      out[tabId] = (isPlainObject(remoteVal) && isPlainObject(localVal))
+      const chosen = (isPlainObject(remoteVal) && isPlainObject(localVal))
         ? mergeMap(remoteVal, localVal)
         : preferLocal(remoteVal, localVal);
+      // Same undefined exposure as mergeMap above.
+      if (chosen !== undefined) out[tabId] = chosen;
+      else if (localVal !== undefined) out[tabId] = localVal;
     }
     assign(key, out);
   }
@@ -623,8 +641,15 @@ async function saveVisitToFirestore(visit) {
   // the exact path can be reported: a nested undefined from preferLocal(), or
   // an array of row arrays from sheet_to_json(ws, { header: 1 }).
   const problems = findFirestoreProblems(payload);
+  const fatal = fatalProblems(problems);
+  if (fatal.length) {
+    throw new VisitInvalidError(fatal);
+  }
   if (problems.length) {
-    throw new VisitInvalidError(problems);
+    // Non-fatal (undefined values, which the SDK drops). Log them so the merge
+    // bug that produced them stays visible, but never block the save over
+    // something Firestore is configured to handle.
+    console.warn("Visit contained values Firestore will drop:", problems);
   }
 
   await withSaveTimeout(setDoc(ref, payload));

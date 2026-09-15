@@ -27,10 +27,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # `npm install`, not `npm ci`, to match how deploy.yml resolves deps —
-      # a check that installs differently from the deploy can pass while the
-      # deploy still fails.
-      - run: npm install
+      # Must stay the same install command as deploy.yml — a check that
+      # installs differently from the deploy can pass while the deploy still
+      # fails. Both now use `npm ci`, which also means this check builds the
+      # exact dependency set the deploy will install, rather than re-resolving
+      # caret ranges and potentially testing different versions than ship.
+      - run: npm ci
       # No VITE_FIREBASE_* secrets here. They're only read into a config object
       # consumed at runtime in the browser, so nothing fails at build time
       # without them, and this keeps repo secrets out of PR-triggered runs.

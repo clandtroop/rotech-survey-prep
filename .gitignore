@@ -1,5 +1,19 @@
 node_modules
-node_modules
+
+# .env.local is listed here but IS deliberately tracked in git — `.gitignore`
+# does not untrack a file that was already committed, and in this case that is
+# the behaviour we want. Everything in it is Firebase *web client* config plus a
+# reCAPTCHA *site* key, all of which are public by design and already ship
+# inside the browser bundle; per Firebase's own docs these "are ok to include in
+# code or checked-in config files". Access control here is firestore.rules, not
+# secrecy of the API key.
+#
+# Do NOT "fix" this by deleting the file. deploy.yml also passes the same values
+# in from repo secrets, and real environment variables take precedence over
+# .env files in Vite — so the committed file is the fallback that keeps a deploy
+# working if a secret is ever missing or renamed. Removing it would turn that
+# into a silently broken production bundle, because the config is only read at
+# runtime in the browser and nothing fails at build time without it.
 .env.local
 .env.*.local
 

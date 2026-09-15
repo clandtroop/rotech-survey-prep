@@ -24,7 +24,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      # `npm ci`, not `npm install`. Every dependency here is on a caret range
+      # (firebase ^12.15.0 among them), so `npm install` re-resolves them on
+      # each run and a routine push could deploy an SDK version nobody had ever
+      # built against — an app breaking with no code change and nothing in the
+      # diff to explain it. `npm ci` installs exactly what package-lock.json
+      # pins, so a given commit always produces the same bundle. Updates still
+      # arrive, but through Dependabot PRs that build-check builds first rather
+      # than silently at deploy time.
+      - run: npm ci
       - name: Build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}

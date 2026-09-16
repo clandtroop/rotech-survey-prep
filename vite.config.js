@@ -16,6 +16,14 @@ export default defineConfig({
       scope: "/rotech-survey-prep/",
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,woff2}"],
+        // Delete precaches belonging to superseded builds. Without this they
+        // accumulate, and a stale entry can keep answering for an index-*.js
+        // whose hashed chunks the current deploy no longer ships — the
+        // "Failed to fetch dynamically imported module" failure that took out
+        // every Excel export at once. src/chunkRecovery.js is the runtime half
+        // of this: this setting stops the state arising, that recovers a
+        // device already in it.
+        cleanupOutdatedCaches: true,
         navigateFallback: "/rotech-survey-prep/index.html",
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [

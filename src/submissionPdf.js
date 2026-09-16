@@ -3,6 +3,7 @@
 // triggers a download named "Location_Form Name_Date Submitted.pdf".
 // Colors mirror the app's Tailwind palette, same as the Excel export.
 import { buildSubmissionView, submissionFileName } from './submissionView';
+import { importChunk } from './chunkRecovery';
 
 const BLUE_900 = [30, 58, 138];
 const GRAY_900 = [17, 24, 39];
@@ -18,10 +19,10 @@ const TONE_STYLES = {
 
 export async function downloadSubmissionPdf(assessment, locationName) {
   // Loaded on demand so jsPDF isn't shipped to users who never download a PDF.
-  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+  const [{ jsPDF }, { default: autoTable }] = await importChunk(() => Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
-  ]);
+  ]));
 
   const view = buildSubmissionView(assessment, locationName);
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });

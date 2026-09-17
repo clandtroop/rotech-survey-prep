@@ -6,6 +6,7 @@ import { db, auth } from "./firebase";
 import { doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, deleteDoc, query as fsQuery, where, orderBy, limit, writeBatch } from "firebase/firestore";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
 import { describeSaveError, measureBytes, largestFields, formatBytes, findFirestoreProblems, fatalProblems, SAFE_DOC_LIMIT, FIRESTORE_DOC_LIMIT, VisitTooLargeError, VisitInvalidError } from "./cloudSave";
+import { importChunk, exportFailureMessage, registerServiceWorkerUpdater } from "./chunkRecovery";
 import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline, BRAND } from "./theme";
 import { TREND_KEY, TRENDS_COLLECTION, loadTrendData } from "./trendData";
 import TrendDashboard from "./TrendDashboard";
@@ -1243,7 +1244,7 @@ async function addLegacyCommentsToSheet(zip, parser, serializer, sheetPath, shee
 // "Accreditation Specialist Responses" sheet rather than patched into the
 // original Personnel Records cells — see addNewWorksheetFromRows above.
 async function writeBackToOriginalWorkbook(bufferBytes, sections, states, comments, vehicleWrites = [], personnelResponseRows = [], jc427Writes = []) {
-  const JSZip = (await import("jszip")).default;
+  const JSZip = (await importChunk(() => import("jszip"))).default;
   const zip = await JSZip.loadAsync(bufferBytes.buffer ?? bufferBytes);
 
   const neededSheetNames = new Set();
@@ -3066,9 +3067,26 @@ function UpdateBanner() {
     // open so the banner shows up within the hour instead of the next day.
     onRegisteredSW(swUrl, registration) {
       if (!registration) return;
-      setInterval(() => registration.update(), 60 * 60 * 1000);
+      const check = () => { registration.update().catch(() => {}); };
+      check();
+      setInterval(check, 60 * 60 * 1000);
+      // An hourly timer only runs while the page is awake. A home-screen PWA
+      // spends most of its life suspended in the background, so a specialist
+      // can reopen it days later, inside a timer interval that never elapsed,
+      // and never be offered the update. Re-check whenever it comes back to
+      // the foreground — that is the moment a stale build is about to be used.
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") check();
+      });
     },
   });
+
+  // Hand the updater to the chunk-recovery path. If a lazy chunk 404s, that
+  // proves this build no longer matches the server's regardless of what the
+  // update check believes, and recovery needs a way to swap builds itself.
+  useEffect(() => {
+    registerServiceWorkerUpdater(updateServiceWorker);
+  }, [updateServiceWorker]);
 
   if (!needRefresh) return null;
 
@@ -3813,7 +3831,7 @@ function SurveyPrepApp() {
       }
     } catch (err) {
       console.error("Write-back export failed. Full stack:\n" + (err.stack || err));
-      alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message + "\n\n(Full details logged to the browser console — press F12.)");
+      alert(exportFailureMessage(err, "Export failed. The file may be password-protected or use an unsupported format."));
     }
   }
 
@@ -3850,7 +3868,7 @@ function SurveyPrepApp() {
       }
     } catch (err) {
       console.error("Write-back export failed. Full stack:\n" + (err.stack || err));
-      alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message + "\n\n(Full details logged to the browser console — press F12.)");
+      alert(exportFailureMessage(err, "Export failed. The file may be password-protected or use an unsupported format."));
     }
   }
 
@@ -4115,7 +4133,7 @@ function SurveyPrepApp() {
       }
     } catch (err) {
       console.error("Write-back export failed. Full stack:\n" + (err.stack || err));
-      alert("Export failed. The file may be password-protected or use an unsupported format.\n\n" + err.message + "\n\n(Full details logged to the browser console — press F12.)");
+      alert(exportFailureMessage(err, "Export failed. The file may be password-protected or use an unsupported format."));
     }
   }
 
@@ -4349,7 +4367,7 @@ function SurveyPrepApp() {
     if (tabGroups.length === 0) { alert("No issues found to export."); return; }
 
     try {
-      const JSZip = (await import("jszip")).default;
+      const JSZip = (await importChunk(() => import("jszip"))).default;
 
       // ── XML helpers ──
       const esc = s => String(s)
@@ -4591,7 +4609,7 @@ function SurveyPrepApp() {
 
     } catch (e) {
       console.error(e);
-      alert("Could not generate Follow-Up XLSX. Check console for details.");
+      alert(exportFailureMessage(e, "Could not generate Follow-Up XLSX."));
     }
   }
 

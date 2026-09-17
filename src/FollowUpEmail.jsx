@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline } from "./theme";
+import { importChunk } from "./chunkRecovery";
 
 // ─── FOLLOW-UP CALL EMAIL ────────────────────────────────────────────────────
 // Turns a filled-in Virtual Follow-Up Tracker into the summary email the
@@ -69,7 +70,7 @@ function cellText(c, shared) {
 }
 
 async function readWorkbook(file) {
-  const JSZip = (await import("jszip")).default;
+  const JSZip = (await importChunk(() => import("jszip"))).default;
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const parse = async path => {
     const f = zip.file(path);

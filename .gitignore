@@ -20,3 +20,7 @@ node_modules
 # Dry-run output of scripts/migrate-team-planner.mjs — a full copy of the
 # spreadsheet's contents, regenerated on every run.
 scripts/team-planner-migration-preview.json
+
+# Output of scripts/export-team-planner-sharepoint.mjs — every entry, including
+# hotel and flight confirmation numbers.
+scripts/sharepoint-export/

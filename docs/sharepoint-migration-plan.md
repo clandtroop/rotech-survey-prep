@@ -193,7 +193,7 @@ Year (Number).
 | Title | Single line | `Paige Bookout · PTO · Jun 8 – 12` |
 | Requester | Person | |
 | **PersonKey** | Single line | |
-| Type | Choice: PTO, Flex Holiday | |
+| LeaveType | Choice: PTO, Flex Holiday | Not "Type": that's a Power Fx function name |
 | StartDate, EndDate | Date only | |
 | **StartNum**, **EndNum** | Number | |
 | DayPart | Choice: Full day, AM, PM | AM and PM only for a single day |
@@ -281,11 +281,15 @@ the app locks the dates and status of entries created by an approval: to change 
 the specialist cancels and requests again. That keeps the planner and the approval
 record from disagreeing.
 
-### Flow 1: TP – Submit PTO request
+Click-by-click build steps for both flows are in [power-app/flows.md](power-app/flows.md).
+This section is the design they implement.
 
-**Trigger:** Power Apps (V2). **Inputs:** Type, StartDate, EndDate, DayPart, Notes and
-OverlapAction. The flow runs with its owner's connections (the default), which is what
-lets it write to the read-only Requests list.
+### Flow 1: TPSubmitPTORequest
+
+**Trigger:** Power Apps (V2). **Inputs, in this order:** LeaveType, StartDate, EndDate,
+DayPart, Notes, OverlapAction (all text) and Weekdays (number, calculated by the app).
+The flow runs with its owner's connections, which is what lets it write to the
+read-only Requests list.
 
 1. **Requester** = `triggerOutputs()['headers']['x-ms-user-email']`. This comes from the
    sign-in, not from an input the app could fake. Check it on the first test run: some
@@ -293,8 +297,8 @@ lets it write to the read-only Requests list.
 2. Get the TP People row whose Person email matches the requester. If there's no match,
    or the row has no Approver, respond to the app with an error ("No approver set, ask
    an admin") and stop.
-3. Create the TP PTO Requests item with Status = Pending. Calculate Weekdays (Mon–Fri
-   in the range, or 0.5 for AM or PM).
+3. Create the TP PTO Requests item with Status = Pending. Weekdays comes from the app
+   (Mon–Fri days in the range, or 0.5 for AM or PM).
 4. **Respond to a Power App** with the new request ID. The app can then show the pending
    chip immediately. The flow keeps running after it responds.
 5. **Start and wait for an approval**, type *Approve/Reject – First to respond*, assigned
@@ -329,7 +333,7 @@ lets it write to the read-only Requests list.
    approval* instead of *Start and wait*, with a parallel branch: Delay 3 days, then send
    an email.
 
-### Flow 2: TP – Cancel PTO request
+### Flow 2: TPCancelPTORequest
 
 **Trigger:** Power Apps (V2). **Input:** RequestId.
 
@@ -350,9 +354,10 @@ SharePoint REST API, which isn't worth it for something this rare.
 
 ### One-time setup
 
-- **Flow owner:** Tammy or Cody, with the other added as co-owner of both flows. The
-  connections still belong to whoever created them, and the flows stop if that account
-  is disabled. Build them under the account most likely to stay.
+- **Flow owner:** Cody. Add Tammy as co-owner of both flows so she can see runs and fix
+  them. The connections still belong to whoever created them, so the flows stop if that
+  account is disabled; if Cody ever leaves the team, rebuild the connections under
+  another account before his is switched off.
 - **"Team PTO" calendar:** create it in the flow owner's Outlook. It also becomes a
   shared team PTO calendar the owner can share with others.
 - **First approval:** the first approval flow in the tenant can take a few minutes while
@@ -360,6 +365,9 @@ SharePoint REST API, which isn't worth it for something this rare.
   error, it's the one thing to ask IT about.
 
 ## 6. The Power App
+
+Paste-ready source for every screen is in [power-app/](power-app/README.md), generated
+by `scripts/generate-power-app.mjs`. The README there gives the build order.
 
 Build a canvas app with the tablet layout, so the month grid and print views have room.
 Its data sources are the seven lists, Office 365 Users, Office 365 Outlook and the two

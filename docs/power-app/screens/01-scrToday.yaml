@@ -1,0 +1,705 @@
+- tdyRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - tdyHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - tdyAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - tdyNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - tdyNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tdyNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tdyNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tdyNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tdyNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tdyNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tdyNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tdyNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - tdyHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - tdyWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - tdyUnlinked:
+          Control: ModernText@1.0.0
+          Properties:
+            Text: ="You can see the whole team's calendar, but your sign-in isn't linked to a roster person yet, so you have nothing of your own to edit. An admin can link it on the Roster screen."
+            Size: =12
+            Color: =RGBA(176, 106, 0, 1)
+            FillPortions: =0
+            Height: =44
+            AlignInContainer: =AlignInContainer.Stretch
+            Visible: =IsBlank(varMe) && !varIsAdmin
+            Fill: =RGBA(251, 240, 219, 1)
+            Wrap: =true
+            PaddingLeft: =20
+            PaddingRight: =20
+      - tdyBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutGap: =18
+            FillPortions: =1
+            LayoutMinHeight: =300
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingTop: =16
+            PaddingLeft: =20
+            PaddingRight: =20
+            PaddingBottom: =16
+          Children:
+            - tdyLeft:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.None
+                  LayoutGap: =14
+                  FillPortions: =1
+                  LayoutMinHeight: =40
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - tdyOutCard:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =10
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                        RadiusTopLeft: =12
+                        RadiusTopRight: =12
+                        RadiusBottomLeft: =12
+                        RadiusBottomRight: =12
+                        PaddingTop: =16
+                        PaddingBottom: =16
+                        PaddingLeft: =18
+                        PaddingRight: =18
+                        FillPortions: =3
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - tdyOutTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Out today — " & Text(Today(), "dddd, mmmm d")
+                              Size: =15
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =0
+                              Height: =26
+                              AlignInContainer: =AlignInContainer.Stretch
+                              FontWeight: =FontWeight.Bold
+                        - tdyOutGal:
+                            Control: Gallery@2.15.0
+                            Variant: Vertical
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =true
+                              FillPortions: =1
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Items: |-
+                                =With({t: Value(Text(Today(), "yyyymmdd"))}, Filter(Filter('TP Entries', StartNum <= t && EndNum >= t), LookUp(nfStatus, Label = Status.Value, Out)))
+                              TemplateSize: =58
+                              OnSelect: =Set(varEntry, ThisItem); Navigate(scrEntryDetail, ScreenTransition.None)
+                            Children:
+                              - tdyOutBg:
+                                  Control: Rectangle@2.3.0
+                                  Properties:
+                                    X: =0
+                                    Y: =3
+                                    Width: =Parent.TemplateWidth
+                                    Height: =52
+                                    Fill: =RGBA(255, 255, 255, 1)
+                                    BorderColor: =RGBA(225, 230, 236, 1)
+                                    BorderThickness: =1
+                                    OnSelect: =Select(Parent)
+                              - tdyOutName:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =Coalesce(LookUp(colPeople, PersonKey = ThisItem.PersonKey, Title), ThisItem.PersonKey)
+                                    Size: =14
+                                    Color: =RGBA(19, 25, 34, 1)
+                                    X: =12
+                                    Y: =7
+                                    Width: =Parent.TemplateWidth - 150
+                                    Height: =22
+                                    FontWeight: =FontWeight.Bold
+                                    OnSelect: =Select(Parent)
+                              - tdyOutSub:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =Coalesce(ThisItem.VisitLocation, ThisItem.RawText, ThisItem.Status.Value) & If(ThisItem.EndDate <> ThisItem.StartDate, " · " & If(IsBlank(ThisItem.EndDate) || ThisItem.EndDate = ThisItem.StartDate, Text(ThisItem.StartDate, "mmm d"), Month(ThisItem.StartDate) = Month(ThisItem.EndDate) && Year(ThisItem.StartDate) = Year(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Day(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Text(ThisItem.EndDate, "mmm d")), "") & If(ThisItem.DayPart.Value = "AM" || ThisItem.DayPart.Value = "PM", " · " & ThisItem.DayPart.Value, "")
+                                    Size: =12
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =12
+                                    Y: =30
+                                    Width: =Parent.TemplateWidth - 150
+                                    Height: =20
+                                    OnSelect: =Select(Parent)
+                              - tdyOutChip:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =ThisItem.Status.Value
+                                    Size: =11
+                                    Color: =LookUp(nfStatus, Label = ThisItem.Status.Value, Fg)
+                                    FontWeight: =FontWeight.Semibold
+                                    Align: =Align.Center
+                                    Fill: =LookUp(nfStatus, Label = ThisItem.Status.Value, Bg)
+                                    BorderColor: =LookUp(nfStatus, Label = ThisItem.Status.Value, Bd)
+                                    BorderThickness: =1
+                                    RadiusTopLeft: =10
+                                    RadiusTopRight: =10
+                                    RadiusBottomLeft: =10
+                                    RadiusBottomRight: =10
+                                    X: =Parent.TemplateWidth - 132
+                                    Y: =17
+                                    Width: =122
+                                    Height: =24
+                                    OnSelect: =Select(Parent)
+                        - tdyOutEmpty:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Nobody is marked out today."
+                              Size: =13
+                              Color: =RGBA(124, 135, 148, 1)
+                              FillPortions: =0
+                              Height: =22
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =CountRows(tdyOutGal.AllItems) = 0
+                        - tdyOutSummary:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: |-
+                                =With({t: Value(Text(Today(), "yyyymmdd"))},
+                                  With({today: Filter('TP Entries', StartNum <= t && EndNum >= t), act: Filter(colPeople, Active = true)},
+                                    With({
+                                        inOffice: Filter(act As ip, !IsBlank(LookUp(today, PersonKey = ip.PersonKey && !LookUp(nfStatus, Label = Status.Value, Out)))),
+                                        unrecorded: Filter(act As np, IsBlank(LookUp(today, PersonKey = np.PersonKey)))
+                                      },
+                                      CountRows(inOffice) & " in office · " & CountRows(unrecorded) & " with nothing recorded" &
+                                      If(CountRows(unrecorded) > 0, " (" & Concat(unrecorded, First(Split(Title, " ")).Value, ", ") & ")", "")
+                                    )
+                                  )
+                                )
+                              Size: =12
+                              Color: =RGBA(124, 135, 148, 1)
+                              FillPortions: =0
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Wrap: =true
+                  - tdyWeekCard:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =10
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                        RadiusTopLeft: =12
+                        RadiusTopRight: =12
+                        RadiusBottomLeft: =12
+                        RadiusBottomRight: =12
+                        PaddingTop: =16
+                        PaddingBottom: =16
+                        PaddingLeft: =18
+                        PaddingRight: =18
+                        FillPortions: =2
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - tdyWeekTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="This week"
+                              Size: =15
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =0
+                              Height: =26
+                              AlignInContainer: =AlignInContainer.Stretch
+                              FontWeight: =FontWeight.Bold
+                        - tdyWeekGal:
+                            Control: Gallery@2.15.0
+                            Variant: Horizontal
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =false
+                              FillPortions: =1
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Items: |-
+                                =With({ws: DateAdd(Today(), 1 - Weekday(Today(), StartOfWeek.Monday), TimeUnit.Days)},
+                                  With({wsn: Value(Text(ws, "yyyymmdd")), wen: Value(Text(DateAdd(ws, 4, TimeUnit.Days), "yyyymmdd"))},
+                                    With({wk: Filter(Filter('TP Entries', StartNum <= wen && EndNum >= wsn), LookUp(nfStatus, Label = Status.Value, Out))},
+                                      ForAll(Sequence(5) As i,
+                                        With({d: DateAdd(ws, i.Value - 1, TimeUnit.Days)},
+                                          With({n: Value(Text(d, "yyyymmdd"))}, {D: d, Num: n, Outs: Filter(wk, StartNum <= n && EndNum >= n)})
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              TemplateSize: =Self.Width / 5
+                            Children:
+                              - tdyDayBg:
+                                  Control: Rectangle@2.3.0
+                                  Properties:
+                                    X: =0
+                                    Y: =0
+                                    Width: =Parent.TemplateWidth - 6
+                                    Height: =Parent.TemplateHeight
+                                    Fill: =If(ThisItem.D = Today(), RGBA(238, 244, 251, 1), RGBA(255, 255, 255, 1))
+                                    BorderColor: =If(ThisItem.D = Today(), RGBA(0, 83, 161, 1), RGBA(225, 230, 236, 1))
+                                    BorderThickness: =1
+                              - tdyDayLbl:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =Upper(Text(ThisItem.D, "ddd")) & " " & Day(ThisItem.D)
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =6
+                                    Y: =4
+                                    Width: =Parent.TemplateWidth - 18
+                                    Height: =18
+                                    FontWeight: =FontWeight.Bold
+                              - tdyDayAllIn:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="All in"
+                                    Size: =11
+                                    Color: =RGBA(155, 165, 178, 1)
+                                    X: =6
+                                    Y: =26
+                                    Width: =Parent.TemplateWidth - 18
+                                    Height: =18
+                                    Visible: =CountRows(ThisItem.Outs) = 0
+                              - tdyDayChips:
+                                  Control: Gallery@2.15.0
+                                  Variant: Vertical
+                                  Properties:
+                                    TemplatePadding: =1
+                                    ShowScrollbar: =false
+                                    X: =4
+                                    Y: =26
+                                    Width: =Parent.TemplateWidth - 14
+                                    Height: =Parent.TemplateHeight - 30
+                                    Items: =ThisItem.Outs
+                                    TemplateSize: =22
+                                    OnSelect: =Set(varEntry, ThisItem); Navigate(scrEntryDetail, ScreenTransition.None)
+                                  Children:
+                                    - tdyDayChip:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: =First(Split(Coalesce(ThisItem.PersonName, ThisItem.PersonKey), " ")).Value & " · " & LookUp(nfStatus, Label = ThisItem.Status.Value, Short)
+                                          Size: =11
+                                          Color: =LookUp(nfStatus, Label = ThisItem.Status.Value, Fg)
+                                          FontWeight: =FontWeight.Semibold
+                                          Align: =Align.Left
+                                          Fill: =LookUp(nfStatus, Label = ThisItem.Status.Value, Bg)
+                                          BorderColor: =LookUp(nfStatus, Label = ThisItem.Status.Value, Bd)
+                                          BorderThickness: =1
+                                          RadiusTopLeft: =4
+                                          RadiusTopRight: =4
+                                          RadiusBottomLeft: =4
+                                          RadiusBottomRight: =4
+                                          X: =0
+                                          Y: =0
+                                          Width: =Parent.TemplateWidth
+                                          Height: =20
+                                          PaddingLeft: =5
+                                          OnSelect: =Select(Parent)
+            - tdyRight:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.None
+                  LayoutGap: =14
+                  FillPortions: =1
+                  LayoutMinHeight: =40
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - tdyTaskCard:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =10
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                        RadiusTopLeft: =12
+                        RadiusTopRight: =12
+                        RadiusBottomLeft: =12
+                        RadiusBottomRight: =12
+                        PaddingTop: =16
+                        PaddingBottom: =16
+                        PaddingLeft: =18
+                        PaddingRight: =18
+                        FillPortions: =3
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - tdyTaskTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Recurring tasks in play"
+                              Size: =15
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =0
+                              Height: =26
+                              AlignInContainer: =AlignInContainer.Stretch
+                              FontWeight: =FontWeight.Bold
+                        - tdyTaskGal:
+                            Control: Gallery@2.15.0
+                            Variant: Vertical
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =true
+                              FillPortions: =1
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Items: |-
+                                =Sort(
+                                  Filter(
+                                    AddColumns(
+                                      AddColumns(colTasks, Bucket, With({ws: DateAdd(Today(), 1 - Weekday(Today(), StartOfWeek.Monday), TimeUnit.Days), inMonth: !IsBlank(LookUp(Split(Coalesce(CadenceMonths, ""), ",") As mh, Trim(mh.Value) = Text(Month(Today()))))},
+                                      Switch(CadenceType.Value,
+                                        "One-off date", If(IsBlank(CadenceDate), Blank(),
+                                          CadenceDate = Today(), "Due today",
+                                          CadenceDate >= ws && CadenceDate <= DateAdd(ws, 6, TimeUnit.Days), "This week",
+                                          Year(CadenceDate) = Year(Today()) && Month(CadenceDate) = Month(Today()), "This month",
+                                          Blank()),
+                                        "Weekly", "This week",
+                                        "Monthly", "This month",
+                                        "Quarterly", "This month",
+                                        "Specific month", If(inMonth, "This month", Blank()),
+                                        "Month range", If(inMonth, "This month", Blank()),
+                                        Blank()))),
+                                      BucketRank, Switch(Bucket, "Due today", 1, "This week", 2, 3),
+                                      CadRank, LookUp(nfCadences, Label = CadenceType.Value, Rank)
+                                    ),
+                                    !IsBlank(Bucket)
+                                  ),
+                                  BucketRank * 100 + CadRank
+                                )
+                              TemplateSize: =54
+                            Children:
+                              - tdyTaskBg:
+                                  Control: Rectangle@2.3.0
+                                  Properties:
+                                    X: =0
+                                    Y: =3
+                                    Width: =Parent.TemplateWidth
+                                    Height: =48
+                                    Fill: =RGBA(246, 248, 250, 1)
+                                    BorderColor: =RGBA(225, 230, 236, 1)
+                                    BorderThickness: =1
+                              - tdyTaskName:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =ThisItem.Title
+                                    Size: =13
+                                    Color: =RGBA(19, 25, 34, 1)
+                                    X: =10
+                                    Y: =6
+                                    Width: =Parent.TemplateWidth - 270
+                                    Height: =20
+                                    FontWeight: =FontWeight.Semibold
+                              - tdyTaskNote:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =ThisItem.Comments
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =10
+                                    Y: =27
+                                    Width: =Parent.TemplateWidth - 270
+                                    Height: =20
+                              - tdyTaskBucket:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =ThisItem.Bucket
+                                    Size: =10
+                                    Color: =RGBA(176, 106, 0, 1)
+                                    X: =Parent.TemplateWidth - 252
+                                    Y: =15
+                                    Width: =96
+                                    Height: =22
+                                    FontWeight: =FontWeight.Bold
+                                    Align: =Align.Center
+                                    Fill: =RGBA(251, 240, 219, 1)
+                                    RadiusTopLeft: =10
+                                    RadiusTopRight: =10
+                                    RadiusBottomLeft: =10
+                                    RadiusBottomRight: =10
+                              - tdyTaskWho:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =If(ThisItem.AssigneeType.Value = "Team", "Team", Coalesce(ThisItem.AssigneeName, If(ThisItem.AssigneeType.Value = "Unassigned", "Unassigned", "—")))
+                                    Size: =12
+                                    Color: =RGBA(66, 75, 86, 1)
+                                    X: =Parent.TemplateWidth - 150
+                                    Y: =6
+                                    Width: =140
+                                    Height: =20
+                                    FontWeight: =FontWeight.Semibold
+                                    Align: =Align.Right
+                              - tdyTaskCad:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: |-
+                                      =Switch(ThisItem.CadenceType.Value,
+                                          "One-off date", If(IsBlank(ThisItem.CadenceDate), "One-off", Text(ThisItem.CadenceDate, "mmm d, yyyy")),
+                                          "Specific month", Coalesce(ThisItem.CadenceLabel, If(CountRows(Split(Coalesce(ThisItem.CadenceMonths, ""), ",")) = 1 && !IsBlank(ThisItem.CadenceMonths), Index(nfMonths, Value(ThisItem.CadenceMonths)).Value, "Specific month")),
+                                          "Month range", Coalesce(ThisItem.CadenceLabel, "Month range"),
+                                          ThisItem.CadenceType.Value)
+                                    Size: =11
+                                    Color: =RGBA(124, 135, 148, 1)
+                                    X: =Parent.TemplateWidth - 150
+                                    Y: =27
+                                    Width: =140
+                                    Height: =20
+                                    Align: =Align.Right
+                  - tdyMileCard:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =10
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                        RadiusTopLeft: =12
+                        RadiusTopRight: =12
+                        RadiusBottomLeft: =12
+                        RadiusBottomRight: =12
+                        PaddingTop: =16
+                        PaddingBottom: =16
+                        PaddingLeft: =18
+                        PaddingRight: =18
+                        FillPortions: =2
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - tdyMileTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Birthdays & anniversaries — next 30 days"
+                              Size: =15
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =0
+                              Height: =26
+                              AlignInContainer: =AlignInContainer.Stretch
+                              FontWeight: =FontWeight.Bold
+                        - tdyMileGal:
+                            Control: Gallery@2.15.0
+                            Variant: Vertical
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =true
+                              FillPortions: =1
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Items: |-
+                                =Sort(
+                                  Filter(
+                                    AddColumns(Filter(colMilestones, !IsBlank(ThisRecord.Month) && !IsBlank(ThisRecord.Day)), Days,
+                                      With({nx: Date(Year(Today()), ThisRecord.Month, ThisRecord.Day)},
+                                        DateDiff(Today(), If(nx < Today(), Date(Year(Today()) + 1, ThisRecord.Month, ThisRecord.Day), nx), TimeUnit.Days))),
+                                    Days <= 30
+                                  ),
+                                  Days
+                                )
+                              TemplateSize: =28
+                            Children:
+                              - tdyMileName:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =Coalesce(ThisItem.Title, Coalesce(LookUp(colPeople, PersonKey = ThisItem.PersonKey, Title), ThisItem.PersonKey) & " — " & ThisItem.Type.Value)
+                                    Size: =13
+                                    Color: =RGBA(19, 25, 34, 1)
+                                    X: =0
+                                    Y: =4
+                                    Width: =Parent.TemplateWidth - 130
+                                    Height: =20
+                              - tdyMileWhen:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =Left(Index(nfMonths, ThisItem.Month).Value, 3) & " " & ThisItem.Day & If(ThisItem.Days = 0, " · today", "")
+                                    Size: =13
+                                    Color: =RGBA(124, 135, 148, 1)
+                                    X: =Parent.TemplateWidth - 124
+                                    Y: =4
+                                    Width: =120
+                                    Height: =20
+                                    Align: =Align.Right
+                        - tdyMileEmpty:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Nothing in the next 30 days."
+                              Size: =13
+                              Color: =RGBA(124, 135, 148, 1)
+                              FillPortions: =0
+                              Height: =22
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =CountRows(tdyMileGal.AllItems) = 0

@@ -1,0 +1,551 @@
+- mytRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - mytHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - mytAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - mytNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mytNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - mytNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mytNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mytNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mytNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mytNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mytNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mytNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - mytHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - mytWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - mytToolbar:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =8
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - mytPerson:
+                Control: ModernDropdown@1.0.0
+                Properties:
+                  Items: =Filter(colPeople, Active = true)
+                  ItemDisplayText: =ThisItem.Title
+                  Appearance: =Appearance.Outline
+                  FillPortions: =0
+                  Width: =200
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Default: =LookUp(colPeople, PersonKey = varMe.PersonKey)
+                  Visible: =varIsAdmin
+                  AccessibleLabel: ="Whose tasks"
+            - mytTag:
+                Control: ModernDropdown@1.0.0
+                Properties:
+                  Items: |-
+                    =With({tags: Sort(Distinct(Filter(ForAll(Split(Concat(colTasks, Tags, ","), ",") As tg, Trim(tg.Value)), Value <> ""), Value), Value)}, ForAll(Sequence(CountRows(tags) + 1) As i, If(i.Value = 1, {V: "", N: "All tags"}, With({r: Index(tags, i.Value - 1)}, {V: r.Value, N: "#" & r.Value}))))
+                  ItemDisplayText: =ThisItem.N
+                  Appearance: =Appearance.Outline
+                  FillPortions: =0
+                  Width: =180
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Default: |-
+                    ={V: "", N: "All tags"}
+                  AccessibleLabel: ="Filter by tag"
+            - mytToolSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - mytAdd:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Add a task"
+                  OnSelect: =Set(varTask, Blank()); Set(varTaskTeam, false); Navigate(scrTaskEdit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =120
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Icon: ="Add"
+                  Visible: =!IsBlank(varMe)
+      - mytBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Vertical
+            DropShadow: =DropShadow.None
+            LayoutGap: =14
+            FillPortions: =1
+            LayoutMinHeight: =200
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+            PaddingBottom: =16
+          Children:
+            - mytUnlinked:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Your sign-in isn't linked to a roster person yet, so there's no task list to show. An admin can link it on the Roster screen."
+                  Size: =12
+                  Color: =RGBA(176, 106, 0, 1)
+                  FillPortions: =0
+                  Height: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Visible: =IsBlank(varMe) && !varIsAdmin
+                  Fill: =RGBA(251, 240, 219, 1)
+                  Wrap: =true
+                  PaddingLeft: =12
+                  RadiusTopLeft: =6
+                  RadiusTopRight: =6
+                  RadiusBottomLeft: =6
+                  RadiusBottomRight: =6
+            - mytSections:
+                Control: Gallery@2.15.0
+                Variant: VariableHeight
+                Properties:
+                  TemplatePadding: =0
+                  ShowScrollbar: =true
+                  FillPortions: =1
+                  LayoutMinHeight: =40
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Items: |-
+                    =With(
+                      {
+                        pk: If(varIsAdmin, Coalesce(mytPerson.Selected.PersonKey, varMe.PersonKey), varMe.PersonKey),
+                        tg: mytTag.Selected.V,
+                        td: Today(),
+                        ws: DateAdd(Today(), 1 - Weekday(Today(), StartOfWeek.Monday), TimeUnit.Days)
+                      },
+                      With(
+                        {
+                          wk: Text(Year(DateAdd(td, 4 - Weekday(td, StartOfWeek.Monday), TimeUnit.Days))) & "-W" & Text(ISOWeekNum(td), "00"),
+                          qk: Text(Year(td)) & "-Q" & RoundUp(Month(td) / 3, 0),
+                          mk: Text(td, "yyyy-mm"),
+                          groups: GroupBy(
+                            AddColumns(
+                              Filter(colTasks, AssigneePersonKey = pk || AssigneeType.Value = "Team"),
+                              GKey, SeriesKey & If(AssigneeType.Value = "Team", "::team", "::mine")
+                            ),
+                            GKey, Rows
+                          )
+                        },
+                        With(
+                          {
+                            series: ForAll(groups As g,
+                              With(
+                                {
+                                  occ: Sort(Filter(g.Rows, CadenceType.Value = "One-off date"), CadenceDate),
+                                  rule: First(Sort(Filter(g.Rows, CadenceType.Value <> "One-off date"), If(CadenceType.Value = "Standing duty", 1, 0)))
+                                },
+                                With(
+                                  {
+                                    head: If(IsBlank(rule), First(occ), rule),
+                                    nxt: First(Filter(occ, CadenceDate >= td)),
+                                    up: FirstN(Filter(occ, CadenceDate >= td), 3),
+                                    inM: !IsBlank(LookUp(Split(Coalesce(rule.CadenceMonths, ""), ",") As mh, Trim(mh.Value) = Text(Month(td))))
+                                  },
+                                  With(
+                                    {
+                                      tgt: If(!IsBlank(nxt), nxt, !IsBlank(rule), rule, head),
+                                      ruleBucket: If(IsBlank(rule), Blank(),
+                                        Switch(rule.CadenceType.Value,
+                                          "Weekly", "week", "Monthly", "month", "Quarterly", "month",
+                                          "Specific month", If(inM, "month", Blank()),
+                                          "Month range", If(inM, "month", Blank()),
+                                          Blank()))
+                                    },
+                                    With(
+                                      {
+                                        period: Switch(tgt.CadenceType.Value,
+                                          "One-off date", Text(Coalesce(tgt.CadenceDate, td), "yyyy-mm-dd"),
+                                          "Weekly", wk, "Quarterly", qk,
+                                          "Monthly", mk, "Specific month", mk, "Month range", mk,
+                                          Blank())
+                                      },
+                                      {
+                                        Key: g.GKey,
+                                        IsTeam: head.AssigneeType.Value = "Team",
+                                        Name: head.Title,
+                                        HeadId: head.ID,
+                                        Bucket: If(
+                                          head.CadenceType.Value = "Standing duty" && CountRows(occ) = 0, "standing",
+                                          !IsBlank(nxt), If(
+                                            nxt.CadenceDate = td, "today",
+                                            nxt.CadenceDate >= ws && nxt.CadenceDate <= DateAdd(ws, 6, TimeUnit.Days), "week",
+                                            Year(nxt.CadenceDate) = Year(td) && Month(nxt.CadenceDate) = Month(td), "month",
+                                            "later"),
+                                          !IsBlank(ruleBucket), ruleBucket,
+                                          CountRows(occ) > 0, "overdue",
+                                          "later"),
+                                        Info: Concat(
+                                          Filter(
+                                            Table(
+                                              {T: If(CountRows(up) = 0, "", "Your turn: " & Text(First(up).CadenceDate, "ddd, mmm d") &
+                                                If(CountRows(up) > 1, " · then " & Concat(LastN(up, CountRows(up) - 1), Text(CadenceDate, "mmm d"), ", "), ""))},
+                                              {T: head.Comments},
+                                              {T: head.Scope}
+                                            ),
+                                            !IsBlank(T)
+                                          ),
+                                          T, " · "),
+                                        Cadence: If(CountRows(occ) > 1 && !IsBlank(rule),
+                                          Switch(rule.CadenceType.Value,
+                        "One-off date", If(IsBlank(rule.CadenceDate), "One-off", Text(rule.CadenceDate, "mmm d, yyyy")),
+                        "Specific month", Coalesce(rule.CadenceLabel, If(CountRows(Split(Coalesce(rule.CadenceMonths, ""), ",")) = 1 && !IsBlank(rule.CadenceMonths), Index(nfMonths, Value(rule.CadenceMonths)).Value, "Specific month")),
+                        "Month range", Coalesce(rule.CadenceLabel, "Month range"),
+                        rule.CadenceType.Value) & " · " & CountRows(occ) & "×",
+                                          Switch(head.CadenceType.Value,
+                        "One-off date", If(IsBlank(head.CadenceDate), "One-off", Text(head.CadenceDate, "mmm d, yyyy")),
+                        "Specific month", Coalesce(head.CadenceLabel, If(CountRows(Split(Coalesce(head.CadenceMonths, ""), ",")) = 1 && !IsBlank(head.CadenceMonths), Index(nfMonths, Value(head.CadenceMonths)).Value, "Specific month")),
+                        "Month range", Coalesce(head.CadenceLabel, "Month range"),
+                        head.CadenceType.Value)),
+                                        Completable: !IsBlank(period) && tgt.CadenceType.Value <> "Standing duty",
+                                        DoneTitle: tgt.TaskKey & "_" & period,
+                                        Done: LookUp(colDone, Title = tgt.TaskKey & "_" & period),
+                                        TgtKey: tgt.TaskKey,
+                                        TgtSeries: tgt.SeriesKey,
+                                        TgtName: tgt.Title,
+                                        Period: period,
+                                        Tags: Concat(Distinct(Filter(ForAll(Split(Concat(g.Rows, Tags, ","), ",") As st, Trim(st.Value)), Value <> ""), Value), Value, ", "),
+                                        Editable: varIsAdmin || (head.Origin.Value = "Personal" && Lower(head.OwnerEmail) = Lower(User().Email))
+                                      }
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          },
+                          With(
+                            {vis: Sort(Filter(series, IsBlank(tg) || !IsBlank(LookUp(Split(Coalesce(Tags, ""), ",") As th, Trim(th.Value) = tg))), Name)},
+                            Filter(
+                              Table(
+                                {Label: "DUE TODAY", Hint: "", Rows: Filter(vis, !IsTeam && Bucket = "today")},
+                                {Label: "DUE THIS WEEK", Hint: "", Rows: Filter(vis, !IsTeam && Bucket = "week")},
+                                {Label: "DUE THIS MONTH", Hint: "", Rows: Filter(vis, !IsTeam && Bucket = "month")},
+                                {Label: "PAST DUE", Hint: "", Rows: Filter(vis, !IsTeam && Bucket = "overdue")},
+                                {Label: "LATER THIS YEAR", Hint: "", Rows: Filter(vis, !IsTeam && Bucket = "later")},
+                                {Label: "TEAM TASKS", Hint: "— assigned to everyone, not to you specifically", Rows: Filter(vis, IsTeam)},
+                                {Label: "STANDING DUTIES", Hint: "— ongoing ownership, nothing to check off", Rows: Filter(vis, !IsTeam && Bucket = "standing")}
+                              ),
+                              CountRows(Rows) > 0
+                            )
+                          )
+                        )
+                      )
+                    )
+                  TemplateSize: =40
+                Children:
+                  - mytSecLabel:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =ThisItem.Label & If(ThisItem.Hint = "", "", "   " & ThisItem.Hint)
+                        Size: =11
+                        Color: =RGBA(93, 103, 115, 1)
+                        X: =0
+                        Y: =10
+                        Width: =Parent.TemplateWidth
+                        Height: =22
+                        FontWeight: =FontWeight.Bold
+                  - mytRows:
+                      Control: Gallery@2.15.0
+                      Variant: Vertical
+                      Properties:
+                        TemplatePadding: =0
+                        ShowScrollbar: =false
+                        X: =0
+                        Y: =36
+                        Width: =Parent.TemplateWidth
+                        Height: =CountRows(ThisItem.Rows) * 70
+                        Items: =ThisItem.Rows
+                        TemplateSize: =70
+                      Children:
+                        - mytRowBg:
+                            Control: Rectangle@2.3.0
+                            Properties:
+                              X: =0
+                              Y: =3
+                              Width: =Parent.TemplateWidth
+                              Height: =64
+                              Fill: =If(IsBlank(ThisItem.Done), RGBA(255, 255, 255, 1), RGBA(246, 248, 250, 1))
+                              BorderColor: =RGBA(225, 230, 236, 1)
+                              BorderThickness: =1
+                        - mytTick:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =If(IsBlank(ThisItem.Done), "☐", "☑")
+                              Size: =20
+                              Color: =RGBA(0, 83, 161, 1)
+                              X: =8
+                              Y: =14
+                              Width: =30
+                              Height: =30
+                              Align: =Align.Center
+                              Visible: =ThisItem.Completable
+                              OnSelect: |-
+                                =If(!IsBlank(ThisItem.Done),
+                                  IfError(Remove('TP Task Done', LookUp('TP Task Done', Title = ThisItem.DoneTitle)), true);
+                                  RemoveIf(colDone, Title = ThisItem.DoneTitle),
+                                  Collect(colDone, Patch('TP Task Done', Defaults('TP Task Done'), {
+                                    Title: ThisItem.DoneTitle,
+                                    TaskKey: ThisItem.TgtKey,
+                                    SeriesKey: ThisItem.TgtSeries,
+                                    TaskName: ThisItem.TgtName,
+                                    PeriodKey: ThisItem.Period,
+                                    PersonKey: If(varIsAdmin, Coalesce(mytPerson.Selected.PersonKey, varMe.PersonKey), varMe.PersonKey),
+                                    DoneBy: User().FullName,
+                                    DoneByEmail: Lower(User().Email),
+                                    DoneAt: Text(Now(), DateTimeFormat.UTC)
+                                  }))
+                                )
+                        - mytName:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.Name
+                              Size: =13
+                              Color: =If(IsBlank(ThisItem.Done), RGBA(19, 25, 34, 1), RGBA(124, 135, 148, 1))
+                              X: =44
+                              Y: =7
+                              Width: =Parent.TemplateWidth - 400
+                              Height: =22
+                              FontWeight: =FontWeight.Semibold
+                              Strikethrough: =!IsBlank(ThisItem.Done)
+                        - mytInfo:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.Info
+                              Size: =11
+                              Color: =RGBA(93, 103, 115, 1)
+                              X: =44
+                              Y: =28
+                              Width: =Parent.TemplateWidth - 400
+                              Height: =18
+                        - mytMeta:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: |-
+                                =If(IsBlank(ThisItem.Done), "", "✓ Done · " & ThisItem.Done.DoneBy & IfError(", " & Text(DateValue(Left(ThisItem.Done.DoneAt, 10)), "mmm d"), "") & "    ") &
+                                If(ThisItem.Tags = "", "", "#" & Substitute(ThisItem.Tags, ", ", "  #"))
+                              Size: =11
+                              Color: =If(IsBlank(ThisItem.Done), RGBA(124, 135, 148, 1), RGBA(29, 122, 77, 1))
+                              X: =44
+                              Y: =46
+                              Width: =Parent.TemplateWidth - 400
+                              Height: =18
+                        - mytTeam:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Team"
+                              Size: =10
+                              Color: =RGBA(29, 122, 77, 1)
+                              X: =Parent.TemplateWidth - 344
+                              Y: =24
+                              Width: =56
+                              Height: =22
+                              FontWeight: =FontWeight.Bold
+                              Align: =Align.Center
+                              Fill: =RGBA(231, 244, 236, 1)
+                              BorderColor: =RGBA(143, 201, 163, 1)
+                              BorderThickness: =1
+                              RadiusTopLeft: =10
+                              RadiusTopRight: =10
+                              RadiusBottomLeft: =10
+                              RadiusBottomRight: =10
+                              Visible: =ThisItem.IsTeam
+                        - mytCadence:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.Cadence
+                              Size: =10
+                              Color: =RGBA(66, 75, 86, 1)
+                              X: =Parent.TemplateWidth - 280
+                              Y: =24
+                              Width: =190
+                              Height: =22
+                              FontWeight: =FontWeight.Bold
+                              Align: =Align.Center
+                              Fill: =RGBA(238, 241, 245, 1)
+                              BorderColor: =RGBA(197, 204, 213, 1)
+                              BorderThickness: =1
+                              RadiusTopLeft: =10
+                              RadiusTopRight: =10
+                              RadiusBottomLeft: =10
+                              RadiusBottomRight: =10
+                        - mytEdit:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: =If(ThisItem.Editable, "Edit", "Tags")
+                              OnSelect: =Set(varTask, LookUp(colTasks, ID = ThisItem.HeadId)); Set(varTaskTeam, false); Navigate(scrTaskEdit, ScreenTransition.None)
+                              Size: =13
+                              X: =Parent.TemplateWidth - 82
+                              Y: =19
+                              Width: =74
+                              Height: =32
+                              Appearance: =ButtonAppearance.Subtle
+            - mytEmpty:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: |-
+                    =If(IsBlank(mytTag.Selected.V), "No tasks assigned to " & Coalesce(mytPerson.Selected.Title, varMe.Title, "you") & " yet.", "Nothing tagged #" & mytTag.Selected.V & ".")
+                  Size: =13
+                  Color: =RGBA(124, 135, 148, 1)
+                  FillPortions: =0
+                  Height: =24
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Visible: =!IsBlank(varMe) && CountRows(mytSections.AllItems) = 0

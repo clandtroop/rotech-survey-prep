@@ -1,0 +1,473 @@
+- rosRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - rosHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - rosAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - rosNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rosNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rosNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rosNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rosNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rosNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rosNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rosNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rosNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+                  Visible: =varIsAdmin
+            - rosHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - rosWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - rosBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Vertical
+            DropShadow: =DropShadow.None
+            LayoutGap: =14
+            FillPortions: =1
+            LayoutMinHeight: =200
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+            PaddingBottom: =16
+            PaddingTop: =16
+          Children:
+            - rosIntro:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Link each specialist to the Microsoft account they sign in with, and set who approves their PTO. Admin here must match the site's Owners group."
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Height: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Wrap: =true
+            - rosNotAdmin:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Only planner admins can edit the roster."
+                  Size: =13
+                  Color: =RGBA(176, 106, 0, 1)
+                  FillPortions: =0
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Visible: =!varIsAdmin
+            - rosList:
+                Control: Gallery@2.15.0
+                Variant: Vertical
+                Properties:
+                  TemplatePadding: =0
+                  ShowScrollbar: =true
+                  FillPortions: =1
+                  LayoutMinHeight: =40
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Items: =colPeople
+                  TemplateSize: =76
+                  Visible: =varIsAdmin && IsBlank(locRemove)
+                Children:
+                  - rosBg:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        X: =0
+                        Y: =3
+                        Width: =Parent.TemplateWidth
+                        Height: =70
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                  - rosName:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =ThisItem.Title
+                        Size: =13
+                        Color: =If(ThisItem.Active, RGBA(19, 25, 34, 1), RGBA(124, 135, 148, 1))
+                        X: =12
+                        Y: =12
+                        Width: =200
+                        Height: =22
+                        FontWeight: =FontWeight.Bold
+                  - rosKey:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =ThisItem.PersonKey & If(ThisItem.Active, "", " · inactive") & If(ThisItem.Admin, " · admin", "")
+                        Size: =11
+                        Color: =RGBA(124, 135, 148, 1)
+                        X: =12
+                        Y: =36
+                        Width: =200
+                        Height: =20
+                  - rosPersonLbl:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="SIGNS IN AS"
+                        Size: =11
+                        Color: =RGBA(93, 103, 115, 1)
+                        FontWeight: =FontWeight.Semibold
+                        X: =224
+                        Y: =8
+                        Width: =250
+                        Height: =16
+                  - rosPersonEmail:
+                      Control: ModernTextInput@1.0.0
+                      Properties:
+                        Appearance: =Appearance.Outline
+                        TriggerOutput: =TriggerOutput.Keypress
+                        X: =224
+                        Y: =26
+                        Width: =250
+                        Height: =34
+                        Default: =ThisItem.Person.Email
+                        Placeholder: ="name@rotech.com"
+                  - rosApproverLbl:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="PTO APPROVER"
+                        Size: =11
+                        Color: =RGBA(93, 103, 115, 1)
+                        FontWeight: =FontWeight.Semibold
+                        X: =486
+                        Y: =8
+                        Width: =250
+                        Height: =16
+                  - rosApproverEmail:
+                      Control: ModernTextInput@1.0.0
+                      Properties:
+                        Appearance: =Appearance.Outline
+                        TriggerOutput: =TriggerOutput.Keypress
+                        X: =486
+                        Y: =26
+                        Width: =250
+                        Height: =34
+                        Default: =ThisItem.Approver.Email
+                        Placeholder: ="manager@rotech.com"
+                  - rosSave:
+                      Control: ModernButton@1.0.0
+                      Properties:
+                        Text: ="Save"
+                        OnSelect: |-
+                          =With({pe: Lower(Trim(rosPersonEmail.Text)), ae: Lower(Trim(rosApproverEmail.Text))},
+                            IfError(
+                              Patch('TP People', LookUp('TP People', ID = ThisItem.ID), {
+                                Person: If(pe = "", Blank(), {Claims: "i:0#.f|membership|" & pe, Department: "", DisplayName: Office365Users.UserProfileV2(pe).displayName, Email: pe, JobTitle: "", Picture: ""}),
+                                Approver: If(ae = "", Blank(), {Claims: "i:0#.f|membership|" & ae, Department: "", DisplayName: Office365Users.UserProfileV2(ae).displayName, Email: ae, JobTitle: "", Picture: ""})
+                              });
+                              ClearCollect(colPeople, Sort('TP People', SortOrder));
+                              Notify(ThisItem.Title & " saved.", NotificationType.Success),
+                              Notify("Couldn't save — check both addresses are Rotech accounts. " & FirstError.Message, NotificationType.Error)
+                            )
+                          )
+                        Size: =13
+                        X: =748
+                        Y: =26
+                        Width: =76
+                        Height: =34
+                        Appearance: =ButtonAppearance.Outline
+                  - rosAdmin:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If(ThisItem.Admin, "☑", "☐") & " Admin"
+                        Size: =14
+                        Color: =RGBA(19, 25, 34, 1)
+                        X: =842
+                        Y: =28
+                        Width: =100
+                        Height: =30
+                        OnSelect: |-
+                          =If(ThisItem.Admin && Lower(ThisItem.Person.Email) = Lower(User().Email), Notify("You can't remove your own admin rights here — ask the other admin.", NotificationType.Warning),
+                          Patch('TP People', LookUp('TP People', ID = ThisItem.ID), {Admin: !ThisItem.Admin});
+                          ClearCollect(colPeople, Sort('TP People', SortOrder)))
+                  - rosActive:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If(ThisItem.Active, "☑", "☐") & " Active"
+                        Size: =14
+                        Color: =RGBA(19, 25, 34, 1)
+                        X: =946
+                        Y: =28
+                        Width: =100
+                        Height: =30
+                        OnSelect: |-
+                          =Patch('TP People', LookUp('TP People', ID = ThisItem.ID), {Active: !ThisItem.Active});
+                          ClearCollect(colPeople, Sort('TP People', SortOrder))
+                  - rosRemove:
+                      Control: ModernButton@1.0.0
+                      Properties:
+                        Text: ="Remove…"
+                        OnSelect: |-
+                          =UpdateContext({locRemove: ThisItem}); Reset(rosTyped)
+                        Size: =13
+                        X: =Parent.TemplateWidth - 120
+                        Y: =26
+                        Width: =108
+                        Height: =34
+                        Appearance: =ButtonAppearance.Subtle
+                        BasePaletteColor: =RGBA(192, 57, 43, 1)
+            - rosHelp:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: |-
+                    ="Deactivate is the one to use when someone leaves: they drop out of the Today counts, the print grids and the pickers, but their history stays. Deactivating doesn't revoke their Microsoft sign-in. To add someone new, add a row to the TP People list in SharePoint."
+                  Size: =11
+                  Color: =RGBA(124, 135, 148, 1)
+                  FillPortions: =0
+                  Height: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Wrap: =true
+                  Visible: =varIsAdmin && IsBlank(locRemove)
+            - rosRemoveCard:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.None
+                  LayoutGap: =10
+                  Fill: =RGBA(255, 255, 255, 1)
+                  BorderColor: =RGBA(225, 230, 236, 1)
+                  BorderThickness: =1
+                  RadiusTopLeft: =12
+                  RadiusTopRight: =12
+                  RadiusBottomLeft: =12
+                  RadiusBottomRight: =12
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =18
+                  PaddingRight: =18
+                  FillPortions: =0
+                  Height: =330
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Visible: =!IsBlank(locRemove)
+                Children:
+                  - rosRemoveTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Remove " & locRemove.Title
+                        Size: =20
+                        Color: =RGBA(192, 57, 43, 1)
+                        FillPortions: =0
+                        Height: =30
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Bold
+                  - rosRemoveWhat:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="This permanently deletes every calendar entry " & locRemove.Title & " has, across all years, plus their birthday and work anniversary and their roster row. Their history disappears from the team calendar and every past print summary. Deleted entries stay in the site recycle bin for 93 days. Deactivating instead hides them and keeps all of it."
+                        Size: =13
+                        Color: =RGBA(66, 75, 86, 1)
+                        FillPortions: =0
+                        Height: =96
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Wrap: =true
+                        Fill: =RGBA(251, 234, 231, 1)
+                        PaddingLeft: =12
+                        PaddingRight: =12
+                        RadiusTopLeft: =8
+                        RadiusTopRight: =8
+                        RadiusBottomLeft: =8
+                        RadiusBottomRight: =8
+                  - rosTypedLbl:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="TYPE THEIR NAME TO CONFIRM"
+                        Size: =11
+                        Color: =RGBA(93, 103, 115, 1)
+                        FontWeight: =FontWeight.Semibold
+                        FillPortions: =0
+                        Height: =18
+                        AlignInContainer: =AlignInContainer.Stretch
+                  - rosTyped:
+                      Control: ModernTextInput@1.0.0
+                      Properties:
+                        Appearance: =Appearance.Outline
+                        TriggerOutput: =TriggerOutput.Keypress
+                        FillPortions: =0
+                        Height: =36
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Placeholder: =locRemove.Title
+                  - rosRemoveFooter:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        DropShadow: =DropShadow.None
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutGap: =8
+                        FillPortions: =0
+                        Height: =44
+                        AlignInContainer: =AlignInContainer.Stretch
+                        LayoutJustifyContent: =LayoutJustifyContent.End
+                      Children:
+                        - rosRemoveCancel:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Cancel"
+                              OnSelect: |-
+                                =UpdateContext({locRemove: Blank()})
+                              Size: =13
+                              FillPortions: =0
+                              Width: =90
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                        - rosRemoveGo:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Delete " & locRemove.Title
+                              OnSelect: |-
+                                =Remove('TP Entries', Filter('TP Entries', PersonKey = locRemove.PersonKey));
+                                Remove('TP Milestones', Filter('TP Milestones', PersonKey = locRemove.PersonKey));
+                                Remove('TP People', LookUp('TP People', ID = locRemove.ID));
+                                ClearCollect(colPeople, Sort('TP People', SortOrder));
+                                Notify("Removed " & locRemove.Title & ". Their entries are in the site recycle bin for 93 days.", NotificationType.Success);
+                                UpdateContext({locRemove: Blank()})
+                              Size: =13
+                              FillPortions: =0
+                              Width: =220
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              BasePaletteColor: =RGBA(192, 57, 43, 1)
+                              DisplayMode: =If(Lower(Trim(rosTyped.Text)) = Lower(Trim(locRemove.Title)), DisplayMode.Edit, DisplayMode.Disabled)

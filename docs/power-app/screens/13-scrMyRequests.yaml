@@ -1,0 +1,338 @@
+- mrqRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - mrqHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - mrqAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - mrqNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mrqNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mrqNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mrqNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mrqNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mrqNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mrqNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - mrqNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - mrqNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - mrqHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - mrqWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - mrqToolbar:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =8
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - mrqTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =If(varIsAdmin && locAll, "Everyone's PTO requests", "My PTO requests")
+                  Size: =16
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =0
+                  Width: =300
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - mrqAll:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =If(locAll, "☑", "☐") & " Everyone's requests"
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Visible: =varIsAdmin
+                  OnSelect: |-
+                    =UpdateContext({locAll: !locAll})
+            - mrqToolSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - mrqNew:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Request PTO"
+                  OnSelect: =Navigate(scrRequestPTO, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =130
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Icon: ="Add"
+                  Visible: =!IsBlank(varMe)
+      - mrqBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Vertical
+            DropShadow: =DropShadow.None
+            LayoutGap: =14
+            FillPortions: =1
+            LayoutMinHeight: =200
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+            PaddingBottom: =16
+          Children:
+            - mrqList:
+                Control: Gallery@2.15.0
+                Variant: VariableHeight
+                Properties:
+                  TemplatePadding: =0
+                  ShowScrollbar: =true
+                  FillPortions: =1
+                  LayoutMinHeight: =40
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Items: =SortByColumns(If(varIsAdmin && locAll, 'TP PTO Requests', Filter('TP PTO Requests', PersonKey = varMe.PersonKey)), StartNum, SortOrder.Descending)
+                  TemplateSize: =96
+                Children:
+                  - mrqBg:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        X: =0
+                        Y: =3
+                        Width: =Parent.TemplateWidth
+                        Height: =Parent.TemplateHeight - 6
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                  - mrqHead:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If(varIsAdmin && locAll, ThisItem.Requester.DisplayName & " · ", "") & ThisItem.LeaveType.Value & " · " & If(IsBlank(ThisItem.EndDate) || ThisItem.EndDate = ThisItem.StartDate, Text(ThisItem.StartDate, "mmm d"), Month(ThisItem.StartDate) = Month(ThisItem.EndDate) && Year(ThisItem.StartDate) = Year(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Day(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Text(ThisItem.EndDate, "mmm d"))
+                        Size: =14
+                        Color: =RGBA(19, 25, 34, 1)
+                        X: =14
+                        Y: =10
+                        Width: =Parent.TemplateWidth - 330
+                        Height: =22
+                        FontWeight: =FontWeight.Bold
+                  - mrqSub:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If(ThisItem.DayPart.Value = "Full day", ThisItem.Weekdays & " weekday(s)", "Half day (" & ThisItem.DayPart.Value & ")") & " · requested " & Text(ThisItem.Created, "mmm d") & " · approver " & Coalesce(ThisItem.Approver.DisplayName, "—")
+                        Size: =12
+                        Color: =RGBA(93, 103, 115, 1)
+                        X: =14
+                        Y: =34
+                        Width: =Parent.TemplateWidth - 330
+                        Height: =20
+                  - mrqDecision:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: |-
+                          =Concat(Filter(Table(
+                            {T: ThisItem.Notes},
+                            {T: If(IsBlank(ThisItem.ApproverComments), "", "Approver: “" & ThisItem.ApproverComments & "”")},
+                            {T: If(IsBlank(ThisItem.DecidedAt), "", "Decided " & Text(ThisItem.DecidedAt, "mmm d"))},
+                            {T: ThisItem.ReplacedSummary}), !IsBlank(T)), T, " · ")
+                        Size: =12
+                        Color: =RGBA(93, 103, 115, 1)
+                        X: =14
+                        Y: =56
+                        Width: =Parent.TemplateWidth - 330
+                        Height: =20
+                        Wrap: =true
+                        AutoHeight: =true
+                  - mrqStatus:
+                      Control: ModernBadge@1.0.0
+                      Properties:
+                        X: =Parent.TemplateWidth - 300
+                        Y: =12
+                        Width: =110
+                        Height: =28
+                        Content: =ThisItem.Status.Value
+                        Intent: =Switch(ThisItem.Status.Value, "Approved", BadgeIntent.Positive, "Pending", BadgeIntent.Caution, "Rejected", BadgeIntent.Critical, BadgeIntent.Neutral)
+                        Appearance: =BadgeAppearance.Tint
+                        Shape: =BadgeShape.Circular
+                  - mrqCancel:
+                      Control: ModernButton@1.0.0
+                      Properties:
+                        Text: =If(ThisItem.Status.Value = "Pending", "Withdraw", "Cancel PTO")
+                        OnSelect: |-
+                          =If(Confirm(If(ThisItem.Status.Value = "Pending", "Withdraw this request?", "Cancel this approved PTO? It comes off the planner and the Outlook calendar, and the approver is told.")),
+                            Set(varPtoCancel, TPCancelPTORequest.Run(ThisItem.ID));
+                            If(varPtoCancel.ok = "yes",
+                              Notify(If(ThisItem.Status.Value = "Pending", "Request withdrawn.", "PTO cancelled."), NotificationType.Success),
+                              Notify(Coalesce(varPtoCancel.message, "That didn't work."), NotificationType.Error));
+                            Refresh('TP PTO Requests')
+                          )
+                        Size: =13
+                        X: =Parent.TemplateWidth - 170
+                        Y: =10
+                        Width: =150
+                        Height: =34
+                        Appearance: =ButtonAppearance.Outline
+                        Visible: =(ThisItem.Status.Value = "Pending" || ThisItem.Status.Value = "Approved") && (ThisItem.PersonKey = varMe.PersonKey || varIsAdmin)
+            - mrqEmpty:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="No PTO requests yet."
+                  Size: =13
+                  Color: =RGBA(124, 135, 148, 1)
+                  FillPortions: =0
+                  Height: =24
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Visible: =CountRows(mrqList.AllItems) = 0

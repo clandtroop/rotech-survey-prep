@@ -1,0 +1,36 @@
+// Team Planner — paste into the App object's Formulas property.
+// Shared lookup tables. Mirrors src/teamPlannerData.js; keep the two in step.
+
+// Status vocabulary — STATUSES in src/teamPlannerData.js, with the colours the React app uses. Out = counts as out of office on Today.
+nfStatus = Table(
+    {Label: "Home Office", Short: "HOME", Out: false, Bg: RGBA(238, 241, 245, 1), Fg: RGBA(66, 75, 86, 1), Bd: RGBA(197, 204, 213, 1), BgHex: "#eef1f5", FgHex: "#424b56"},
+    {Label: "Site Visit", Short: "VISIT", Out: true, Bg: RGBA(238, 244, 251, 1), Fg: RGBA(0, 83, 161, 1), Bd: RGBA(184, 211, 238, 1), BgHex: "#eef4fb", FgHex: "#0053a1"},
+    {Label: "Travel", Short: "TRVL", Out: true, Bg: RGBA(230, 246, 250, 1), Fg: RGBA(0, 118, 143, 1), Bd: RGBA(165, 223, 235, 1), BgHex: "#e6f6fa", FgHex: "#00768f"},
+    {Label: "PTO", Short: "PTO", Out: true, Bg: RGBA(231, 244, 236, 1), Fg: RGBA(29, 122, 77, 1), Bd: RGBA(143, 201, 163, 1), BgHex: "#e7f4ec", FgHex: "#1d7a4d"},
+    {Label: "Flex Holiday", Short: "FH", Out: true, Bg: RGBA(231, 244, 236, 1), Fg: RGBA(29, 122, 77, 1), Bd: RGBA(143, 201, 163, 1), BgHex: "#e7f4ec", FgHex: "#1d7a4d"},
+    {Label: "Limited Availability", Short: "LTD", Out: false, Bg: RGBA(251, 240, 219, 1), Fg: RGBA(176, 106, 0, 1), Bd: RGBA(227, 200, 148, 1), BgHex: "#fbf0db", FgHex: "#b06a00"},
+    {Label: "Meeting", Short: "MTG", Out: true, Bg: RGBA(240, 236, 250, 1), Fg: RGBA(91, 75, 158, 1), Bd: RGBA(207, 196, 234, 1), BgHex: "#f0ecfa", FgHex: "#5b4b9e"},
+    {Label: "Company Holiday", Short: "HOL", Out: true, Bg: RGBA(251, 234, 231, 1), Fg: RGBA(192, 57, 43, 1), Bd: RGBA(224, 160, 153, 1), BgHex: "#fbeae7", FgHex: "#c0392b"},
+    {Label: "Other", Short: "—", Out: false, Bg: RGBA(255, 255, 255, 1), Fg: RGBA(93, 103, 115, 1), Bd: RGBA(197, 204, 213, 1), BgHex: "#ffffff", FgHex: "#5d6773"}
+);
+
+// Cadence vocabulary in picker order. Rank is CADENCE_ORDER: most time-critical first.
+nfCadences = Table(
+    {Label: "Weekly", Rank: 1},
+    {Label: "Monthly", Rank: 2},
+    {Label: "Quarterly", Rank: 3},
+    {Label: "Specific month", Rank: 4},
+    {Label: "Month range", Rank: 5},
+    {Label: "One-off date", Rank: 0},
+    {Label: "Standing duty", Rank: 6}
+);
+
+nfMonths = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+nfLeaveTypes = ["PTO", "Flex Holiday"];
+
+nfDayParts = ["Full day", "AM", "PM"];
+
+nfVisitModes = ["Onsite", "Virtual"];
+
+nfConfirmations = ["Scheduled", "Confirmed", "Needs reschedule"];

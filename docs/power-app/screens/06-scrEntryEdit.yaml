@@ -1,0 +1,1603 @@
+- eedRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - eedHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - eedAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - eedNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - eedNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - eedNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - eedNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - eedNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - eedNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - eedNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - eedNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - eedNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - eedHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - eedWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - eedBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutGap: =8
+            FillPortions: =1
+            LayoutMinHeight: =300
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingTop: =16
+            PaddingBottom: =16
+            LayoutJustifyContent: =LayoutJustifyContent.Center
+          Children:
+            - eedCard:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.None
+                  LayoutGap: =10
+                  Fill: =RGBA(255, 255, 255, 1)
+                  BorderColor: =RGBA(225, 230, 236, 1)
+                  BorderThickness: =1
+                  RadiusTopLeft: =12
+                  RadiusTopRight: =12
+                  RadiusBottomLeft: =12
+                  RadiusBottomRight: =12
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =18
+                  PaddingRight: =18
+                  FillPortions: =0
+                  Width: =860
+                  LayoutMinHeight: =300
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - eedTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If(IsBlank(varEntry), "New entry", "Edit entry")
+                        Size: =20
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =30
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Bold
+                  - eedLocked:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="This PTO came from an approved request, so its dates and status are locked. To change them, cancel the request under My PTO and request again."
+                        Size: =12
+                        Color: =RGBA(176, 106, 0, 1)
+                        FillPortions: =0
+                        Height: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Visible: =(!IsBlank(varEntry.RequestId) && !varIsAdmin)
+                        Fill: =RGBA(251, 240, 219, 1)
+                        Wrap: =true
+                        PaddingLeft: =10
+                        PaddingRight: =10
+                        RadiusTopLeft: =6
+                        RadiusTopRight: =6
+                        RadiusBottomLeft: =6
+                        RadiusBottomRight: =6
+                  - eedForm:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =6
+                        FillPortions: =1
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                        LayoutOverflowY: =LayoutOverflow.Scroll
+                        PaddingRight: =8
+                      Children:
+                        - eedRow1:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - eedPersonField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedPersonLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Person"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedPerson:
+                                        Control: ModernDropdown@1.0.0
+                                        Properties:
+                                          Items: =Filter(colPeople, Active = true)
+                                          ItemDisplayText: =ThisItem.Title
+                                          Appearance: =Appearance.Outline
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Default: =LookUp(colPeople, PersonKey = Coalesce(varEntry.PersonKey, varMe.PersonKey))
+                                          Visible: =varIsAdmin
+                                          DisplayMode: =If((!IsBlank(varEntry.RequestId) && !varIsAdmin), DisplayMode.View, DisplayMode.Edit)
+                                          AccessibleLabel: ="Person"
+                                    - eedPersonRO:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Default: =Coalesce(varEntry.PersonName, varMe.Title)
+                                          DisplayMode: =DisplayMode.View
+                                          Visible: =!varIsAdmin
+                        - eedRow2:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - eedStartField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedStartFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Start date"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedStart:
+                                        Control: ModernDatePicker@1.0.0
+                                        Properties:
+                                          StartOfWeek: =StartOfWeek.Monday
+                                          Format: =DatePickerFormat.LongAbbreviated
+                                          Appearance: =Appearance.Outline
+                                          DefaultDate: =If(IsBlank(varEntry), varNewDate, varEntry.StartDate)
+                                          DisplayMode: =If((!IsBlank(varEntry.RequestId) && !varIsAdmin), DisplayMode.View, DisplayMode.Edit)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                              - eedEndField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedEndFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="End date — same as start for one day"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedEnd:
+                                        Control: ModernDatePicker@1.0.0
+                                        Properties:
+                                          StartOfWeek: =StartOfWeek.Monday
+                                          Format: =DatePickerFormat.LongAbbreviated
+                                          Appearance: =Appearance.Outline
+                                          DefaultDate: =If(IsBlank(varEntry), varNewDate, Coalesce(varEntry.EndDate, varEntry.StartDate))
+                                          StartDate: =eedStart.SelectedDate
+                                          DisplayMode: =If((!IsBlank(varEntry.RequestId) && !varIsAdmin), DisplayMode.View, DisplayMode.Edit)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                              - eedPartField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedPartFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Day part — single days only"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedPart:
+                                        Control: ModernDropdown@1.0.0
+                                        Properties:
+                                          Items: =nfDayParts
+                                          ItemDisplayText: =ThisItem.Value
+                                          Appearance: =Appearance.Outline
+                                          Default: |-
+                                            ={Value: Coalesce(varEntry.DayPart.Value, "Full day")}
+                                          DisplayMode: =If((!IsBlank(varEntry.RequestId) && !varIsAdmin) || eedStart.SelectedDate <> Coalesce(eedEnd.SelectedDate, eedStart.SelectedDate), DisplayMode.View, DisplayMode.Edit)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - eedRow3:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - eedStatusField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedStatusFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Status"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedStatus:
+                                        Control: ModernDropdown@1.0.0
+                                        Properties:
+                                          Items: =nfStatus
+                                          ItemDisplayText: =ThisItem.Label
+                                          Appearance: =Appearance.Outline
+                                          Default: =LookUp(nfStatus, Label = Coalesce(varEntry.Status.Value, "Home Office"))
+                                          DisplayMode: =If((!IsBlank(varEntry.RequestId) && !varIsAdmin), DisplayMode.View, DisplayMode.Edit)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - eedVisitRow1:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =eedStatus.Selected.Label = "Site Visit"
+                            Children:
+                              - eedLocationField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedLocationFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Location"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedLocation:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          Default: =varEntry.VisitLocation
+                                          Placeholder: ="Little Rock, AR"
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                              - eedPurposeField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedPurposeFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Purpose"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedPurpose:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          Default: =varEntry.VisitPurpose
+                                          Placeholder: ="Site visit / transfill"
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - eedVisitRow2:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =eedStatus.Selected.Label = "Site Visit"
+                            Children:
+                              - eedModeField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedModeFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Mode — groups the leadership email"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedMode:
+                                        Control: ModernDropdown@1.0.0
+                                        Properties:
+                                          Items: =nfVisitModes
+                                          ItemDisplayText: =ThisItem.Value
+                                          Appearance: =Appearance.Outline
+                                          Default: |-
+                                            ={Value: Coalesce(varEntry.VisitMode.Value, "Onsite")}
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                              - eedConfirmField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedConfirmFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Confirmation"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedConfirm:
+                                        Control: ModernDropdown@1.0.0
+                                        Properties:
+                                          Items: =nfConfirmations
+                                          ItemDisplayText: =ThisItem.Value
+                                          Appearance: =Appearance.Outline
+                                          Default: |-
+                                            ={Value: Coalesce(varEntry.VisitConfirmation.Value, "Scheduled")}
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                              - eedTimeField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - eedTimeFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Time (optional)"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - eedTime:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          Default: =varEntry.VisitTime
+                                          Placeholder: |-
+                                            ="10:00 AM CT"
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - eedNotesField:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Vertical
+                              DropShadow: =DropShadow.None
+                              LayoutGap: =4
+                              FillPortions: =0
+                              Height: =112
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - eedNotesLbl:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="Notes — shows on the calendar as a dot"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =18
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - eedNotes:
+                                  Control: ModernTextInput@1.0.0
+                                  Properties:
+                                    Appearance: =Appearance.Outline
+                                    TriggerOutput: =TriggerOutput.Keypress
+                                    FillPortions: =0
+                                    Height: =86
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Default: =varEntry.Notes
+                                    Type: =TextInputType.Multiline
+                                    Placeholder: ="Travelling with Aundrea…"
+                        - eedTravelToggle:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: =If(eedStatus.Selected.Label = "Site Visit" && If(locShowTravel, IsBlank(varEntry.TravelJson), !IsBlank(varEntry.TravelJson)), "▾", "▸") & " Hotel & flight details — never shown on the calendar"
+                              OnSelect: |-
+                                =UpdateContext({locShowTravel: !locShowTravel})
+                              Size: =13
+                              FillPortions: =0
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Appearance: =ButtonAppearance.Subtle
+                              Align: =Align.Left
+                              Visible: =eedStatus.Selected.Label = "Site Visit"
+                        - eedTravel:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Vertical
+                              DropShadow: =DropShadow.None
+                              LayoutGap: =4
+                              FillPortions: =0
+                              Height: =820
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =eedStatus.Selected.Label = "Site Visit" && If(locShowTravel, IsBlank(varEntry.TravelJson), !IsBlank(varEntry.TravelJson))
+                              Fill: =RGBA(246, 248, 250, 1)
+                              BorderColor: =RGBA(225, 230, 236, 1)
+                              BorderThickness: =1
+                              RadiusTopLeft: =8
+                              RadiusTopRight: =8
+                              RadiusBottomLeft: =8
+                              RadiusBottomRight: =8
+                              PaddingTop: =12
+                              PaddingLeft: =14
+                              PaddingRight: =14
+                              PaddingBottom: =12
+                            Children:
+                              - eedHotelHead:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="HOTEL"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =20
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow1:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedHotelNameField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedHotelNameFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Hotel name"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedHotelName:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).hotel.name), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                    - eedHotelConfField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedHotelConfFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: |-
+                                                  ="Confirmation #"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedHotelConf:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).hotel.confirmation), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow2:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedHotelInField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedHotelInFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Check-in"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedHotelIn:
+                                              Control: ModernDatePicker@1.0.0
+                                              Properties:
+                                                StartOfWeek: =StartOfWeek.Monday
+                                                Format: =DatePickerFormat.LongAbbreviated
+                                                Appearance: =Appearance.Outline
+                                                DefaultDate: =IfError(DateValue(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).hotel.checkIn)), Blank())
+                                                Placeholder: ="Select a date"
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                    - eedHotelOutField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedHotelOutFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Check-out"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedHotelOut:
+                                              Control: ModernDatePicker@1.0.0
+                                              Properties:
+                                                StartOfWeek: =StartOfWeek.Monday
+                                                Format: =DatePickerFormat.LongAbbreviated
+                                                Appearance: =Appearance.Outline
+                                                DefaultDate: =IfError(DateValue(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).hotel.checkOut)), Blank())
+                                                Placeholder: ="Select a date"
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow3:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedHotelPhoneField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedHotelPhoneFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Phone"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedHotelPhone:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).hotel.phone), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                    - eedHotelNotesField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedHotelNotesFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Hotel notes"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedHotelNotes:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).hotel.notes), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                              - eedOutHead:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="FLIGHT — OUTBOUND"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =20
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow4:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedOutAirlineField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedOutAirlineFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Airline"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedOutAirline:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.airline), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                    - eedOutConfField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedOutConfFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: |-
+                                                  ="Confirmation #"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedOutConf:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.confirmation), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow5:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedOutFromField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedOutFromFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Departs from"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedOutFrom:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.departAirport), "")
+                                                Placeholder: ="DFW"
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                    - eedOutDepField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedOutDepFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Departure time"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedOutDep:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.departTime), "")
+                                                Placeholder: |-
+                                                  ="Mon 6:15a"
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow6:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedOutToField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedOutToFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Arrives at"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedOutTo:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.arriveAirport), "")
+                                                Placeholder: ="LIT"
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                    - eedOutArrField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedOutArrFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Arrival time"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedOutArr:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.arriveTime), "")
+                                                Placeholder: |-
+                                                  ="Mon 8:40a"
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                              - eedRetHead:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="FLIGHT — RETURN"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =20
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow7:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedRetAirlineField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedRetAirlineFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Airline"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedRetAirline:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.returnFlight.airline), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                    - eedRetConfField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedRetConfFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: |-
+                                                  ="Confirmation #"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedRetConf:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.returnFlight.confirmation), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow8:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedRetFromField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedRetFromFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Departs from"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedRetFrom:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.returnFlight.departAirport), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                    - eedRetDepField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedRetDepFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Departure time"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedRetDep:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.returnFlight.departTime), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow9:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedRetToField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedRetToFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Arrives at"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedRetTo:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.returnFlight.arriveAirport), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                    - eedRetArrField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedRetArrFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Arrival time"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedRetArr:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.returnFlight.arriveTime), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                              - eedTRow10:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Horizontal
+                                    DropShadow: =DropShadow.None
+                                    LayoutAlignItems: =LayoutAlignItems.Start
+                                    LayoutGap: =12
+                                    FillPortions: =0
+                                    Height: =64
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                  Children:
+                                    - eedFlightNotesField:
+                                        Control: GroupContainer@1.5.0
+                                        Variant: AutoLayout
+                                        Properties:
+                                          LayoutDirection: =LayoutDirection.Vertical
+                                          DropShadow: =DropShadow.None
+                                          LayoutGap: =4
+                                          FillPortions: =1
+                                          LayoutMinHeight: =60
+                                          LayoutMinWidth: =40
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                          Height: =62
+                                        Children:
+                                          - eedFlightNotesFieldLbl:
+                                              Control: ModernText@1.0.0
+                                              Properties:
+                                                Text: ="Flight notes"
+                                                Size: =11
+                                                Color: =RGBA(93, 103, 115, 1)
+                                                FontWeight: =FontWeight.Semibold
+                                                FillPortions: =0
+                                                Height: =18
+                                                AlignInContainer: =AlignInContainer.Stretch
+                                          - eedFlightNotes:
+                                              Control: ModernTextInput@1.0.0
+                                              Properties:
+                                                Appearance: =Appearance.Outline
+                                                TriggerOutput: =TriggerOutput.Keypress
+                                                Default: =IfError(Text(ParseJSON(Coalesce(varEntry.TravelJson, "{}")).flight.notes), "")
+                                                FillPortions: =0
+                                                Height: =36
+                                                AlignInContainer: =AlignInContainer.Stretch
+                  - eedFooter:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        DropShadow: =DropShadow.None
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutGap: =8
+                        FillPortions: =0
+                        Height: =44
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - eedDelete:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Delete"
+                              OnSelect: |-
+                                =If(Confirm("Delete " & varEntry.PersonName & "'s entry for " & If(IsBlank(varEntry.EndDate) || varEntry.EndDate = varEntry.StartDate, Text(varEntry.StartDate, "mmm d"), Month(varEntry.StartDate) = Month(varEntry.EndDate) && Year(varEntry.StartDate) = Year(varEntry.EndDate), Text(varEntry.StartDate, "mmm d") & " – " & Day(varEntry.EndDate), Text(varEntry.StartDate, "mmm d") & " – " & Text(varEntry.EndDate, "mmm d")) & "?"),
+                                  Remove('TP Entries', varEntry);
+                                  Set(varEntry, Blank());
+                                  Navigate(scrWhereabouts, ScreenTransition.None)
+                                )
+                              Size: =13
+                              FillPortions: =0
+                              Width: =96
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                              Icon: ="Delete"
+                              BasePaletteColor: =RGBA(192, 57, 43, 1)
+                              Visible: =!IsBlank(varEntry) && (varIsAdmin || (!IsBlank(varMe) && varEntry.PersonKey = varMe.PersonKey))
+                        - eedFootSpacer:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =""
+                              Size: =13
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =1
+                              LayoutMinWidth: =1
+                              Height: =10
+                              AlignInContainer: =AlignInContainer.Center
+                        - eedCancel:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Cancel"
+                              OnSelect: =Back()
+                              Size: =13
+                              FillPortions: =0
+                              Width: =90
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                        - eedSave:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Save entry"
+                              OnSelect: |-
+                                =With(
+                                  {
+                                    sd: eedStart.SelectedDate,
+                                    ed: Coalesce(eedEnd.SelectedDate, eedStart.SelectedDate),
+                                    who: If(varIsAdmin, eedPerson.Selected, LookUp(colPeople, PersonKey = Coalesce(varEntry.PersonKey, varMe.PersonKey))),
+                                    st: eedStatus.Selected.Label
+                                  },
+                                  If(
+                                    IsBlank(sd) || IsBlank(who), Notify("Pick a person and a start date.", NotificationType.Error),
+                                    ed < sd, Notify("End date can't be before the start date.", NotificationType.Error),
+                                    IfError(
+                                      Set(varEntry, Patch('TP Entries', If(IsBlank(varEntry), Defaults('TP Entries'), varEntry), {
+                                        Title: who.Title & " · " & st & If(st = "Site Visit" && !IsBlank(eedLocation.Text), " · " & eedLocation.Text, ""),
+                                        PersonKey: who.PersonKey,
+                                        PersonName: who.Title,
+                                        OwnerEmail: Lower(who.Person.Email),
+                                        StartDate: sd,
+                                        EndDate: ed,
+                                        StartNum: Value(Text(sd, "yyyymmdd")),
+                                        EndNum: Value(Text(ed, "yyyymmdd")),
+                                        DayPart: {Value: If(sd = ed, eedPart.Selected.Value, "Full day")},
+                                        Status: {Value: st},
+                                        Notes: eedNotes.Text,
+                                        VisitLocation: eedLocation.Text,
+                                        VisitPurpose: eedPurpose.Text,
+                                        VisitTime: eedTime.Text,
+                                        VisitMode: If(st = "Site Visit", {Value: eedMode.Selected.Value}, Blank()),
+                                        VisitConfirmation: If(st = "Site Visit", {Value: eedConfirm.Selected.Value}, Blank()),
+                                        TravelJson: With(
+                                    {tr: {
+                                      hotel: {name: eedHotelName.Text, confirmation: eedHotelConf.Text, checkIn: If(IsBlank(eedHotelIn.SelectedDate), "", Text(eedHotelIn.SelectedDate, "yyyy-mm-dd")), checkOut: If(IsBlank(eedHotelOut.SelectedDate), "", Text(eedHotelOut.SelectedDate, "yyyy-mm-dd")), phone: eedHotelPhone.Text, notes: eedHotelNotes.Text},
+                                      flight: {airline: eedOutAirline.Text, confirmation: eedOutConf.Text, departAirport: eedOutFrom.Text, departTime: eedOutDep.Text, arriveAirport: eedOutTo.Text, arriveTime: eedOutArr.Text, notes: eedFlightNotes.Text,
+                                        returnFlight: {airline: eedRetAirline.Text, confirmation: eedRetConf.Text, departAirport: eedRetFrom.Text, departTime: eedRetDep.Text, arriveAirport: eedRetTo.Text, arriveTime: eedRetArr.Text}}
+                                    }},
+                                    If(Len(eedHotelName.Text & eedHotelConf.Text & eedHotelPhone.Text & eedHotelNotes.Text & eedOutAirline.Text & eedOutConf.Text & eedOutFrom.Text & eedOutDep.Text & eedOutTo.Text & eedOutArr.Text & eedRetAirline.Text & eedRetConf.Text & eedRetFrom.Text & eedRetDep.Text & eedRetTo.Text & eedRetArr.Text & eedFlightNotes.Text & If(IsBlank(eedHotelIn.SelectedDate), "", Text(eedHotelIn.SelectedDate, "yyyy-mm-dd")) & If(IsBlank(eedHotelOut.SelectedDate), "", Text(eedHotelOut.SelectedDate, "yyyy-mm-dd"))) = 0, "", JSON(tr, JSONFormat.Compact))
+                                  )
+                                      }));
+                                      Set(varAnchor, Date(Year(sd), Month(sd), 1));
+                                      Notify("Entry saved", NotificationType.Success);
+                                      Navigate(scrWhereabouts, ScreenTransition.None),
+                                      Notify("Couldn't save: " & FirstError.Message, NotificationType.Error)
+                                    )
+                                  )
+                                )
+                              Size: =13
+                              FillPortions: =0
+                              Width: =110
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center

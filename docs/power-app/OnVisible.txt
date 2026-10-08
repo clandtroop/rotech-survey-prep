@@ -1,0 +1,14 @@
+// Paste each formula into that screen's OnVisible property.
+// They clear the form inputs so a new entry never opens with the last one's values.
+
+// scrEntryEdit.OnVisible
+Reset(eedPerson); Reset(eedPersonRO); Reset(eedStart); Reset(eedEnd); Reset(eedPart); Reset(eedStatus); Reset(eedLocation); Reset(eedPurpose); Reset(eedMode); Reset(eedConfirm); Reset(eedTime); Reset(eedNotes); Reset(eedHotelName); Reset(eedHotelConf); Reset(eedHotelIn); Reset(eedHotelOut); Reset(eedHotelPhone); Reset(eedHotelNotes); Reset(eedOutAirline); Reset(eedOutConf); Reset(eedOutFrom); Reset(eedOutDep); Reset(eedOutTo); Reset(eedOutArr); Reset(eedRetAirline); Reset(eedRetConf); Reset(eedRetFrom); Reset(eedRetDep); Reset(eedRetTo); Reset(eedRetArr); Reset(eedFlightNotes)
+
+// scrTaskEdit.OnVisible
+Reset(tedName); Reset(tedCadence); Reset(tedAssignee); Reset(tedDate); Reset(tedMonths); Reset(tedScope); Reset(tedTags); Reset(tedComments)
+
+// scrRequestPTO.OnVisible
+Reset(rqpType); Reset(rqpStart); Reset(rqpEnd); Reset(rqpPart); Reset(rqpNotes); Reset(rqpOverlap)
+
+// scrMyEntries.OnVisible
+Clear(colSel); UpdateContext({locFrom: Blank(), locTo: Blank()}); Reset(menFrom); Reset(menTo); Reset(menTyped)

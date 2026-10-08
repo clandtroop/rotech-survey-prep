@@ -1,0 +1,402 @@
+- prnRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - prnHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+            Visible: =!scrPrint.Printing
+          Children:
+            - prnAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - prnNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - prnNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - prnNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - prnNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - prnNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - prnNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - prnNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - prnNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - prnNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - prnHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - prnWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - prnToolbar:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =8
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+            Visible: =!scrPrint.Printing
+          Children:
+            - prnPrev:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: =""
+                  OnSelect: =Set(varAnchor, DateAdd(If(locMode = "quarter", Date(Year(varAnchor), (RoundUp(Month(varAnchor) / 3, 0) - 1) * 3 + 1, 1), varAnchor), -If(locMode = "quarter", 3, 1), TimeUnit.Months))
+                  Size: =13
+                  FillPortions: =0
+                  Width: =36
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Outline
+                  Icon: ="ChevronLeft"
+                  Layout: =ButtonLayout.IconOnly
+                  AccessibleLabel: ="Previous"
+            - prnPeriod:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =If(locMode = "quarter", "Q" & RoundUp(Month(varAnchor) / 3, 0) & " " & Year(varAnchor), Text(varAnchor, "mmmm yyyy"))
+                  Size: =16
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =0
+                  Width: =170
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+                  Align: =Align.Center
+            - prnNext:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: =""
+                  OnSelect: =Set(varAnchor, DateAdd(If(locMode = "quarter", Date(Year(varAnchor), (RoundUp(Month(varAnchor) / 3, 0) - 1) * 3 + 1, 1), varAnchor), If(locMode = "quarter", 3, 1), TimeUnit.Months))
+                  Size: =13
+                  FillPortions: =0
+                  Width: =36
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Outline
+                  Icon: ="ChevronRight"
+                  Layout: =ButtonLayout.IconOnly
+                  AccessibleLabel: ="Next"
+            - prnThisMonth:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Set(varAnchor, Date(Year(Today()), Month(Today()), 1))
+                  Size: =13
+                  FillPortions: =0
+                  Width: =72
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Outline
+            - prnMonthMode:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Month"
+                  OnSelect: |-
+                    =UpdateContext({locMode: "month"})
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =If(locMode = "quarter", ButtonAppearance.Outline, ButtonAppearance.Primary)
+            - prnQuarterMode:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Quarter"
+                  OnSelect: |-
+                    =UpdateContext({locMode: "quarter"})
+                  Size: =13
+                  FillPortions: =0
+                  Width: =86
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =If(locMode = "quarter", ButtonAppearance.Primary, ButtonAppearance.Outline)
+            - prnToolSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - prnTip:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Print uses landscape. Quarter view is compact; use Month if it runs off the page."
+                  Size: =11
+                  Color: =RGBA(124, 135, 148, 1)
+                  FillPortions: =0
+                  Width: =420
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+            - prnPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Print()
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Icon: ="Print"
+      - prnPage:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Vertical
+            DropShadow: =DropShadow.None
+            LayoutGap: =8
+            FillPortions: =1
+            LayoutMinHeight: =300
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            PaddingTop: =14
+            PaddingLeft: =20
+            PaddingRight: =20
+            PaddingBottom: =10
+          Children:
+            - prnHtml:
+                Control: HtmlViewer@2.1.0
+                Properties:
+                  FillPortions: =1
+                  LayoutMinHeight: =40
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  HtmlText: |-
+                    =With(
+                      {
+                        quarter: locMode = "quarter",
+                        q0: Date(Year(varAnchor), (RoundUp(Month(varAnchor) / 3, 0) - 1) * 3 + 1, 1),
+                        ppl: If(CountRows(Filter(colPeople, Active = true)) > 0, Filter(colPeople, Active = true), colPeople)
+                      },
+                      With(
+                        {
+                          ps: If(quarter, q0, varAnchor),
+                          pe: DateAdd(DateAdd(If(quarter, q0, varAnchor), If(quarter, 3, 1), TimeUnit.Months), -1, TimeUnit.Days)
+                        },
+                        With(
+                          {
+                            ents: ForAll(Filter('TP Entries', StartNum <= Value(Text(pe, "yyyymmdd")) && EndNum >= Value(Text(ps, "yyyymmdd"))) As x,
+                              {PersonKey: x.PersonKey, Status: x.Status.Value, Location: x.VisitLocation, RawText: x.RawText,
+                               S: x.StartDate, E: Coalesce(x.EndDate, x.StartDate), SN: x.StartNum, EN: x.EndNum,
+                               Half: x.DayPart.Value = "AM" || x.DayPart.Value = "PM"}),
+                            months: If(quarter, ForAll(Sequence(3) As i, {M: DateAdd(q0, i.Value - 1, TimeUnit.Months)}), Table({M: varAnchor})),
+                            td: "border:1px solid #e1e6ec;padding:2px 1px;text-align:center;white-space:nowrap;overflow:hidden;font-size:" & If(quarter, "8", "9") & "px;",
+                            th: "border:1px solid #c5ccd5;padding:2px 1px;background:#f6f8fa;color:#424b56;font-size:8px;"
+                          },
+                          "<div style='font-family:Segoe UI,Arial,sans-serif;color:#131922'>" &
+                          "<div style='font-size:18px;font-weight:800'>Rotech Accreditation Team — " &
+                            If(quarter, "Q" & RoundUp(Month(q0) / 3, 0) & " " & Year(q0), Text(varAnchor, "mmmm yyyy")) & "</div>" &
+                          "<div style='font-size:12px;color:#5d6773;margin-bottom:10px'>Team whereabouts summary · printed " & Text(Today(), "mmmm d, yyyy") & "</div>" &
+                          Concat(months As mo,
+                            With(
+                              {days: Filter(ForAll(Sequence(Day(DateAdd(DateAdd(mo.M, 1, TimeUnit.Months), -1, TimeUnit.Days))) As k, DateAdd(mo.M, k.Value - 1, TimeUnit.Days)), Weekday(Value, StartOfWeek.Monday) <= 5)},
+                              If(quarter, "<div style='font-size:13px;font-weight:700;margin:8px 0 4px'>" & Text(mo.M, "mmmm yyyy") & "</div>", "") &
+                              "<table style='border-collapse:collapse;width:100%;table-layout:fixed'><tr><th style='" & th & "width:92px;text-align:left'>Specialist</th>" &
+                              Concat(days As d, "<th style='" & th & "'>" & Left(Text(d.Value, "ddd"), 1) & "<br>" & Day(d.Value) & "</th>") & "</tr>" &
+                              Concat(ppl As pp,
+                                "<tr><td style='" & td & "text-align:left;font-weight:700;font-size:10px'>" & pp.Title & "</td>" &
+                                Concat(days As d,
+                                  With({n: Value(Text(d.Value, "yyyymmdd"))},
+                                    With({e: LookUp(ents, PersonKey = pp.PersonKey && SN <= n && EN >= n)},
+                                      With({c: LookUp(nfStatus, Label = e.Status)},
+                                        "<td style='" & td &
+                                        If(IsBlank(e), "color:#9ba5b2'>",
+                                          "background:" & c.BgHex & ";color:" & c.FgHex & ";font-weight:600'>" &
+                                          If(e.Status = "Site Visit" && !IsBlank(e.Location),
+                                            Coalesce(Match(e.Location, ",\s*(?<st>[A-Z]{2})\s*$").st, Left(e.Location, 4)),
+                                            c.Short) &
+                                          If(e.Half, "½", "")) &
+                                        "</td>"
+                                      )
+                                    )
+                                  )
+                                ) & "</tr>"
+                              ) & "</table>"
+                            )
+                          ) &
+                          "<div style='font-size:14px;font-weight:700;margin:14px 0 4px'>" & If(quarter, "Quarter rollup", "Month rollup") & "</div>" &
+                          "<table style='border-collapse:collapse;width:100%'><tr>" &
+                          "<th style='" & th & "text-align:left;font-size:10px;width:130px'>Specialist</th>" &
+                          "<th style='" & th & "font-size:10px;width:90px'>PTO / FH days</th>" &
+                          "<th style='" & th & "font-size:10px;width:90px'>Site visit days</th>" &
+                          "<th style='" & th & "font-size:10px;width:80px'>Travel days</th>" &
+                          "<th style='" & th & "font-size:10px;text-align:left'>Site visits</th></tr>" &
+                          Concat(ppl As pp,
+                            With({mine: Filter(ents, PersonKey = pp.PersonKey)},
+                              With(
+                                {cnt: AddColumns(mine, Wd,
+                                  With({a: If(S < ps, ps, S), b: If(E > pe, pe, E)}, CountRows(Filter(ForAll(Sequence(Max(0, DateDiff(a, b, TimeUnit.Days) + 1)) As wdk, DateAdd(a, wdk.Value - 1, TimeUnit.Days)), Weekday(Value, StartOfWeek.Monday) <= 5))) * If(Half, 0.5, 1))},
+                                With(
+                                  {
+                                    pto: Sum(Filter(cnt, Status = "PTO" || Status = "Flex Holiday"), Wd),
+                                    vis: Sum(Filter(cnt, Status = "Site Visit"), Wd),
+                                    trv: Sum(Filter(cnt, Status = "Travel"), Wd)
+                                  },
+                                  "<tr><td style='" & td & "text-align:left;font-weight:700;font-size:11px'>" & pp.Title & "</td>" &
+                                  "<td style='" & td & "font-size:11px'>" & If(pto = 0, "—", Text(pto)) & "</td>" &
+                                  "<td style='" & td & "font-size:11px'>" & If(vis = 0, "—", Text(vis)) & "</td>" &
+                                  "<td style='" & td & "font-size:11px'>" & If(trv = 0, "—", Text(trv)) & "</td>" &
+                                  "<td style='" & td & "text-align:left;font-size:10px;white-space:normal'>" &
+                                    If(CountRows(Filter(mine, Status = "Site Visit")) = 0, "—",
+                                      Concat(Sort(Filter(mine, Status = "Site Visit"), SN) As tr,
+                                        Coalesce(tr.Location, tr.RawText, "Site visit") & " (" & If(IsBlank(tr.E) || tr.E = tr.S, Text(tr.S, "mmm d"), Month(tr.S) = Month(tr.E) && Year(tr.S) = Year(tr.E), Text(tr.S, "mmm d") & " – " & Day(tr.E), Text(tr.S, "mmm d") & " – " & Text(tr.E, "mmm d")) & ")", " · ")) &
+                                  "</td></tr>"
+                                )
+                              )
+                            )
+                          ) &
+                          "</table></div>"
+                        )
+                      )
+                    )
+                  Fill: =RGBA(255, 255, 255, 1)
+                  PaddingTop: =0
+                  PaddingLeft: =0
+                  PaddingRight: =0
+                  PaddingBottom: =0

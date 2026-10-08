@@ -1,0 +1,681 @@
+- tedRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - tedHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - tedAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - tedNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tedNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tedNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - tedNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tedNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tedNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tedNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tedNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - tedNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - tedHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - tedWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - tedBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutGap: =8
+            FillPortions: =1
+            LayoutMinHeight: =300
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingTop: =16
+            PaddingBottom: =16
+            LayoutJustifyContent: =LayoutJustifyContent.Center
+          Children:
+            - tedCard:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.None
+                  LayoutGap: =10
+                  Fill: =RGBA(255, 255, 255, 1)
+                  BorderColor: =RGBA(225, 230, 236, 1)
+                  BorderThickness: =1
+                  RadiusTopLeft: =12
+                  RadiusTopRight: =12
+                  RadiusBottomLeft: =12
+                  RadiusBottomRight: =12
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =18
+                  PaddingRight: =18
+                  FillPortions: =0
+                  Width: =760
+                  LayoutMinHeight: =300
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - tedTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If(IsBlank(varTask), "Add a task", (IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), "Edit task", varTask.Title)
+                        Size: =20
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =30
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Bold
+                  - tedHint:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If(!(IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), "Assigned by an admin. You can change its tags — everything else is theirs to edit.", IsBlank(varTask) && !(varTaskTeam && varIsAdmin), "This task will be yours — you can edit or delete it at any time.", "")
+                        Size: =12
+                        Color: =RGBA(93, 103, 115, 1)
+                        FillPortions: =0
+                        Height: =22
+                        AlignInContainer: =AlignInContainer.Stretch
+                  - tedForm:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =6
+                        FillPortions: =1
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                        LayoutOverflowY: =LayoutOverflow.Scroll
+                      Children:
+                        - tedRow1:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - tedNameField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - tedNameFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Task name"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - tedName:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          Default: =varTask.Title
+                                          Placeholder: ="Pull vent binder samples before Kokomo"
+                                          DisplayMode: =If((IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), DisplayMode.Edit, DisplayMode.View)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - tedRow2:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - tedCadenceField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - tedCadenceFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Cadence"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - tedCadence:
+                                        Control: ModernDropdown@1.0.0
+                                        Properties:
+                                          Items: =nfCadences
+                                          ItemDisplayText: =ThisItem.Label
+                                          Appearance: =Appearance.Outline
+                                          Default: =LookUp(nfCadences, Label = Coalesce(varTask.CadenceType.Value, "One-off date"))
+                                          DisplayMode: =If((IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), DisplayMode.Edit, DisplayMode.View)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                              - tedAssigneeField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - tedAssigneeFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Assigned to — admins only"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - tedAssignee:
+                                        Control: ModernDropdown@1.0.0
+                                        Properties:
+                                          Items: |-
+                                            =ForAll(Sequence(CountRows(Filter(colPeople, Active = true)) + 1) As i,
+                                              If(i.Value = 1, {K: "__team", N: "Team (everyone)"},
+                                                With({r: Index(Filter(colPeople, Active = true), i.Value - 1)}, {K: r.PersonKey, N: r.Title})))
+                                          ItemDisplayText: =ThisItem.N
+                                          Appearance: =Appearance.Outline
+                                          Default: |-
+                                            =LookUp(ForAll(Sequence(CountRows(Filter(colPeople, Active = true)) + 1) As i,
+                                              If(i.Value = 1, {K: "__team", N: "Team (everyone)"},
+                                                With({r: Index(Filter(colPeople, Active = true), i.Value - 1)}, {K: r.PersonKey, N: r.Title}))), K = If(IsBlank(varTask), If(varTaskTeam, "__team", varMe.PersonKey), varTask.AssigneeType.Value = "Team", "__team", varTask.AssigneePersonKey))
+                                          DisplayMode: =If(varIsAdmin && (IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), DisplayMode.Edit, DisplayMode.View)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - tedRow3:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =tedCadence.Selected.Label = "One-off date"
+                            Children:
+                              - tedDateField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - tedDateFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Date"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - tedDate:
+                                        Control: ModernDatePicker@1.0.0
+                                        Properties:
+                                          StartOfWeek: =StartOfWeek.Monday
+                                          Format: =DatePickerFormat.LongAbbreviated
+                                          Appearance: =Appearance.Outline
+                                          DefaultDate: =Coalesce(varTask.CadenceDate, Today())
+                                          DisplayMode: =If((IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), DisplayMode.Edit, DisplayMode.View)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - tedRow4:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =tedCadence.Selected.Label = "Specific month" || tedCadence.Selected.Label = "Month range"
+                            Children:
+                              - tedMonthsField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - tedMonthsFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Which months"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - tedMonths:
+                                        Control: ModernCombobox@1.0.0
+                                        Properties:
+                                          Items: |-
+                                            =ForAll(Sequence(12) As i, {Num: i.Value, Name: Index(nfMonths, i.Value).Value})
+                                          ItemDisplayText: =ThisItem.Name
+                                          SelectMultiple: =true
+                                          IsSearchable: =false
+                                          Appearance: =Appearance.Outline
+                                          DefaultSelectedItems: |-
+                                            =Filter(ForAll(Sequence(12) As i, {Num: i.Value, Name: Index(nfMonths, i.Value).Value}), !IsBlank(LookUp(Split(Coalesce(varTask.CadenceMonths, ""), ",") As mh, Trim(mh.Value) = Text(Num))))
+                                          InputTextPlaceholder: ="Pick months"
+                                          DisplayMode: =If((IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), DisplayMode.Edit, DisplayMode.View)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - tedRow5:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - tedScopeField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - tedScopeFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Applies to"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - tedScope:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          Default: =varTask.Scope
+                                          Placeholder: ="All Regions"
+                                          DisplayMode: =If((IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), DisplayMode.Edit, DisplayMode.View)
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                              - tedTagsField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - tedTagsFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Tags — comma-separated"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - tedTags:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          Default: =varTask.Tags
+                                          Placeholder: ="flu, email"
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - tedCommentsField:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Vertical
+                              DropShadow: =DropShadow.None
+                              LayoutGap: =4
+                              FillPortions: =0
+                              Height: =112
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - tedCommentsLbl:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="Comments"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =18
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - tedComments:
+                                  Control: ModernTextInput@1.0.0
+                                  Properties:
+                                    Appearance: =Appearance.Outline
+                                    TriggerOutput: =TriggerOutput.Keypress
+                                    FillPortions: =0
+                                    Height: =86
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Default: =varTask.Comments
+                                    Type: =TextInputType.Multiline
+                                    DisplayMode: =If((IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), DisplayMode.Edit, DisplayMode.View)
+                  - tedFooter:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        DropShadow: =DropShadow.None
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutGap: =8
+                        FillPortions: =0
+                        Height: =44
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - tedDelete:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Delete"
+                              OnSelect: |-
+                                =If(Confirm("Delete """ & varTask.Title & """? This removes it from everyone's task list."),
+                                  Remove('TP Tasks', varTask);
+                                  ClearCollect(colTasks, Filter('TP Tasks', Active = true));
+                                  Back()
+                                )
+                              Size: =13
+                              FillPortions: =0
+                              Width: =96
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                              Icon: ="Delete"
+                              BasePaletteColor: =RGBA(192, 57, 43, 1)
+                              Visible: =!IsBlank(varTask) && (IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email)))
+                        - tedFootSpacer:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =""
+                              Size: =13
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =1
+                              LayoutMinWidth: =1
+                              Height: =10
+                              AlignInContainer: =AlignInContainer.Center
+                        - tedCancel:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Cancel"
+                              OnSelect: =Back()
+                              Size: =13
+                              FillPortions: =0
+                              Width: =90
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                        - tedSave:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: =If((IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email))), "Save task", "Save tags")
+                              OnSelect: |-
+                                =With(
+                                  {
+                                    nm: Trim(tedName.Text),
+                                    cad: tedCadence.Selected.Label,
+                                    asg: tedAssignee.Selected,
+                                    tags: Concat(Distinct(Filter(ForAll(Split(tedTags.Text, ",") As nt, Left(Concat(MatchAll(Substitute(Lower(Trim(nt.Value)), " ", "-"), "[a-z0-9-]+"), FullMatch), 24)), Value <> ""), Value), Value, ", "),
+                                    full: (IsBlank(varTask) || varIsAdmin || (varTask.Origin.Value = "Personal" && Lower(varTask.OwnerEmail) = Lower(User().Email)))
+                                  },
+                                  If(
+                                    full && nm = "", Notify("Give the task a name.", NotificationType.Error),
+                                    !full,
+                                      Patch('TP Tasks', varTask, {Tags: tags});
+                                      ClearCollect(colTasks, Filter('TP Tasks', Active = true));
+                                      Back(),
+                                    With(
+                                      {rec: {
+                                        Title: nm,
+                                        CadenceType: {Value: cad},
+                                        CadenceMonths: If(cad = "Specific month" || cad = "Month range", Concat(Sort(tedMonths.SelectedItems, Num), Num, ","), ""),
+                                        CadenceDate: If(cad = "One-off date", tedDate.SelectedDate, Blank()),
+                                        AssigneeType: {Value: If(asg.K = "__team", "Team", "Specialist")},
+                                        AssigneePersonKey: If(asg.K = "__team", "", asg.K),
+                                        AssigneeName: If(asg.K = "__team", "Team", asg.N),
+                                        Scope: tedScope.Text,
+                                        Comments: tedComments.Text,
+                                        Tags: tags
+                                      }},
+                                      If(IsBlank(varTask),
+                                        Patch('TP Tasks', Defaults('TP Tasks'), rec, {
+                                          TaskKey: Text(GUID()),
+                                          SeriesKey: Concat(MatchAll(Lower(nm), "[a-z0-9]+"), FullMatch, "-"),
+                                          Origin: {Value: If(varTaskTeam && varIsAdmin, "Assigned", "Personal")},
+                                          OwnerEmail: If(varTaskTeam && varIsAdmin, "", Lower(User().Email)),
+                                          Active: true
+                                        }),
+                                        Patch('TP Tasks', varTask, rec, {
+                                          CadenceLabel: If(varTask.CadenceType.Value = cad && Coalesce(varTask.CadenceMonths, "") = rec.CadenceMonths, varTask.CadenceLabel, "")
+                                        })
+                                      );
+                                      ClearCollect(colTasks, Filter('TP Tasks', Active = true));
+                                      Back()
+                                    )
+                                  )
+                                )
+                              Size: =13
+                              FillPortions: =0
+                              Width: =110
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center

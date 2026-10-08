@@ -1,0 +1,10 @@
+// Team Planner — App.OnStart. Small lists load once into collections; the
+// calendar screens query TP Entries directly so they're always current.
+Set(varAnchor, Date(Year(Today()), Month(Today()), 1));
+ClearCollect(colPeople, Sort('TP People', SortOrder));
+Set(varMe, LookUp(colPeople, Lower(Person.Email) = Lower(User().Email)));
+Set(varIsAdmin, !IsBlank(varMe) && varMe.Admin);
+ClearCollect(colTasks, Filter('TP Tasks', Active = true));
+ClearCollect(colMilestones, 'TP Milestones');
+ClearCollect(colDone, Filter('TP Task Done', StartsWith(PeriodKey, Text(Year(Today())))));
+Set(varSettings, LookUp('TP Settings', Title = Lower(User().Email)))

@@ -1,0 +1,575 @@
+- rqpRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - rqpHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - rqpAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - rqpNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rqpNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rqpNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rqpNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rqpNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rqpNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rqpNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - rqpNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - rqpNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - rqpHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - rqpWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - rqpBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutGap: =8
+            FillPortions: =1
+            LayoutMinHeight: =300
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingTop: =16
+            PaddingBottom: =16
+            LayoutJustifyContent: =LayoutJustifyContent.Center
+          Children:
+            - rqpCard:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.None
+                  LayoutGap: =10
+                  Fill: =RGBA(255, 255, 255, 1)
+                  BorderColor: =RGBA(225, 230, 236, 1)
+                  BorderThickness: =1
+                  RadiusTopLeft: =12
+                  RadiusTopRight: =12
+                  RadiusBottomLeft: =12
+                  RadiusBottomRight: =12
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =18
+                  PaddingRight: =18
+                  FillPortions: =0
+                  Width: =780
+                  LayoutMinHeight: =300
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - rqpTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Request PTO"
+                        Size: =20
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =30
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Bold
+                  - rqpGoesTo:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If(IsBlank(varMe), "Your sign-in isn't linked to a roster person yet — an admin can link it on the Roster screen.", IsBlank(LookUp(colPeople, PersonKey = varMe.PersonKey).Approver.Email), "No approver is set for you yet — an admin can add one on the Roster screen.", "Goes to " & LookUp(colPeople, PersonKey = varMe.PersonKey).Approver.DisplayName & " for approval. Once approved it's added to the planner and your Outlook calendar.")
+                        Size: =12
+                        Color: =If(IsBlank(varMe) || IsBlank(LookUp(colPeople, PersonKey = varMe.PersonKey).Approver.Email), RGBA(176, 106, 0, 1), RGBA(93, 103, 115, 1))
+                        FillPortions: =0
+                        Height: =22
+                        AlignInContainer: =AlignInContainer.Stretch
+                  - rqpRow1:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        DropShadow: =DropShadow.None
+                        LayoutAlignItems: =LayoutAlignItems.Start
+                        LayoutGap: =12
+                        FillPortions: =0
+                        Height: =64
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - rqpTypeField:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Vertical
+                              DropShadow: =DropShadow.None
+                              LayoutGap: =4
+                              FillPortions: =1
+                              LayoutMinHeight: =60
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Height: =62
+                            Children:
+                              - rqpTypeFieldLbl:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="Type"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =18
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - rqpType:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    Items: =nfLeaveTypes
+                                    ItemDisplayText: =ThisItem.Value
+                                    Appearance: =Appearance.Outline
+                                    Default: |-
+                                      ={Value: "PTO"}
+                                    FillPortions: =0
+                                    Height: =36
+                                    AlignInContainer: =AlignInContainer.Stretch
+                        - rqpStartField:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Vertical
+                              DropShadow: =DropShadow.None
+                              LayoutGap: =4
+                              FillPortions: =1
+                              LayoutMinHeight: =60
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Height: =62
+                            Children:
+                              - rqpStartFieldLbl:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="First day"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =18
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - rqpStart:
+                                  Control: ModernDatePicker@1.0.0
+                                  Properties:
+                                    StartOfWeek: =StartOfWeek.Monday
+                                    Format: =DatePickerFormat.LongAbbreviated
+                                    Appearance: =Appearance.Outline
+                                    DefaultDate: =Today()
+                                    FillPortions: =0
+                                    Height: =36
+                                    AlignInContainer: =AlignInContainer.Stretch
+                        - rqpEndField:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Vertical
+                              DropShadow: =DropShadow.None
+                              LayoutGap: =4
+                              FillPortions: =1
+                              LayoutMinHeight: =60
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Height: =62
+                            Children:
+                              - rqpEndFieldLbl:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="Last day"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =18
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - rqpEnd:
+                                  Control: ModernDatePicker@1.0.0
+                                  Properties:
+                                    StartOfWeek: =StartOfWeek.Monday
+                                    Format: =DatePickerFormat.LongAbbreviated
+                                    Appearance: =Appearance.Outline
+                                    DefaultDate: =Today()
+                                    StartDate: =rqpStart.SelectedDate
+                                    FillPortions: =0
+                                    Height: =36
+                                    AlignInContainer: =AlignInContainer.Stretch
+                        - rqpPartField:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Vertical
+                              DropShadow: =DropShadow.None
+                              LayoutGap: =4
+                              FillPortions: =1
+                              LayoutMinHeight: =60
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Height: =62
+                            Children:
+                              - rqpPartFieldLbl:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="Day part — single days only"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =18
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - rqpPart:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    Items: =nfDayParts
+                                    ItemDisplayText: =ThisItem.Value
+                                    Appearance: =Appearance.Outline
+                                    Default: |-
+                                      ={Value: "Full day"}
+                                    DisplayMode: =If((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)), DisplayMode.Edit, DisplayMode.View)
+                                    FillPortions: =0
+                                    Height: =36
+                                    AlignInContainer: =AlignInContainer.Stretch
+                  - rqpSummary:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: |-
+                          =If(IsBlank(rqpStart.SelectedDate), "", ((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) && rqpPart.Selected.Value <> "Full day"), "Half day (" & rqpPart.Selected.Value & ") · " & Text(rqpStart.SelectedDate, "dddd, mmmm d"), With({a: rqpStart.SelectedDate, b: Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)}, CountRows(Filter(ForAll(Sequence(Max(0, DateDiff(a, b, TimeUnit.Days) + 1)) As wdk, DateAdd(a, wdk.Value - 1, TimeUnit.Days)), Weekday(Value, StartOfWeek.Monday) <= 5))) & " weekday(s) · " & If(IsBlank(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) || Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate) = rqpStart.SelectedDate, Text(rqpStart.SelectedDate, "mmm d"), Month(rqpStart.SelectedDate) = Month(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) && Year(rqpStart.SelectedDate) = Year(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)), Text(rqpStart.SelectedDate, "mmm d") & " – " & Day(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)), Text(rqpStart.SelectedDate, "mmm d") & " – " & Text(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate), "mmm d")))
+                        Size: =13
+                        Color: =RGBA(0, 83, 161, 1)
+                        FillPortions: =0
+                        Height: =22
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Semibold
+                  - rqpNotesField:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =4
+                        FillPortions: =0
+                        Height: =100
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - rqpNotesLbl:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Notes for your approver (optional)"
+                              Size: =11
+                              Color: =RGBA(93, 103, 115, 1)
+                              FontWeight: =FontWeight.Semibold
+                              FillPortions: =0
+                              Height: =18
+                              AlignInContainer: =AlignInContainer.Stretch
+                        - rqpNotes:
+                            Control: ModernTextInput@1.0.0
+                            Properties:
+                              Appearance: =Appearance.Outline
+                              TriggerOutput: =TriggerOutput.Keypress
+                              FillPortions: =0
+                              Height: =74
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Type: =TextInputType.Multiline
+                              Placeholder: ="Family trip — Cody has Tuesday coverage"
+                  - rqpOverlapBox:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =6
+                        FillPortions: =1
+                        LayoutMinHeight: =80
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Visible: |-
+                          =CountRows(If(IsBlank(rqpStart.SelectedDate), Blank(), With({s: Value(Text(rqpStart.SelectedDate, "yyyymmdd")), e: Value(Text(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate), "yyyymmdd"))}, Filter('TP Entries', PersonKey = varMe.PersonKey && StartNum <= e && EndNum >= s)))) > 0
+                        Fill: =RGBA(251, 240, 219, 1)
+                        RadiusTopLeft: =8
+                        RadiusTopRight: =8
+                        RadiusBottomLeft: =8
+                        RadiusBottomRight: =8
+                        PaddingTop: =10
+                        PaddingLeft: =12
+                        PaddingRight: =12
+                        PaddingBottom: =10
+                      Children:
+                        - rqpOverlapTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: |-
+                                ="You already have entries on these days:"
+                              Size: =13
+                              Color: =RGBA(176, 106, 0, 1)
+                              FillPortions: =0
+                              Height: =22
+                              AlignInContainer: =AlignInContainer.Stretch
+                              FontWeight: =FontWeight.Semibold
+                        - rqpOverlapGal:
+                            Control: Gallery@2.15.0
+                            Variant: Vertical
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =true
+                              FillPortions: =1
+                              LayoutMinHeight: =30
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Items: |-
+                                =If(IsBlank(rqpStart.SelectedDate), Blank(), With({s: Value(Text(rqpStart.SelectedDate, "yyyymmdd")), e: Value(Text(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate), "yyyymmdd"))}, Filter('TP Entries', PersonKey = varMe.PersonKey && StartNum <= e && EndNum >= s)))
+                              TemplateSize: =26
+                            Children:
+                              - rqpOverlapRow:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =If(IsBlank(ThisItem.EndDate) || ThisItem.EndDate = ThisItem.StartDate, Text(ThisItem.StartDate, "mmm d"), Month(ThisItem.StartDate) = Month(ThisItem.EndDate) && Year(ThisItem.StartDate) = Year(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Day(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Text(ThisItem.EndDate, "mmm d")) & " · " & ThisItem.Status.Value & If(IsBlank(ThisItem.VisitLocation), "", " · " & ThisItem.VisitLocation)
+                                    Size: =12
+                                    Color: =RGBA(66, 75, 86, 1)
+                                    X: =0
+                                    Y: =2
+                                    Width: =Parent.TemplateWidth
+                                    Height: =22
+                        - rqpOverlapChoice:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutGap: =8
+                              FillPortions: =0
+                              Height: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =!((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) && rqpPart.Selected.Value <> "Full day")
+                            Children:
+                              - rqpOverlapLbl:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: |-
+                                      ="When this is approved:"
+                                    Size: =12
+                                    Color: =RGBA(66, 75, 86, 1)
+                                    FillPortions: =0
+                                    Width: =170
+                                    Height: =30
+                                    AlignInContainer: =AlignInContainer.Center
+                                    FontWeight: =FontWeight.Semibold
+                              - rqpOverlap:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    Items: =["Replace these", "Keep both"]
+                                    ItemDisplayText: =ThisItem.Value
+                                    Appearance: =Appearance.Outline
+                                    FillPortions: =0
+                                    Width: =200
+                                    Height: =34
+                                    AlignInContainer: =AlignInContainer.Center
+                                    Default: |-
+                                      ={Value: "Replace these"}
+                        - rqpOverlapHalf:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Half-day requests keep the existing entry — the other half of the day still needs it."
+                              Size: =12
+                              Color: =RGBA(66, 75, 86, 1)
+                              FillPortions: =0
+                              Height: =20
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) && rqpPart.Selected.Value <> "Full day")
+                  - rqpFooter:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        DropShadow: =DropShadow.None
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutGap: =8
+                        FillPortions: =0
+                        Height: =44
+                        AlignInContainer: =AlignInContainer.Stretch
+                        LayoutJustifyContent: =LayoutJustifyContent.End
+                      Children:
+                        - rqpCancel:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Cancel"
+                              OnSelect: =Back()
+                              Size: =13
+                              FillPortions: =0
+                              Width: =90
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                        - rqpSubmit:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Send for approval"
+                              OnSelect: |-
+                                =With({sd: rqpStart.SelectedDate, ed: Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)},
+                                  With({single: sd = ed, wd: CountRows(Filter(ForAll(Sequence(Max(0, DateDiff(sd, ed, TimeUnit.Days) + 1)) As wdk, DateAdd(sd, wdk.Value - 1, TimeUnit.Days)), Weekday(Value, StartOfWeek.Monday) <= 5))},
+                                    If(
+                                      IsBlank(varMe), Notify("Your sign-in isn't linked to a roster person yet. Ask an admin to link it on the Roster screen.", NotificationType.Error),
+                                      IsBlank(LookUp(colPeople, PersonKey = varMe.PersonKey).Approver.Email), Notify("No PTO approver is set for you yet. Ask an admin to add one on the Roster screen.", NotificationType.Error),
+                                      IsBlank(sd), Notify("Pick a start date.", NotificationType.Error),
+                                      ed < sd, Notify("The end date can't be before the start date.", NotificationType.Error),
+                                      wd = 0, Notify("Those dates are all weekend days.", NotificationType.Error),
+                                      Set(varPtoResult, TPSubmitPTORequest.Run(
+                                        rqpType.Selected.Value,
+                                        Text(sd, "yyyy-mm-dd"),
+                                        Text(ed, "yyyy-mm-dd"),
+                                        If(single, rqpPart.Selected.Value, "Full day"),
+                                        rqpNotes.Text,
+                                        If(((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) && rqpPart.Selected.Value <> "Full day") || CountRows(If(IsBlank(rqpStart.SelectedDate), Blank(), With({s: Value(Text(rqpStart.SelectedDate, "yyyymmdd")), e: Value(Text(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate), "yyyymmdd"))}, Filter('TP Entries', PersonKey = varMe.PersonKey && StartNum <= e && EndNum >= s)))) = 0, "Keep both", rqpOverlap.Selected.Value = "Replace these", "Replace", "Keep both"),
+                                        If(((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) && rqpPart.Selected.Value <> "Full day"), 0.5, wd)
+                                      ));
+                                      If(varPtoResult.ok = "yes",
+                                        Notify("Sent to " & LookUp(colPeople, PersonKey = varMe.PersonKey).Approver.DisplayName & " for approval. You'll get an email when it's decided.", NotificationType.Success);
+                                        Navigate(scrMyRequests, ScreenTransition.None),
+                                        Notify(Coalesce(varPtoResult.message, "The request couldn't be sent."), NotificationType.Error)
+                                      )
+                                    )
+                                  )
+                                )
+                              Size: =13
+                              FillPortions: =0
+                              Width: =160
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              Icon: ="Send"

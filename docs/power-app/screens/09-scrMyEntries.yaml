@@ -1,0 +1,510 @@
+- menRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - menHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - menAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - menNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - menNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - menNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - menNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - menNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - menNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - menNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - menNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - menNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - menHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - menWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - menToolbar:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =8
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - menPerson:
+                Control: ModernDropdown@1.0.0
+                Properties:
+                  Items: =colPeople
+                  ItemDisplayText: =ThisItem.Title
+                  Appearance: =Appearance.Outline
+                  FillPortions: =0
+                  Width: =170
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Default: =Coalesce(LookUp(colPeople, PersonKey = varMe.PersonKey), First(colPeople))
+                  Visible: =varIsAdmin
+                  OnChange: =Clear(colSel)
+                  AccessibleLabel: ="Person"
+            - menFrom:
+                Control: ModernDatePicker@1.0.0
+                Properties:
+                  StartOfWeek: =StartOfWeek.Monday
+                  Format: =DatePickerFormat.LongAbbreviated
+                  Appearance: =Appearance.Outline
+                  FillPortions: =0
+                  Width: =160
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  DefaultDate: =locFrom
+                  Placeholder: ="From"
+                  OnChange: =Clear(colSel)
+            - menToLbl:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="to"
+                  Size: =13
+                  Color: =RGBA(124, 135, 148, 1)
+                  FillPortions: =0
+                  Width: =20
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Center
+            - menTo:
+                Control: ModernDatePicker@1.0.0
+                Properties:
+                  StartOfWeek: =StartOfWeek.Monday
+                  Format: =DatePickerFormat.LongAbbreviated
+                  Appearance: =Appearance.Outline
+                  FillPortions: =0
+                  Width: =160
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  DefaultDate: =locTo
+                  Placeholder: ="To"
+                  OnChange: =Clear(colSel)
+            - menStatus:
+                Control: ModernDropdown@1.0.0
+                Properties:
+                  Items: |-
+                    =ForAll(Sequence(CountRows(nfStatus) + 1) As i, If(i.Value = 1, {V: "", N: "Any status"}, With({r: Index(nfStatus, i.Value - 1)}, {V: r.Label, N: r.Label})))
+                  ItemDisplayText: =ThisItem.N
+                  Appearance: =Appearance.Outline
+                  FillPortions: =0
+                  Width: =160
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Default: |-
+                    ={V: "", N: "Any status"}
+                  OnChange: =Clear(colSel)
+            - menPresetBeforeYearToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Before " & Year(Today())
+                  OnSelect: |-
+                    =UpdateContext({locFrom: Blank(), locTo: Date(Year(Today()) - 1, 12, 31)}); Reset(menFrom); Reset(menTo); Clear(colSel)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =112
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - menPresetYearToday1only:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: =Year(Today()) - 1 & " only"
+                  OnSelect: |-
+                    =UpdateContext({locFrom: Date(Year(Today()) - 1, 1, 1), locTo: Date(Year(Today()) - 1, 12, 31)}); Reset(menFrom); Reset(menTo); Clear(colSel)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =112
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - menPresetAlldates:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="All dates"
+                  OnSelect: |-
+                    =UpdateContext({locFrom: Blank(), locTo: Blank()}); Reset(menFrom); Reset(menTo); Clear(colSel)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+      - menBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Vertical
+            DropShadow: =DropShadow.None
+            LayoutGap: =14
+            FillPortions: =1
+            LayoutMinHeight: =200
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+            PaddingBottom: =16
+          Children:
+            - menIntro:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Every recorded day, all years. Select what you want gone."
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Height: =20
+                  AlignInContainer: =AlignInContainer.Stretch
+            - menListCard:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.None
+                  LayoutGap: =0
+                  FillPortions: =1
+                  LayoutMinHeight: =40
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Fill: =RGBA(255, 255, 255, 1)
+                  BorderColor: =RGBA(225, 230, 236, 1)
+                  BorderThickness: =1
+                  RadiusTopLeft: =12
+                  RadiusTopRight: =12
+                  RadiusBottomLeft: =12
+                  RadiusBottomRight: =12
+                  PaddingLeft: =12
+                  PaddingRight: =12
+                Children:
+                  - menSelectAll:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If((CountRows(colSel) > 0 && CountRows(colSel) = CountRows(menList.AllItems)), "☑", "☐") & "  Select all " & CountRows(menList.AllItems) & " shown"
+                        Size: =13
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =36
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Semibold
+                        OnSelect: =If((CountRows(colSel) > 0 && CountRows(colSel) = CountRows(menList.AllItems)), Clear(colSel), ClearCollect(colSel, menList.AllItems))
+                  - menList:
+                      Control: Gallery@2.15.0
+                      Variant: Vertical
+                      Properties:
+                        TemplatePadding: =0
+                        ShowScrollbar: =true
+                        FillPortions: =1
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Items: |-
+                          =With(
+                            {
+                              pk: If(varIsAdmin, menPerson.Selected.PersonKey, varMe.PersonKey),
+                              f: If(IsBlank(menFrom.SelectedDate), 0, Value(Text(menFrom.SelectedDate, "yyyymmdd"))),
+                              t: If(IsBlank(menTo.SelectedDate), 99991231, Value(Text(menTo.SelectedDate, "yyyymmdd"))),
+                              st: menStatus.Selected.V
+                            },
+                            If(IsBlank(st),
+                              SortByColumns(Filter('TP Entries', PersonKey = pk && EndNum >= f && StartNum <= t), StartNum, SortOrder.Descending),
+                              SortByColumns(Filter('TP Entries', PersonKey = pk && EndNum >= f && StartNum <= t && Status.Value = st), StartNum, SortOrder.Descending)
+                            )
+                          )
+                        TemplateSize: =54
+                      Children:
+                        - menLine:
+                            Control: Rectangle@2.3.0
+                            Properties:
+                              X: =0
+                              Y: =Parent.TemplateHeight - 1
+                              Width: =Parent.TemplateWidth
+                              Height: =1
+                              Fill: =RGBA(238, 241, 245, 1)
+                        - menTick:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =If(ThisItem.ID in colSel.ID, "☑", "☐")
+                              Size: =20
+                              Color: =RGBA(0, 83, 161, 1)
+                              X: =4
+                              Y: =10
+                              Width: =30
+                              Height: =30
+                              Align: =Align.Center
+                              OnSelect: =If(ThisItem.ID in colSel.ID, RemoveIf(colSel, ID = ThisItem.ID), Collect(colSel, ThisItem))
+                        - menWhen:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =If(IsBlank(ThisItem.EndDate) || ThisItem.EndDate = ThisItem.StartDate, Text(ThisItem.StartDate, "mmm d"), Month(ThisItem.StartDate) = Month(ThisItem.EndDate) && Year(ThisItem.StartDate) = Year(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Day(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Text(ThisItem.EndDate, "mmm d"))
+                              Size: =12
+                              Color: =RGBA(66, 75, 86, 1)
+                              X: =44
+                              Y: =6
+                              Width: =130
+                              Height: =22
+                              FontWeight: =FontWeight.Semibold
+                        - menYear:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =Text(Year(ThisItem.StartDate))
+                              Size: =11
+                              Color: =RGBA(124, 135, 148, 1)
+                              X: =44
+                              Y: =27
+                              Width: =130
+                              Height: =20
+                        - menChip:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.Status.Value
+                              Size: =11
+                              Color: =LookUp(nfStatus, Label = ThisItem.Status.Value, Fg)
+                              FontWeight: =FontWeight.Semibold
+                              Align: =Align.Center
+                              Fill: =LookUp(nfStatus, Label = ThisItem.Status.Value, Bg)
+                              BorderColor: =LookUp(nfStatus, Label = ThisItem.Status.Value, Bd)
+                              BorderThickness: =1
+                              RadiusTopLeft: =10
+                              RadiusTopRight: =10
+                              RadiusBottomLeft: =10
+                              RadiusBottomRight: =10
+                              X: =180
+                              Y: =15
+                              Width: =130
+                              Height: =24
+                        - menWhat:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =Coalesce(ThisItem.VisitLocation, ThisItem.RawText)
+                              Size: =13
+                              Color: =RGBA(19, 25, 34, 1)
+                              X: =324
+                              Y: =6
+                              Width: =Parent.TemplateWidth - 330
+                              Height: =22
+                        - menNote:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.Notes
+                              Size: =11
+                              Color: =RGBA(124, 135, 148, 1)
+                              X: =324
+                              Y: =27
+                              Width: =Parent.TemplateWidth - 330
+                              Height: =20
+                  - menEmpty:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="No entries match these filters."
+                        Size: =13
+                        Color: =RGBA(124, 135, 148, 1)
+                        FillPortions: =0
+                        Height: =30
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Visible: =CountRows(menList.AllItems) = 0
+            - menFooter:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  DropShadow: =DropShadow.None
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutGap: =8
+                  FillPortions: =0
+                  Height: =44
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - menCount:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =If(CountRows(colSel) = 0, CountRows(menList.AllItems) & " shown", CountRows(colSel) & " selected")
+                        Size: =13
+                        Color: =RGBA(93, 103, 115, 1)
+                        FillPortions: =0
+                        Width: =200
+                        Height: =30
+                        AlignInContainer: =AlignInContainer.Center
+                  - menFootSpacer:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =""
+                        Size: =13
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =1
+                        LayoutMinWidth: =1
+                        Height: =10
+                        AlignInContainer: =AlignInContainer.Center
+                  - menTyped:
+                      Control: ModernTextInput@1.0.0
+                      Properties:
+                        Appearance: =Appearance.Outline
+                        TriggerOutput: =TriggerOutput.Keypress
+                        FillPortions: =0
+                        Width: =180
+                        Height: =34
+                        AlignInContainer: =AlignInContainer.Center
+                        Placeholder: ="Type DELETE to confirm"
+                        Visible: =CountRows(colSel) > 20
+                  - menDelete:
+                      Control: ModernButton@1.0.0
+                      Properties:
+                        Text: ="Delete selected"
+                        OnSelect: |-
+                          =If(Confirm("Delete " & CountRows(colSel) & " entries? This removes them from the team calendar and every print summary covering those months. Hotel and flight details on any site visits go with them. They stay in the site's recycle bin for 93 days."),
+                            Remove('TP Entries', colSel);
+                            Notify("Deleted " & CountRows(colSel) & " entries. They're in the site recycle bin if you need them back.", NotificationType.Success);
+                            Clear(colSel);
+                            Reset(menTyped)
+                          )
+                        Size: =13
+                        FillPortions: =0
+                        Width: =150
+                        Height: =36
+                        AlignInContainer: =AlignInContainer.Center
+                        Icon: ="Delete"
+                        BasePaletteColor: =RGBA(192, 57, 43, 1)
+                        DisplayMode: =If(CountRows(colSel) = 0 || (CountRows(colSel) > 20 && Upper(Trim(menTyped.Text)) <> "DELETE"), DisplayMode.Disabled, DisplayMode.Edit)

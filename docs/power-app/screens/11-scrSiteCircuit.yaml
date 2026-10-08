@@ -1,0 +1,880 @@
+- sciRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - sciHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - sciAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - sciNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - sciNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - sciNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - sciNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - sciNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - sciNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - sciNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - sciNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - sciNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - sciHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - sciWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - sciToolbar:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =8
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - sciPrev:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: =""
+                  OnSelect: =Set(varAnchor, DateAdd(varAnchor, -1, TimeUnit.Months))
+                  Size: =13
+                  FillPortions: =0
+                  Width: =36
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Outline
+                  Icon: ="ChevronLeft"
+                  Layout: =ButtonLayout.IconOnly
+                  AccessibleLabel: ="Previous"
+            - sciPeriod:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Text(varAnchor, "mmmm yyyy")
+                  Size: =16
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =0
+                  Width: =170
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+                  Align: =Align.Center
+            - sciNext:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: =""
+                  OnSelect: =Set(varAnchor, DateAdd(varAnchor, 1, TimeUnit.Months))
+                  Size: =13
+                  FillPortions: =0
+                  Width: =36
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Outline
+                  Icon: ="ChevronRight"
+                  Layout: =ButtonLayout.IconOnly
+                  AccessibleLabel: ="Next"
+            - sciThisMonth:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Set(varAnchor, Date(Year(Today()), Month(Today()), 1))
+                  Size: =13
+                  FillPortions: =0
+                  Width: =72
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Outline
+            - sciIntro:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="One consolidated schedule email to leadership, built from the site visits already on the planner."
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =1
+                  LayoutMinHeight: =30
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Height: =30
+      - sciBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutGap: =16
+            FillPortions: =1
+            LayoutMinHeight: =300
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingLeft: =20
+            PaddingRight: =20
+            PaddingBottom: =16
+          Children:
+            - sciVisits:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  DropShadow: =DropShadow.None
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutGap: =14
+                  FillPortions: =3
+                  LayoutMinHeight: =40
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - sciVirtualCard:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =10
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                        RadiusTopLeft: =12
+                        RadiusTopRight: =12
+                        RadiusBottomLeft: =12
+                        RadiusBottomRight: =12
+                        PaddingTop: =14
+                        PaddingBottom: =16
+                        PaddingLeft: =18
+                        PaddingRight: =18
+                        FillPortions: =1
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - sciVirtualAccent:
+                            Control: Rectangle@2.3.0
+                            Properties:
+                              FillPortions: =0
+                              Height: =4
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Fill: =RGBA(0, 83, 161, 1)
+                        - sciVirtualTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Virtual visits · " & CountRows(sciVirtualGal.AllItems)
+                              Size: =15
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =0
+                              Height: =24
+                              AlignInContainer: =AlignInContainer.Stretch
+                              FontWeight: =FontWeight.Bold
+                        - sciVirtualGal:
+                            Control: Gallery@2.15.0
+                            Variant: Vertical
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =true
+                              FillPortions: =1
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Items: |-
+                                =Filter(With({s: Value(Text(varAnchor, "yyyymmdd")), e: Value(Text(DateAdd(DateAdd(varAnchor, 1, TimeUnit.Months), -1, TimeUnit.Days), "yyyymmdd"))},
+                                  SortByColumns(Filter('TP Entries', StartNum >= s && StartNum <= e && Status.Value = "Site Visit"), StartNum, SortOrder.Ascending)), VisitMode.Value = "Virtual")
+                              TemplateSize: =112
+                            Children:
+                              - sciVirtualBg:
+                                  Control: Rectangle@2.3.0
+                                  Properties:
+                                    X: =0
+                                    Y: =3
+                                    Width: =Parent.TemplateWidth
+                                    Height: =106
+                                    Fill: =RGBA(255, 255, 255, 1)
+                                    BorderColor: =RGBA(225, 230, 236, 1)
+                                    BorderThickness: =1
+                              - sciVirtualLoc:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =Coalesce(ThisItem.VisitLocation, "Untitled location")
+                                    Size: =13
+                                    Color: =RGBA(19, 25, 34, 1)
+                                    X: =12
+                                    Y: =8
+                                    Width: =Parent.TemplateWidth - 24
+                                    Height: =22
+                                    FontWeight: =FontWeight.Bold
+                              - sciVirtualWhen:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =If(Coalesce(ThisItem.EndDate, ThisItem.StartDate) <> ThisItem.StartDate, If(IsBlank(ThisItem.EndDate) || ThisItem.EndDate = ThisItem.StartDate, Text(ThisItem.StartDate, "mmm d"), Month(ThisItem.StartDate) = Month(ThisItem.EndDate) && Year(ThisItem.StartDate) = Year(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Day(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Text(ThisItem.EndDate, "mmm d")), Text(ThisItem.StartDate, "ddd, mmm d")) & If(IsBlank(ThisItem.VisitTime), "", " " & ThisItem.VisitTime) & " · " & Coalesce(ThisItem.PersonName, "Unassigned")
+                                    Size: =12
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =12
+                                    Y: =30
+                                    Width: =Parent.TemplateWidth - 24
+                                    Height: =20
+                              - sciVirtualNote:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: |-
+                                      =Concat(Filter(Table({T: ThisItem.VisitPurpose}, {T: ThisItem.Notes}), !IsBlank(T)), T, " · ")
+                                    Size: =12
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =12
+                                    Y: =50
+                                    Width: =Parent.TemplateWidth - 24
+                                    Height: =20
+                                    Italic: =true
+                              - sciVirtualMode:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    Items: =nfVisitModes
+                                    ItemDisplayText: =ThisItem.Value
+                                    Appearance: =Appearance.Outline
+                                    X: =12
+                                    Y: =72
+                                    Width: =120
+                                    Height: =32
+                                    Default: |-
+                                      ={Value: Coalesce(ThisItem.VisitMode.Value, "Onsite")}
+                                    OnChange: |-
+                                      =Patch('TP Entries', ThisItem, {VisitMode: {Value: Self.Selected.Value}})
+                                    DisplayMode: =If((varIsAdmin || (!IsBlank(varMe) && ThisItem.PersonKey = varMe.PersonKey)), DisplayMode.Edit, DisplayMode.View)
+                                    AccessibleLabel: ="Visit mode"
+                              - sciVirtualConfirm:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    Items: =nfConfirmations
+                                    ItemDisplayText: =ThisItem.Value
+                                    Appearance: =Appearance.Outline
+                                    X: =140
+                                    Y: =72
+                                    Width: =170
+                                    Height: =32
+                                    Default: |-
+                                      ={Value: Coalesce(ThisItem.VisitConfirmation.Value, "Scheduled")}
+                                    OnChange: |-
+                                      =Patch('TP Entries', ThisItem, {VisitConfirmation: {Value: Self.Selected.Value}})
+                                    DisplayMode: =If((varIsAdmin || (!IsBlank(varMe) && ThisItem.PersonKey = varMe.PersonKey)), DisplayMode.Edit, DisplayMode.View)
+                                    AccessibleLabel: ="Confirmation status"
+                        - sciVirtualEmpty:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="No virtual visits scheduled this month."
+                              Size: =13
+                              Color: =RGBA(124, 135, 148, 1)
+                              FillPortions: =0
+                              Height: =24
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =CountRows(sciVirtualGal.AllItems) = 0
+                  - sciOnsiteCard:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =10
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                        RadiusTopLeft: =12
+                        RadiusTopRight: =12
+                        RadiusBottomLeft: =12
+                        RadiusBottomRight: =12
+                        PaddingTop: =14
+                        PaddingBottom: =16
+                        PaddingLeft: =18
+                        PaddingRight: =18
+                        FillPortions: =1
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - sciOnsiteAccent:
+                            Control: Rectangle@2.3.0
+                            Properties:
+                              FillPortions: =0
+                              Height: =4
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Fill: =RGBA(176, 106, 0, 1)
+                        - sciOnsiteTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Onsite visits · " & CountRows(sciOnsiteGal.AllItems)
+                              Size: =15
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =0
+                              Height: =24
+                              AlignInContainer: =AlignInContainer.Stretch
+                              FontWeight: =FontWeight.Bold
+                        - sciOnsiteGal:
+                            Control: Gallery@2.15.0
+                            Variant: Vertical
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =true
+                              FillPortions: =1
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Items: |-
+                                =Filter(With({s: Value(Text(varAnchor, "yyyymmdd")), e: Value(Text(DateAdd(DateAdd(varAnchor, 1, TimeUnit.Months), -1, TimeUnit.Days), "yyyymmdd"))},
+                                  SortByColumns(Filter('TP Entries', StartNum >= s && StartNum <= e && Status.Value = "Site Visit"), StartNum, SortOrder.Ascending)), VisitMode.Value <> "Virtual" || IsBlank(VisitMode.Value))
+                              TemplateSize: =112
+                            Children:
+                              - sciOnsiteBg:
+                                  Control: Rectangle@2.3.0
+                                  Properties:
+                                    X: =0
+                                    Y: =3
+                                    Width: =Parent.TemplateWidth
+                                    Height: =106
+                                    Fill: =RGBA(255, 255, 255, 1)
+                                    BorderColor: =RGBA(225, 230, 236, 1)
+                                    BorderThickness: =1
+                              - sciOnsiteLoc:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =Coalesce(ThisItem.VisitLocation, "Untitled location")
+                                    Size: =13
+                                    Color: =RGBA(19, 25, 34, 1)
+                                    X: =12
+                                    Y: =8
+                                    Width: =Parent.TemplateWidth - 24
+                                    Height: =22
+                                    FontWeight: =FontWeight.Bold
+                              - sciOnsiteWhen:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =If(Coalesce(ThisItem.EndDate, ThisItem.StartDate) <> ThisItem.StartDate, If(IsBlank(ThisItem.EndDate) || ThisItem.EndDate = ThisItem.StartDate, Text(ThisItem.StartDate, "mmm d"), Month(ThisItem.StartDate) = Month(ThisItem.EndDate) && Year(ThisItem.StartDate) = Year(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Day(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Text(ThisItem.EndDate, "mmm d")), Text(ThisItem.StartDate, "ddd, mmm d")) & If(IsBlank(ThisItem.VisitTime), "", " " & ThisItem.VisitTime) & " · " & Coalesce(ThisItem.PersonName, "Unassigned")
+                                    Size: =12
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =12
+                                    Y: =30
+                                    Width: =Parent.TemplateWidth - 24
+                                    Height: =20
+                              - sciOnsiteNote:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: |-
+                                      =Concat(Filter(Table({T: ThisItem.VisitPurpose}, {T: ThisItem.Notes}), !IsBlank(T)), T, " · ")
+                                    Size: =12
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =12
+                                    Y: =50
+                                    Width: =Parent.TemplateWidth - 24
+                                    Height: =20
+                                    Italic: =true
+                              - sciOnsiteMode:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    Items: =nfVisitModes
+                                    ItemDisplayText: =ThisItem.Value
+                                    Appearance: =Appearance.Outline
+                                    X: =12
+                                    Y: =72
+                                    Width: =120
+                                    Height: =32
+                                    Default: |-
+                                      ={Value: Coalesce(ThisItem.VisitMode.Value, "Onsite")}
+                                    OnChange: |-
+                                      =Patch('TP Entries', ThisItem, {VisitMode: {Value: Self.Selected.Value}})
+                                    DisplayMode: =If((varIsAdmin || (!IsBlank(varMe) && ThisItem.PersonKey = varMe.PersonKey)), DisplayMode.Edit, DisplayMode.View)
+                                    AccessibleLabel: ="Visit mode"
+                              - sciOnsiteConfirm:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    Items: =nfConfirmations
+                                    ItemDisplayText: =ThisItem.Value
+                                    Appearance: =Appearance.Outline
+                                    X: =140
+                                    Y: =72
+                                    Width: =170
+                                    Height: =32
+                                    Default: |-
+                                      ={Value: Coalesce(ThisItem.VisitConfirmation.Value, "Scheduled")}
+                                    OnChange: |-
+                                      =Patch('TP Entries', ThisItem, {VisitConfirmation: {Value: Self.Selected.Value}})
+                                    DisplayMode: =If((varIsAdmin || (!IsBlank(varMe) && ThisItem.PersonKey = varMe.PersonKey)), DisplayMode.Edit, DisplayMode.View)
+                                    AccessibleLabel: ="Confirmation status"
+                        - sciOnsiteEmpty:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="No onsite visits scheduled this month."
+                              Size: =13
+                              Color: =RGBA(124, 135, 148, 1)
+                              FillPortions: =0
+                              Height: =24
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Visible: =CountRows(sciOnsiteGal.AllItems) = 0
+            - sciSide:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.None
+                  LayoutGap: =14
+                  FillPortions: =2
+                  LayoutMinHeight: =40
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - sciRecipCard:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =10
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                        RadiusTopLeft: =12
+                        RadiusTopRight: =12
+                        RadiusBottomLeft: =12
+                        RadiusBottomRight: =12
+                        PaddingTop: =16
+                        PaddingBottom: =16
+                        PaddingLeft: =18
+                        PaddingRight: =18
+                        FillPortions: =0
+                        Height: =270
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - sciRecipHead:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutGap: =8
+                              FillPortions: =0
+                              Height: =24
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - sciRecipTitle:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="Recipients"
+                                    Size: =15
+                                    Color: =RGBA(19, 25, 34, 1)
+                                    FillPortions: =0
+                                    Width: =120
+                                    Height: =24
+                                    AlignInContainer: =AlignInContainer.Center
+                                    FontWeight: =FontWeight.Bold
+                              - sciRecipNote:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="Yours alone — set once"
+                                    Size: =11
+                                    Color: =RGBA(124, 135, 148, 1)
+                                    FillPortions: =1
+                                    LayoutMinHeight: =20
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =20
+                                    Align: =Align.Right
+                        - sciRecipRow1:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - sciVpNameField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - sciVpNameFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Division VP name"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - sciVpName:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          Default: =varSettings.VpName
+                                          Placeholder: ="e.g. Jordan Reyes"
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                              - sciVpEmailField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - sciVpEmailFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="Division VP email (To)"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - sciVpEmail:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          Default: =varSettings.VpEmail
+                                          Placeholder: ="vp@rotech.com"
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - sciRecipRow2:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Start
+                              LayoutGap: =12
+                              FillPortions: =0
+                              Height: =64
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - sciCcField:
+                                  Control: GroupContainer@1.5.0
+                                  Variant: AutoLayout
+                                  Properties:
+                                    LayoutDirection: =LayoutDirection.Vertical
+                                    DropShadow: =DropShadow.None
+                                    LayoutGap: =4
+                                    FillPortions: =1
+                                    LayoutMinHeight: =60
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =62
+                                  Children:
+                                    - sciCcFieldLbl:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: ="CC — region manager, area manager… (comma-separated)"
+                                          Size: =11
+                                          Color: =RGBA(93, 103, 115, 1)
+                                          FontWeight: =FontWeight.Semibold
+                                          FillPortions: =0
+                                          Height: =18
+                                          AlignInContainer: =AlignInContainer.Stretch
+                                    - sciCc:
+                                        Control: ModernTextInput@1.0.0
+                                        Properties:
+                                          Appearance: =Appearance.Outline
+                                          TriggerOutput: =TriggerOutput.Keypress
+                                          Default: =varSettings.Cc
+                                          Placeholder: ="regionmgr@rotech.com, areamgr@rotech.com"
+                                          FillPortions: =0
+                                          Height: =36
+                                          AlignInContainer: =AlignInContainer.Stretch
+                        - sciSaveRecip:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Save recipients"
+                              OnSelect: |-
+                                =Set(varSettings, Patch('TP Settings', If(IsBlank(varSettings), Defaults('TP Settings'), varSettings), {
+                                  Title: Lower(User().Email),
+                                  VpName: sciVpName.Text,
+                                  VpEmail: Trim(sciVpEmail.Text),
+                                  Cc: Trim(sciCc.Text)
+                                }));
+                                Notify("Recipients saved.", NotificationType.Success)
+                              Size: =13
+                              FillPortions: =0
+                              Width: =150
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Start
+                  - sciMailCard:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =10
+                        Fill: =RGBA(255, 255, 255, 1)
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                        RadiusTopLeft: =12
+                        RadiusTopRight: =12
+                        RadiusBottomLeft: =12
+                        RadiusBottomRight: =12
+                        PaddingTop: =16
+                        PaddingBottom: =16
+                        PaddingLeft: =18
+                        PaddingRight: =18
+                        FillPortions: =1
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - sciSubject:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: |-
+                                ="Subject: " & "Site Visit Schedule – " & Text(varAnchor, "mmmm yyyy")
+                              Size: =12
+                              Color: =RGBA(66, 75, 86, 1)
+                              FillPortions: =0
+                              Height: =22
+                              AlignInContainer: =AlignInContainer.Stretch
+                              FontWeight: =FontWeight.Semibold
+                        - sciBodyScroll:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Vertical
+                              DropShadow: =DropShadow.None
+                              LayoutGap: =8
+                              FillPortions: =1
+                              LayoutMinHeight: =40
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              LayoutOverflowY: =LayoutOverflow.Scroll
+                              Fill: =RGBA(246, 248, 250, 1)
+                              RadiusTopLeft: =8
+                              RadiusTopRight: =8
+                              RadiusBottomLeft: =8
+                              RadiusBottomRight: =8
+                              PaddingTop: =8
+                              PaddingLeft: =10
+                              PaddingRight: =10
+                            Children:
+                              - sciMailText:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: |-
+                                      =With({vis: With({s: Value(Text(varAnchor, "yyyymmdd")), e: Value(Text(DateAdd(DateAdd(varAnchor, 1, TimeUnit.Months), -1, TimeUnit.Days), "yyyymmdd"))},
+                                        SortByColumns(Filter('TP Entries', StartNum >= s && StartNum <= e && Status.Value = "Site Visit"), StartNum, SortOrder.Ascending))},
+                                        With({vir: Filter(vis, VisitMode.Value = "Virtual"), ons: Filter(vis, VisitMode.Value <> "Virtual" || IsBlank(VisitMode.Value)), lbl: Text(varAnchor, "mmmm yyyy"), vp: First(Split(Trim(Coalesce(varSettings.VpName, "")), " ")).Value},
+                                          "Hi " & Coalesce(vp, "[VP Name]") & "," & Char(10) & Char(10) &
+                                          "Below is the summary of scheduled site audits/inspections for " & lbl & ", covering both virtual and onsite visits. This is a consolidated view for your awareness — individual location notifications go out separately to each site." & Char(10) & Char(10) &
+                                          "VIRTUAL VISITS" & Char(10) & If(CountRows(vir) = 0, "  None scheduled.", Concat(vir, "  - " & Coalesce(VisitLocation, "Untitled location") & " | " & If(Coalesce(EndDate, StartDate) <> StartDate, If(IsBlank(EndDate) || EndDate = StartDate, Text(StartDate, "mmm d"), Month(StartDate) = Month(EndDate) && Year(StartDate) = Year(EndDate), Text(StartDate, "mmm d") & " – " & Day(EndDate), Text(StartDate, "mmm d") & " – " & Text(EndDate, "mmm d")), Text(StartDate, "ddd, mmm d")) & If(IsBlank(VisitTime), "", " " & VisitTime) & " | Lead: " & Coalesce(PersonName, "TBD") & " | " & Coalesce(VisitConfirmation.Value, "Scheduled") & If(IsBlank(Notes), "", " | " & Notes), Char(10))) & Char(10) & Char(10) &
+                                          "ONSITE VISITS" & Char(10) & If(CountRows(ons) = 0, "  None scheduled.", Concat(ons, "  - " & Coalesce(VisitLocation, "Untitled location") & " | " & If(Coalesce(EndDate, StartDate) <> StartDate, If(IsBlank(EndDate) || EndDate = StartDate, Text(StartDate, "mmm d"), Month(StartDate) = Month(EndDate) && Year(StartDate) = Year(EndDate), Text(StartDate, "mmm d") & " – " & Day(EndDate), Text(StartDate, "mmm d") & " – " & Text(EndDate, "mmm d")), Text(StartDate, "ddd, mmm d")) & If(IsBlank(VisitTime), "", " " & VisitTime) & " | Lead: " & Coalesce(PersonName, "TBD") & " | " & Coalesce(VisitConfirmation.Value, "Scheduled") & If(IsBlank(Notes), "", " | " & Notes), Char(10))) & Char(10) & Char(10) &
+                                          "Total: " & CountRows(vir) & " virtual, " & CountRows(ons) & " onsite scheduled this month." & Char(10) & Char(10) &
+                                          "Let me know if you'd like more detail on any location, or if any dates need to shift." & Char(10) & Char(10) &
+                                          "Best," & Char(10) & User().FullName
+                                        )
+                                      )
+                                    Size: =12
+                                    Color: =RGBA(19, 25, 34, 1)
+                                    FillPortions: =0
+                                    Height: =400
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    AutoHeight: =true
+                                    Wrap: =true
+                                    VerticalAlign: =VerticalAlign.Top
+                        - sciMailButtons:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutGap: =8
+                              FillPortions: =0
+                              Height: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                            Children:
+                              - sciSend:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    Text: =If(IsBlank(varSettings.VpEmail), "Add the VP first", "Send to " & varSettings.VpName)
+                                    OnSelect: |-
+                                      =With({html: "<div style='font-family:Segoe UI,Arial,sans-serif'>" & Substitute(Substitute(sciMailText.Text, "<", "&lt;"), Char(10), "<br>") & "</div>"},
+                                        IfError(
+                                          If(IsBlank(varSettings.Cc),
+                                            Office365Outlook.SendEmailV2(varSettings.VpEmail, "Site Visit Schedule – " & Text(varAnchor, "mmmm yyyy"), html),
+                                            Office365Outlook.SendEmailV2(varSettings.VpEmail, "Site Visit Schedule – " & Text(varAnchor, "mmmm yyyy"), html, {Cc: Substitute(varSettings.Cc, ",", ";")}));
+                                          Notify("Sent to " & varSettings.VpEmail & ".", NotificationType.Success),
+                                          Notify("Couldn't send: " & FirstError.Message, NotificationType.Error)
+                                        )
+                                      )
+                                    Size: =13
+                                    FillPortions: =0
+                                    Width: =200
+                                    Height: =36
+                                    AlignInContainer: =AlignInContainer.Center
+                                    Icon: ="Send"
+                                    DisplayMode: =If(IsBlank(varSettings.VpEmail), DisplayMode.Disabled, DisplayMode.Edit)
+                              - sciCopy:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    Text: ="Copy email text"
+                                    OnSelect: |-
+                                      =Copy("Subject: " & "Site Visit Schedule – " & Text(varAnchor, "mmmm yyyy") & Char(10) & Char(10) & sciMailText.Text); Notify("Copied.", NotificationType.Success)
+                                    Size: =13
+                                    FillPortions: =0
+                                    Width: =150
+                                    Height: =36
+                                    AlignInContainer: =AlignInContainer.Center
+                                    Appearance: =ButtonAppearance.Outline

@@ -1,0 +1,380 @@
+- edtRoot:
+    Control: GroupContainer@1.5.0
+    Variant: AutoLayout
+    Properties:
+      LayoutDirection: =LayoutDirection.Vertical
+      DropShadow: =DropShadow.None
+      LayoutGap: =0
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(246, 248, 250, 1)
+    Children:
+      - edtHeader:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =4
+            FillPortions: =0
+            Height: =60
+            AlignInContainer: =AlignInContainer.Stretch
+            Fill: =RGBA(255, 255, 255, 1)
+            BorderColor: =RGBA(225, 230, 236, 1)
+            BorderThickness: =1
+            PaddingLeft: =20
+            PaddingRight: =20
+          Children:
+            - edtAppTitle:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: ="Team Planner"
+                  Size: =18
+                  Color: =RGBA(0, 83, 161, 1)
+                  FillPortions: =0
+                  Width: =150
+                  Height: =36
+                  AlignInContainer: =AlignInContainer.Center
+                  FontWeight: =FontWeight.Bold
+            - edtNavToday:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Today"
+                  OnSelect: =Navigate(scrToday, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =76
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - edtNavMyTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Tasks"
+                  OnSelect: =Navigate(scrMyTasks, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =96
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - edtNavTasks:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Task Calendar"
+                  OnSelect: =Navigate(scrTaskCalendar, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =124
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - edtNavWhere:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Whereabouts"
+                  OnSelect: =Navigate(scrWhereabouts, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =116
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Primary
+            - edtNavPrint:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Print"
+                  OnSelect: =Navigate(scrPrint, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =68
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - edtNavCircuit:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Site Circuit"
+                  OnSelect: =Navigate(scrSiteCircuit, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =108
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - edtNavPto:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My PTO"
+                  OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =84
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - edtNavEntries:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="My Entries"
+                  OnSelect: =Navigate(scrMyEntries, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =102
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+            - edtNavRoster:
+                Control: ModernButton@1.0.0
+                Properties:
+                  Text: ="Roster"
+                  OnSelect: =Navigate(scrRoster, ScreenTransition.None)
+                  Size: =13
+                  FillPortions: =0
+                  Width: =80
+                  Height: =34
+                  AlignInContainer: =AlignInContainer.Center
+                  Appearance: =ButtonAppearance.Subtle
+                  Visible: =varIsAdmin
+            - edtHeaderSpacer:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =""
+                  Size: =13
+                  Color: =RGBA(19, 25, 34, 1)
+                  FillPortions: =1
+                  LayoutMinWidth: =1
+                  Height: =10
+                  AlignInContainer: =AlignInContainer.Center
+            - edtWho:
+                Control: ModernText@1.0.0
+                Properties:
+                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
+                  Size: =12
+                  Color: =RGBA(93, 103, 115, 1)
+                  FillPortions: =0
+                  Width: =200
+                  Height: =30
+                  AlignInContainer: =AlignInContainer.Center
+                  Align: =Align.Right
+      - edtBody:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.None
+            LayoutAlignItems: =LayoutAlignItems.Stretch
+            LayoutGap: =8
+            FillPortions: =1
+            LayoutMinHeight: =300
+            LayoutMinWidth: =40
+            AlignInContainer: =AlignInContainer.Stretch
+            PaddingTop: =20
+            PaddingBottom: =20
+            LayoutJustifyContent: =LayoutJustifyContent.Center
+          Children:
+            - edtCard:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.None
+                  LayoutGap: =10
+                  Fill: =RGBA(255, 255, 255, 1)
+                  BorderColor: =RGBA(225, 230, 236, 1)
+                  BorderThickness: =1
+                  RadiusTopLeft: =12
+                  RadiusTopRight: =12
+                  RadiusBottomLeft: =12
+                  RadiusBottomRight: =12
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =18
+                  PaddingRight: =18
+                  FillPortions: =0
+                  Width: =740
+                  LayoutMinHeight: =300
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - edtName:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =Coalesce(LookUp(colPeople, PersonKey = varEntry.PersonKey, Title), varEntry.PersonName, varEntry.PersonKey)
+                        Size: =20
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =32
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Bold
+                  - edtSubRow:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        DropShadow: =DropShadow.None
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutGap: =10
+                        FillPortions: =0
+                        Height: =30
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - edtChip:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =varEntry.Status.Value
+                              Size: =11
+                              Color: =LookUp(nfStatus, Label = varEntry.Status.Value, Fg)
+                              FontWeight: =FontWeight.Semibold
+                              Align: =Align.Center
+                              Fill: =LookUp(nfStatus, Label = varEntry.Status.Value, Bg)
+                              BorderColor: =LookUp(nfStatus, Label = varEntry.Status.Value, Bd)
+                              BorderThickness: =1
+                              RadiusTopLeft: =10
+                              RadiusTopRight: =10
+                              RadiusBottomLeft: =10
+                              RadiusBottomRight: =10
+                              FillPortions: =0
+                              Width: =132
+                              Height: =24
+                              AlignInContainer: =AlignInContainer.Center
+                        - edtSub:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: |-
+                                =If(IsBlank(varEntry.EndDate) || varEntry.EndDate = varEntry.StartDate, Text(varEntry.StartDate, "mmm d"), Month(varEntry.StartDate) = Month(varEntry.EndDate) && Year(varEntry.StartDate) = Year(varEntry.EndDate), Text(varEntry.StartDate, "mmm d") & " – " & Day(varEntry.EndDate), Text(varEntry.StartDate, "mmm d") & " – " & Text(varEntry.EndDate, "mmm d")) & " · " &
+                                With({a: varEntry.StartDate, b: Coalesce(varEntry.EndDate, varEntry.StartDate)}, CountRows(Filter(ForAll(Sequence(Max(0, DateDiff(a, b, TimeUnit.Days) + 1)) As wdk, DateAdd(a, wdk.Value - 1, TimeUnit.Days)), Weekday(Value, StartOfWeek.Monday) <= 5))) & " weekday(s)" &
+                                If(varEntry.DayPart.Value = "AM" || varEntry.DayPart.Value = "PM", " · " & varEntry.DayPart.Value & " only", "")
+                              Size: =13
+                              Color: =RGBA(93, 103, 115, 1)
+                              FillPortions: =1
+                              LayoutMinHeight: =24
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Height: =24
+                  - edtRows:
+                      Control: Gallery@2.15.0
+                      Variant: VariableHeight
+                      Properties:
+                        TemplatePadding: =0
+                        ShowScrollbar: =true
+                        FillPortions: =1
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Items: |-
+                          =With(
+                            {
+                              e: varEntry,
+                              tj: IfError(ParseJSON(Coalesce(varEntry.TravelJson, "{}")), ParseJSON("{}")),
+                              isVisit: varEntry.Status.Value = "Site Visit"
+                            },
+                            With(
+                              {
+                                outA: Trim(Text(tj.flight.departAirport) & " " & Text(tj.flight.departTime)),
+                                outB: Trim(Text(tj.flight.arriveAirport) & " " & Text(tj.flight.arriveTime)),
+                                retA: Trim(Text(tj.flight.returnFlight.departAirport) & " " & Text(tj.flight.returnFlight.departTime)),
+                                retB: Trim(Text(tj.flight.returnFlight.arriveAirport) & " " & Text(tj.flight.returnFlight.arriveTime))
+                              },
+                              Filter(
+                                Table(
+                                  {L: "Visit · Location", V: If(isVisit, e.VisitLocation, "")},
+                                  {L: "Visit · Purpose", V: If(isVisit, e.VisitPurpose, "")},
+                                  {L: "Visit · Mode", V: If(isVisit, Coalesce(e.VisitMode.Value, "Onsite"), "")},
+                                  {L: "Visit · Confirmation", V: If(isVisit, Coalesce(e.VisitConfirmation.Value, "Scheduled"), "")},
+                                  {L: "Visit · Time", V: If(isVisit, e.VisitTime, "")},
+                                  {L: "Notes", V: e.Notes},
+                                  {L: "Hotel", V: Text(tj.hotel.name)},
+                                  {L: "Hotel · Confirmation #", V: Text(tj.hotel.confirmation)},
+                                  {L: "Hotel · Check-in", V: IfError(Text(DateValue(Text(tj.hotel.checkIn)), "ddd, mmm d"), "")},
+                                  {L: "Hotel · Check-out", V: IfError(Text(DateValue(Text(tj.hotel.checkOut)), "ddd, mmm d"), "")},
+                                  {L: "Hotel · Phone", V: Text(tj.hotel.phone)},
+                                  {L: "Hotel · Notes", V: Text(tj.hotel.notes)},
+                                  {L: "Flight · Airline", V: Text(tj.flight.airline)},
+                                  {L: "Flight · Confirmation #", V: Text(tj.flight.confirmation)},
+                                  {L: "Flight · Outbound", V: outA & If(outB = "", "", " → " & outB)},
+                                  {L: "Flight · Return", V: retA & If(retB = "", "", " → " & retB) &
+                                    If(IsBlank(Text(tj.flight.returnFlight.airline)), "", " · " & Text(tj.flight.returnFlight.airline)) &
+                                    If(IsBlank(Text(tj.flight.returnFlight.confirmation)), "", " · " & Text(tj.flight.returnFlight.confirmation))},
+                                  {L: "Flight · Notes", V: Text(tj.flight.notes)},
+                                  {L: "From the spreadsheet", V: If(IsBlank(e.RawText) || e.RawText = e.VisitLocation, "", "“" & e.RawText & "”")},
+                                  {L: "PTO request", V: If(IsBlank(e.RequestId), "", "Approved through PTO request " & e.RequestId)}
+                                ),
+                                !IsBlank(V)
+                              )
+                            )
+                          )
+                        TemplateSize: =30
+                      Children:
+                        - edtRowLbl:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.L
+                              Size: =12
+                              Color: =RGBA(93, 103, 115, 1)
+                              X: =0
+                              Y: =4
+                              Width: =210
+                              Height: =22
+                        - edtRowVal:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.V
+                              Size: =13
+                              Color: =RGBA(19, 25, 34, 1)
+                              X: =220
+                              Y: =4
+                              Width: =Parent.TemplateWidth - 220
+                              Height: =22
+                              FontWeight: =FontWeight.Semibold
+                              Wrap: =true
+                              AutoHeight: =true
+                  - edtNoTravel:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="No hotel or flight details recorded for this visit yet."
+                        Size: =13
+                        Color: =RGBA(124, 135, 148, 1)
+                        FillPortions: =0
+                        Height: =22
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Visible: =varEntry.Status.Value = "Site Visit" && IsBlank(varEntry.TravelJson)
+                  - edtFooter:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        DropShadow: =DropShadow.None
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutGap: =8
+                        FillPortions: =0
+                        Height: =44
+                        AlignInContainer: =AlignInContainer.Stretch
+                        LayoutJustifyContent: =LayoutJustifyContent.End
+                      Children:
+                        - edtClose:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Close"
+                              OnSelect: =Back()
+                              Size: =13
+                              FillPortions: =0
+                              Width: =90
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                        - edtEdit:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Edit"
+                              OnSelect: |-
+                                =Navigate(scrEntryEdit, ScreenTransition.None, {locShowTravel: false})
+                              Size: =13
+                              FillPortions: =0
+                              Width: =90
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Center
+                              Icon: ="Edit"
+                              Visible: =(varIsAdmin || (!IsBlank(varMe) && varEntry.PersonKey = varMe.PersonKey))

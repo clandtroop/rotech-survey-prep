@@ -403,6 +403,22 @@ each view shows. Port the rules function by function rather than redesigning the
 
 ## 7. Moving the data
 
+**Source: the latest workbook, not Firestore.** Nobody used the Firebase planner after
+the July import. The team kept working in the spreadsheet, so the newest workbook is the
+source of truth. The CSVs were generated from **Team_Planner_5.21.2026 (3).xlsx**, using
+the July parser in `scripts/migrate-team-planner.mjs` and the row builders in
+`scripts/export-team-planner-sharepoint.mjs`. That run made three changes:
+
+- **Scope.** Whereabouts cover 2026 plus January 2027, since every tab already has a
+  January block. Tasks cover 2026 and 2027.
+- **Emails.** All seven active people have their email filled in.
+- **Reclassification.** Obvious misfiles were corrected: appointments to Limited
+  Availability, "Floating Holiday" to Flex Holiday, and site visits whose text says
+  "Virtual" set to Virtual mode. RawText keeps the original wording.
+
+The import steps and column types are in the IMPORT-GUIDE.md that ships with the CSVs.
+The Firestore export below only matters if Firestore ever becomes the source again.
+
 `scripts/export-team-planner-sharepoint.mjs` reads every `teamPlanner*` collection (all
 years) and writes one CSV per list, laid out as §3 describes. It doesn't change anything
 in Firestore.

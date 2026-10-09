@@ -417,7 +417,11 @@ the July parser in `scripts/migrate-team-planner.mjs` and the row builders in
   "Virtual" set to Virtual mode. RawText keeps the original wording.
 
 The import steps and column types are in the IMPORT-GUIDE.md that ships with the CSVs.
-The Firestore export below only matters if Firestore ever becomes the source again.
+From CSV only creates new lists. If the lists already exist, use the paste workbook
+(TP-paste.xlsx) and its PASTE-GUIDE.md instead. Each tab holds a batch of up to 100 rows
+for pasting into a matching view in grid view. The workbook and CSVs hold schedules and
+emails, so they aren't in the repo. The Firestore export below only matters if Firestore
+ever becomes the source again.
 
 `scripts/export-team-planner-sharepoint.mjs` reads every `teamPlanner*` collection (all
 years) and writes one CSV per list, laid out as §3 describes. It doesn't change anything

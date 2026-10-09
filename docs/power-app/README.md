@@ -30,9 +30,11 @@ generator and regenerate.
 
 ### 1. SharePoint (plan §3 and §7)
 
-Create the site, set its time zone, and import the five CSVs. Then create **TP PTO
-Requests** and **TP Settings** by hand, add the indexes, and set the permissions. On
-TP People, fill in **Person**, **Approver** and **Admin** for everyone active.
+Create the site and set its time zone. Then load the data: import the four CSVs with
+From CSV, or, if you've already created the lists, paste them in grid view as
+PASTE-GUIDE.md describes. Create **TP Task Done**, **TP PTO Requests** and **TP
+Settings** by hand, add the indexes, and set the permissions. On TP People, fill in
+**Person**, **Approver** and **Admin** for everyone active.
 
 ### 2. Flows
 

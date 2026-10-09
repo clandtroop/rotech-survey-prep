@@ -297,16 +297,24 @@
                         Wrap: =true
                         AutoHeight: =true
                   - mrqStatus:
-                      Control: ModernBadge@1.0.0
+                      Control: ModernText@1.0.0
                       Properties:
+                        Text: =ThisItem.Status.Value
+                        Size: =11
+                        Color: =Switch(ThisItem.Status.Value, "Approved", RGBA(29, 122, 77, 1), "Pending", RGBA(176, 106, 0, 1), "Rejected", RGBA(192, 57, 43, 1), RGBA(93, 103, 115, 1))
                         X: =Parent.TemplateWidth - 300
-                        Y: =12
+                        Y: =13
                         Width: =110
-                        Height: =28
-                        Content: =ThisItem.Status.Value
-                        Intent: =Switch(ThisItem.Status.Value, "Approved", BadgeIntent.Positive, "Pending", BadgeIntent.Caution, "Rejected", BadgeIntent.Critical, BadgeIntent.Neutral)
-                        Appearance: =BadgeAppearance.Tint
-                        Shape: =BadgeShape.Circular
+                        Height: =26
+                        FontWeight: =FontWeight.Bold
+                        Align: =Align.Center
+                        Fill: =Switch(ThisItem.Status.Value, "Approved", RGBA(231, 244, 236, 1), "Pending", RGBA(251, 240, 219, 1), "Rejected", RGBA(251, 234, 231, 1), RGBA(238, 241, 245, 1))
+                        BorderColor: =Switch(ThisItem.Status.Value, "Approved", RGBA(143, 201, 163, 1), "Pending", RGBA(227, 200, 148, 1), "Rejected", RGBA(224, 160, 153, 1), RGBA(197, 204, 213, 1))
+                        BorderThickness: =1
+                        RadiusTopLeft: =13
+                        RadiusTopRight: =13
+                        RadiusBottomLeft: =13
+                        RadiusBottomRight: =13
                   - mrqCancel:
                       Control: ModernButton@1.0.0
                       Properties:

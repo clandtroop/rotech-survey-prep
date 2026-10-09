@@ -64,7 +64,6 @@ const TYPES = {
   dropdown: "ModernDropdown@1.0.0",
   combo: "ModernCombobox@1.0.0",
   date: "ModernDatePicker@1.0.0",
-  badge: "ModernBadge@1.0.0",
   container: "GroupContainer@1.5.0",
   gallery: "Gallery@2.15.0",
   rect: "Rectangle@2.3.0",
@@ -1660,10 +1659,15 @@ function screenMyRequests() {
   {T: ThisItem.ReplacedSummary}), !IsBlank(T)), T, " · ")`, {
           X: 14, Y: 56, Width: "Parent.TemplateWidth - 330", Height: 20, Size: 12, Color: K.gray600, Wrap: "true", AutoHeight: "true",
         }),
-        node(TYPES.badge, `${p}Status`, {
-          X: "Parent.TemplateWidth - 300", Y: 12, Width: 110, Height: 28, Content: "ThisItem.Status.Value",
-          Intent: 'Switch(ThisItem.Status.Value, "Approved", BadgeIntent.Positive, "Pending", BadgeIntent.Caution, "Rejected", BadgeIntent.Critical, BadgeIntent.Neutral)',
-          Appearance: "BadgeAppearance.Tint", Shape: "BadgeShape.Circular",
+        // A Text pill rather than ModernBadge: the updated Badge control isn't
+        // rolled out everywhere yet, and Studio rejected it ("Unknown control
+        // type 'ModernBadge'") on the first real paste.
+        text(`${p}Status`, "ThisItem.Status.Value", {
+          X: "Parent.TemplateWidth - 300", Y: 13, Width: 110, Height: 26, Size: 11, FontWeight: "FontWeight.Bold", Align: "Align.Center",
+          Fill: `Switch(ThisItem.Status.Value, "Approved", ${K.successBg}, "Pending", ${K.warningBg}, "Rejected", ${K.errorBg}, ${K.gray100})`,
+          Color: `Switch(ThisItem.Status.Value, "Approved", ${K.success}, "Pending", ${K.warning}, "Rejected", ${K.error}, ${K.gray600})`,
+          BorderColor: `Switch(ThisItem.Status.Value, "Approved", ${K.successBorder}, "Pending", ${K.warningBorder}, "Rejected", ${K.errorBorder}, ${K.gray300})`,
+          BorderThickness: 1, ...radius(13),
         }),
         button(`${p}Cancel`, 'If(ThisItem.Status.Value = "Pending", "Withdraw", "Cancel PTO")', cancel, {
           X: "Parent.TemplateWidth - 170", Y: 10, Width: 150, Height: 34, Appearance: "ButtonAppearance.Outline",

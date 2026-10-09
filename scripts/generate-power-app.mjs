@@ -1194,24 +1194,25 @@ function screenTaskCalendar() {
 )`;
   const isList = 'Coalesce(locLayout, "list") = "list"';
 
-  return root(p, "Tasks", [
-    toolbar(`${p}Toolbar`, [
-      dropdown(`${p}Person`, peopleItems, "ThisItem.N", { ...fixedW(180, 34), Default: '{K: "", N: "All specialists"}', AccessibleLabel: '"Filter by specialist"' }),
-      dropdown(`${p}Cadence`, cadences, "ThisItem.N", { ...fixedW(160, 34), Default: '{V: "", N: "All cadences"}', AccessibleLabel: '"Filter by cadence"' }),
-      dropdown(`${p}Tag`, tagItems, "ThisItem.N", { ...fixedW(150, 34), Default: '{V: "", N: "All tags"}', AccessibleLabel: '"Filter by tag"' }),
-      input(`${p}Search`, { ...fixedW(200, 34), Placeholder: '"Search tasks…"', Type: "TextInputType.Search", AccessibleLabel: '"Search tasks"' }),
-      button(`${p}New`, '"New task"', "Set(varTask, Blank()); Set(varTaskTeam, true); Navigate(scrTaskEdit, ScreenTransition.None)", { ...fixedW(110, 34), Icon: '"Add"', Visible: "varIsAdmin" }),
-      spacer(`${p}ToolSpacer`),
-      button(`${p}ListBtn`, '"List"', 'UpdateContext({locLayout: "list"})', { ...fixedW(72, 34), Appearance: `If(${isList}, ButtonAppearance.Primary, ButtonAppearance.Outline)` }),
-      button(`${p}MonthBtn`, '"By month"', 'UpdateContext({locLayout: "months"})', { ...fixedW(96, 34), Appearance: `If(${isList}, ButtonAppearance.Outline, ButtonAppearance.Primary)` }),
-    ]),
-    content(`${p}Body`, [
-      text(`${p}Count`, `With({ft: ${filtered}}, CountRows(ft) & " tasks · " & CountRows(Filter(ft, CadenceType.Value <> "Standing duty")) & " scheduled, " & CountRows(Filter(ft, CadenceType.Value = "Standing duty")) & " standing duties")`, {
-        ...fixed(20), Size: 12, Color: K.gray500,
-      }),
-      vbox(`${p}ListCard`, { ...fill(1), Visible: isList, Fill: K.white, BorderColor: K.gray200, BorderThickness: 1, ...radius(12), LayoutGap: 0 }, [
-        hbox(`${p}ListHead`, { ...fixed(36), Fill: K.gray50, LayoutGap: 0, PaddingLeft: 10 },
-          COLS.map(([h, w], i) => text(`${p}Head${i}`, str(h.toUpperCase()), { ...fill(w, { LayoutMinHeight: 30 }), Height: 30, Size: 10, FontWeight: "FontWeight.Bold", Color: K.gray600 }))),
+  // A label over a control, fixed height, for stacking in a vertical sidebar.
+  const stackField = (name, lbl, control) => vbox(name, { ...fixed(62), LayoutGap: 4 }, [
+    label(`${name}Lbl`, lbl, fixed(18)),
+    { ...control, props: { ...control.props, ...fixed(36) } },
+  ]);
+  const count = expr => `With({ft: ${filtered}}, ${expr})`;
+
+  return templateScreen(p, "Team Planner · Task Calendar", "Tasks", [
+    tcard(`${p}TasksCard`, { ...fill(1, { LayoutMinHeight: 300 }), LayoutGap: 10 }, [
+      hbox(`${p}Toolbar`, { ...fixed(40), LayoutGap: 8 }, [
+        input(`${p}Search`, { ...fixedW(280, 34), Placeholder: '"Search tasks…"', Type: "TextInputType.Search", AccessibleLabel: '"Search tasks"' }),
+        spacer(`${p}ToolSpacer`),
+        button(`${p}ListBtn`, '"List"', 'UpdateContext({locLayout: "list"})', { ...fixedW(72, 34), Appearance: `If(${isList}, ButtonAppearance.Primary, ButtonAppearance.Outline)` }),
+        button(`${p}MonthBtn`, '"By month"', 'UpdateContext({locLayout: "months"})', { ...fixedW(96, 34), Appearance: `If(${isList}, ButtonAppearance.Outline, ButtonAppearance.Primary)` }),
+        button(`${p}New`, '"New task"', "Set(varTask, Blank()); Set(varTaskTeam, true); Navigate(scrTaskEdit, ScreenTransition.None)", { ...fixedW(110, 34), Icon: '"Add"', Visible: "varIsAdmin" }),
+      ]),
+      vbox(`${p}ListFrame`, { ...fill(1), Visible: isList, BorderColor: K.gray200, BorderThickness: 1, ...radius(6), LayoutGap: 0 }, [
+        hbox(`${p}ListHead`, { ...fixed(34), Fill: K.gray50, LayoutGap: 0, PaddingLeft: 10 },
+          COLS.map(([h, w], i) => text(`${p}Head${i}`, str(h.toUpperCase()), { ...fill(w, { LayoutMinHeight: 28 }), Height: 28, Size: 10, FontWeight: "FontWeight.Bold", Color: K.gray600 }))),
         gallery(`${p}List`, "Vertical", { ...fill(1), Items: filtered, TemplateSize: 50 }, [
           rect(`${p}ListLine`, { X: 0, Y: "Parent.TemplateHeight - 1", Width: "Parent.TemplateWidth", Height: 1, Fill: K.gray100 }),
           text(`${p}CTask`, "ThisItem.Title", { X: colX(0), Y: 4, Width: colW(0), Height: 42, FontWeight: "FontWeight.Semibold", Wrap: "true", VerticalAlign: "VerticalAlign.Middle" }),
@@ -1232,7 +1233,7 @@ function screenTaskCalendar() {
       ]),
       gallery(`${p}Months`, "Vertical", { ...fill(1), Visible: `!(${isList})`, Items: months, WrapCount: 3, TemplateSize: 210, TemplatePadding: 6 }, [
         rect(`${p}MonBg`, {
-          X: 0, Y: 0, Width: "Parent.TemplateWidth", Height: "Parent.TemplateHeight", Fill: K.white, BorderThickness: 1, BorderColor: K.gray200,
+          X: 0, Y: 0, Width: "Parent.TemplateWidth", Height: "Parent.TemplateHeight", Fill: K.gray50, BorderThickness: 1, BorderColor: K.gray200,
         }),
         rect(`${p}MonAccent`, {
           X: 0, Y: 0, Width: "Parent.TemplateWidth", Height: 4,
@@ -1248,6 +1249,20 @@ function screenTaskCalendar() {
         ]),
         text(`${p}MonEmpty`, '"Nothing scheduled"', { X: 14, Y: 38, Width: 200, Height: 20, Size: 12, Color: K.gray400, Visible: "CountRows(ThisItem.Tasks) = 0" }),
       ]),
+    ]),
+    tcard(`${p}SidebarContainer`, { FillPortions: 0, Width: 280, LayoutMinHeight: 300, AlignInContainer: "AlignInContainer.Stretch", LayoutGap: 8 }, [
+      text(`${p}FiltersText`, '"Filters"', { ...fixed(26), Size: 16, FontWeight: "FontWeight.Semibold" }),
+      stackField(`${p}PersonField`, "Specialist", dropdown(`${p}Person`, peopleItems, "ThisItem.N", { Default: '{K: "", N: "All specialists"}', AccessibleLabel: '"Filter by specialist"' })),
+      stackField(`${p}CadenceField`, "Cadence", dropdown(`${p}Cadence`, cadences, "ThisItem.N", { Default: '{V: "", N: "All cadences"}', AccessibleLabel: '"Filter by cadence"' })),
+      stackField(`${p}TagField`, "Tag", dropdown(`${p}Tag`, tagItems, "ThisItem.N", { Default: '{V: "", N: "All tags"}', AccessibleLabel: '"Filter by tag"' })),
+      button(`${p}Clear`, '"Clear filters"', `Reset(${p}Person); Reset(${p}Cadence); Reset(${p}Tag); Reset(${p}Search)`, fixedW(130, 32, { Appearance: "ButtonAppearance.Subtle", AlignInContainer: "AlignInContainer.Start" })),
+      divider(`${p}Divider1`),
+      text(`${p}SummaryText`, '"Showing"', { ...fixed(22), Size: 14, FontWeight: "FontWeight.Semibold" }),
+      text(`${p}CountAll`, count('CountRows(ft) & " tasks"'), { ...fixed(30), Size: 20, FontWeight: "FontWeight.Bold", Color: K.blue600 }),
+      text(`${p}CountScheduled`, count('CountRows(Filter(ft, CadenceType.Value <> "Standing duty")) & " scheduled"'), { ...fixed(20), Size: 12, Color: K.gray600 }),
+      text(`${p}CountStanding`, count('CountRows(Filter(ft, CadenceType.Value = "Standing duty")) & " standing duties"'), { ...fixed(20), Size: 12, Color: K.gray600 }),
+      divider(`${p}Divider2`),
+      text(`${p}Help`, '"Admins add and edit tasks here. Everyone ticks tasks off and tags them from My Tasks."', { ...fixed(52), Size: 11, Color: K.gray500, Wrap: "true" }),
     ]),
   ]);
 }

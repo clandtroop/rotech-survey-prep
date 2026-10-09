@@ -1,44 +1,63 @@
-- tclRoot:
+- tclScreenContainer:
     Control: GroupContainer@1.5.0
     Variant: AutoLayout
     Properties:
       LayoutDirection: =LayoutDirection.Vertical
       DropShadow: =DropShadow.None
-      LayoutGap: =0
+      LayoutGap: =8
       X: =0
       Y: =0
       Width: =Parent.Width
       Height: =Parent.Height
-      Fill: =RGBA(246, 248, 250, 1)
+      Fill: =RGBA(243, 242, 241, 1)
+      PaddingTop: =8
+      PaddingBottom: =8
+      PaddingLeft: =8
+      PaddingRight: =8
     Children:
-      - tclHeader:
+      - tclHeaderContainer:
           Control: GroupContainer@1.5.0
           Variant: AutoLayout
           Properties:
             LayoutDirection: =LayoutDirection.Horizontal
             DropShadow: =DropShadow.None
             LayoutAlignItems: =LayoutAlignItems.Center
-            LayoutGap: =4
+            LayoutGap: =0
             FillPortions: =0
-            Height: =60
+            Height: =56
+            AlignInContainer: =AlignInContainer.Stretch
+          Children:
+            - tclHeader:
+                Control: Header
+                Properties:
+                  FillPortions: =1
+                  LayoutMinHeight: =48
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Height: =56
+                  Title: ="Team Planner · Task Calendar"
+                  IsLogoVisible: =false
+                  IsProfilePictureVisible: =true
+                  BasePaletteColor: =RGBA(0, 83, 161, 1)
+      - tclNavContainer:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.Light
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =2
+            FillPortions: =0
+            Height: =44
             AlignInContainer: =AlignInContainer.Stretch
             Fill: =RGBA(255, 255, 255, 1)
-            BorderColor: =RGBA(225, 230, 236, 1)
-            BorderThickness: =1
-            PaddingLeft: =20
-            PaddingRight: =20
+            RadiusTopLeft: =8
+            RadiusTopRight: =8
+            RadiusBottomLeft: =8
+            RadiusBottomRight: =8
+            PaddingLeft: =8
+            PaddingRight: =8
           Children:
-            - tclAppTitle:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: ="Team Planner"
-                  Size: =18
-                  Color: =RGBA(0, 83, 161, 1)
-                  FillPortions: =0
-                  Width: =150
-                  Height: =36
-                  AlignInContainer: =AlignInContainer.Center
-                  FontWeight: =FontWeight.Bold
             - tclNavToday:
                 Control: ModernButton@1.0.0
                 Properties:
@@ -47,7 +66,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =76
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - tclNavMyTasks:
@@ -58,7 +77,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =96
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - tclNavTasks:
@@ -69,7 +88,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =124
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Primary
             - tclNavWhere:
@@ -80,7 +99,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =116
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - tclNavPrint:
@@ -91,7 +110,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =68
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - tclNavCircuit:
@@ -102,7 +121,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =108
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - tclNavPto:
@@ -113,7 +132,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =84
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - tclNavEntries:
@@ -124,7 +143,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =102
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - tclNavRoster:
@@ -135,313 +154,378 @@
                   Size: =13
                   FillPortions: =0
                   Width: =80
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
                   Visible: =varIsAdmin
-            - tclHeaderSpacer:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: =""
-                  Size: =13
-                  Color: =RGBA(19, 25, 34, 1)
-                  FillPortions: =1
-                  LayoutMinWidth: =1
-                  Height: =10
-                  AlignInContainer: =AlignInContainer.Center
-            - tclWho:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
-                  Size: =12
-                  Color: =RGBA(93, 103, 115, 1)
-                  FillPortions: =0
-                  Width: =200
-                  Height: =30
-                  AlignInContainer: =AlignInContainer.Center
-                  Align: =Align.Right
-      - tclToolbar:
+      - tclMainContainer:
           Control: GroupContainer@1.5.0
           Variant: AutoLayout
           Properties:
             LayoutDirection: =LayoutDirection.Horizontal
             DropShadow: =DropShadow.None
-            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutAlignItems: =LayoutAlignItems.Stretch
             LayoutGap: =8
-            FillPortions: =0
-            Height: =60
-            AlignInContainer: =AlignInContainer.Stretch
-            PaddingLeft: =20
-            PaddingRight: =20
-          Children:
-            - tclPerson:
-                Control: ModernDropdown@1.0.0
-                Properties:
-                  Items: |-
-                    =ForAll(Sequence(CountRows(colPeople) + 2) As i,
-                      If(i.Value = 1, {K: "", N: "All specialists"}, i.Value = 2, {K: "__team", N: "Team-wide only"},
-                        With({r: Index(colPeople, i.Value - 2)}, {K: r.PersonKey, N: r.Title})))
-                  ItemDisplayText: =ThisItem.N
-                  Appearance: =Appearance.Outline
-                  FillPortions: =0
-                  Width: =180
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Default: |-
-                    ={K: "", N: "All specialists"}
-                  AccessibleLabel: ="Filter by specialist"
-            - tclCadence:
-                Control: ModernDropdown@1.0.0
-                Properties:
-                  Items: |-
-                    =ForAll(Sequence(CountRows(nfCadences) + 1) As i, If(i.Value = 1, {V: "", N: "All cadences"}, With({r: Index(nfCadences, i.Value - 1)}, {V: r.Label, N: r.Label})))
-                  ItemDisplayText: =ThisItem.N
-                  Appearance: =Appearance.Outline
-                  FillPortions: =0
-                  Width: =160
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Default: |-
-                    ={V: "", N: "All cadences"}
-                  AccessibleLabel: ="Filter by cadence"
-            - tclTag:
-                Control: ModernDropdown@1.0.0
-                Properties:
-                  Items: |-
-                    =With({tags: Sort(Distinct(Filter(ForAll(Split(Concat(colTasks, Tags, ","), ",") As tg, Trim(tg.Value)), Value <> ""), Value), Value)}, ForAll(Sequence(CountRows(tags) + 1) As i, If(i.Value = 1, {V: "", N: "All tags"}, With({r: Index(tags, i.Value - 1)}, {V: r.Value, N: "#" & r.Value}))))
-                  ItemDisplayText: =ThisItem.N
-                  Appearance: =Appearance.Outline
-                  FillPortions: =0
-                  Width: =150
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Default: |-
-                    ={V: "", N: "All tags"}
-                  AccessibleLabel: ="Filter by tag"
-            - tclSearch:
-                Control: ModernTextInput@1.0.0
-                Properties:
-                  Appearance: =Appearance.Outline
-                  TriggerOutput: =TriggerOutput.Keypress
-                  FillPortions: =0
-                  Width: =200
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Placeholder: ="Search tasks…"
-                  Type: =TextInputType.Search
-                  AccessibleLabel: ="Search tasks"
-            - tclNew:
-                Control: ModernButton@1.0.0
-                Properties:
-                  Text: ="New task"
-                  OnSelect: =Set(varTask, Blank()); Set(varTaskTeam, true); Navigate(scrTaskEdit, ScreenTransition.None)
-                  Size: =13
-                  FillPortions: =0
-                  Width: =110
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Icon: ="Add"
-                  Visible: =varIsAdmin
-            - tclToolSpacer:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: =""
-                  Size: =13
-                  Color: =RGBA(19, 25, 34, 1)
-                  FillPortions: =1
-                  LayoutMinWidth: =1
-                  Height: =10
-                  AlignInContainer: =AlignInContainer.Center
-            - tclListBtn:
-                Control: ModernButton@1.0.0
-                Properties:
-                  Text: ="List"
-                  OnSelect: |-
-                    =UpdateContext({locLayout: "list"})
-                  Size: =13
-                  FillPortions: =0
-                  Width: =72
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Appearance: =If(Coalesce(locLayout, "list") = "list", ButtonAppearance.Primary, ButtonAppearance.Outline)
-            - tclMonthBtn:
-                Control: ModernButton@1.0.0
-                Properties:
-                  Text: ="By month"
-                  OnSelect: |-
-                    =UpdateContext({locLayout: "months"})
-                  Size: =13
-                  FillPortions: =0
-                  Width: =96
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Appearance: =If(Coalesce(locLayout, "list") = "list", ButtonAppearance.Outline, ButtonAppearance.Primary)
-      - tclBody:
-          Control: GroupContainer@1.5.0
-          Variant: AutoLayout
-          Properties:
-            LayoutDirection: =LayoutDirection.Vertical
-            DropShadow: =DropShadow.None
-            LayoutGap: =14
             FillPortions: =1
-            LayoutMinHeight: =200
+            LayoutMinHeight: =300
             LayoutMinWidth: =40
             AlignInContainer: =AlignInContainer.Stretch
-            PaddingLeft: =20
-            PaddingRight: =20
-            PaddingBottom: =16
           Children:
-            - tclCount:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: |-
-                    =With({ft: With({q: Lower(Trim(tclSearch.Text)), who: tclPerson.Selected.K, cad: tclCadence.Selected.V, tg: tclTag.Selected.V},
-                      SortByColumns(
-                        Filter(
-                          AddColumns(colTasks, Rank, LookUp(nfCadences, Label = CadenceType.Value, Rank)),
-                          (IsBlank(who) || (who = "__team" && AssigneeType.Value = "Team") || AssigneePersonKey = who) &&
-                          (IsBlank(cad) || CadenceType.Value = cad) &&
-                          (IsBlank(tg) || !IsBlank(LookUp(Split(Coalesce(Tags, ""), ",") As th, Trim(th.Value) = tg))) &&
-                          (IsBlank(q) || q in Lower(Title & " " & Comments & " " & Scope & " " & Tags))
-                        ),
-                        Rank, SortOrder.Ascending, CadenceDate, SortOrder.Ascending, Title, SortOrder.Ascending
-                      )
-                    )}, CountRows(ft) & " tasks · " & CountRows(Filter(ft, CadenceType.Value <> "Standing duty")) & " scheduled, " & CountRows(Filter(ft, CadenceType.Value = "Standing duty")) & " standing duties")
-                  Size: =12
-                  Color: =RGBA(124, 135, 148, 1)
-                  FillPortions: =0
-                  Height: =20
-                  AlignInContainer: =AlignInContainer.Stretch
-            - tclListCard:
+            - tclTasksCard:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
                 Properties:
                   LayoutDirection: =LayoutDirection.Vertical
-                  DropShadow: =DropShadow.None
-                  LayoutGap: =0
+                  DropShadow: =DropShadow.Light
+                  LayoutGap: =10
+                  Fill: =RGBA(255, 255, 255, 1)
+                  RadiusTopLeft: =8
+                  RadiusTopRight: =8
+                  RadiusBottomLeft: =8
+                  RadiusBottomRight: =8
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =16
+                  PaddingRight: =16
                   FillPortions: =1
-                  LayoutMinHeight: =40
+                  LayoutMinHeight: =300
                   LayoutMinWidth: =40
                   AlignInContainer: =AlignInContainer.Stretch
-                  Visible: =Coalesce(locLayout, "list") = "list"
-                  Fill: =RGBA(255, 255, 255, 1)
-                  BorderColor: =RGBA(225, 230, 236, 1)
-                  BorderThickness: =1
-                  RadiusTopLeft: =12
-                  RadiusTopRight: =12
-                  RadiusBottomLeft: =12
-                  RadiusBottomRight: =12
                 Children:
-                  - tclListHead:
+                  - tclToolbar:
                       Control: GroupContainer@1.5.0
                       Variant: AutoLayout
                       Properties:
                         LayoutDirection: =LayoutDirection.Horizontal
                         DropShadow: =DropShadow.None
                         LayoutAlignItems: =LayoutAlignItems.Center
-                        LayoutGap: =0
+                        LayoutGap: =8
                         FillPortions: =0
-                        Height: =36
+                        Height: =40
                         AlignInContainer: =AlignInContainer.Stretch
-                        Fill: =RGBA(246, 248, 250, 1)
-                        PaddingLeft: =10
                       Children:
-                        - tclHead0:
-                            Control: ModernText@1.0.0
+                        - tclSearch:
+                            Control: ModernTextInput@1.0.0
                             Properties:
-                              Text: ="TASK"
-                              Size: =10
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =24
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                        - tclHead1:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: ="CADENCE"
-                              Size: =10
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =11
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                        - tclHead2:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: ="SPECIALIST"
-                              Size: =10
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =12
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                        - tclHead3:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: ="APPLIES TO"
-                              Size: =10
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =12
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                        - tclHead4:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: ="TAGS"
-                              Size: =10
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =12
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                        - tclHead5:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: ="COMMENTS"
-                              Size: =10
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =21
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                        - tclHead6:
+                              Appearance: =Appearance.Outline
+                              TriggerOutput: =TriggerOutput.Keypress
+                              FillPortions: =0
+                              Width: =280
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Placeholder: ="Search tasks…"
+                              Type: =TextInputType.Search
+                              AccessibleLabel: ="Search tasks"
+                        - tclToolSpacer:
                             Control: ModernText@1.0.0
                             Properties:
                               Text: =""
-                              Size: =10
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =8
-                              LayoutMinHeight: =30
+                              Size: =13
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =1
+                              LayoutMinWidth: =1
+                              Height: =10
+                              AlignInContainer: =AlignInContainer.Center
+                        - tclListBtn:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="List"
+                              OnSelect: |-
+                                =UpdateContext({locLayout: "list"})
+                              Size: =13
+                              FillPortions: =0
+                              Width: =72
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =If(Coalesce(locLayout, "list") = "list", ButtonAppearance.Primary, ButtonAppearance.Outline)
+                        - tclMonthBtn:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="By month"
+                              OnSelect: |-
+                                =UpdateContext({locLayout: "months"})
+                              Size: =13
+                              FillPortions: =0
+                              Width: =96
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =If(Coalesce(locLayout, "list") = "list", ButtonAppearance.Outline, ButtonAppearance.Primary)
+                        - tclNew:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="New task"
+                              OnSelect: =Set(varTask, Blank()); Set(varTaskTeam, true); Navigate(scrTaskEdit, ScreenTransition.None)
+                              Size: =13
+                              FillPortions: =0
+                              Width: =110
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Icon: ="Add"
+                              Visible: =varIsAdmin
+                  - tclListFrame:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =0
+                        FillPortions: =1
+                        LayoutMinHeight: =40
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Visible: =Coalesce(locLayout, "list") = "list"
+                        BorderColor: =RGBA(225, 230, 236, 1)
+                        BorderThickness: =1
+                        RadiusTopLeft: =6
+                        RadiusTopRight: =6
+                        RadiusBottomLeft: =6
+                        RadiusBottomRight: =6
+                      Children:
+                        - tclListHead:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutGap: =0
+                              FillPortions: =0
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Fill: =RGBA(246, 248, 250, 1)
+                              PaddingLeft: =10
+                            Children:
+                              - tclHead0:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="TASK"
+                                    Size: =10
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =24
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                              - tclHead1:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="CADENCE"
+                                    Size: =10
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =11
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                              - tclHead2:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="SPECIALIST"
+                                    Size: =10
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =12
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                              - tclHead3:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="APPLIES TO"
+                                    Size: =10
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =12
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                              - tclHead4:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="TAGS"
+                                    Size: =10
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =12
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                              - tclHead5:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="COMMENTS"
+                                    Size: =10
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =21
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                              - tclHead6:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =""
+                                    Size: =10
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =8
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                        - tclList:
+                            Control: Gallery@2.15.0
+                            Variant: Vertical
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =true
+                              FillPortions: =1
+                              LayoutMinHeight: =40
                               LayoutMinWidth: =40
                               AlignInContainer: =AlignInContainer.Stretch
+                              Items: |-
+                                =With({q: Lower(Trim(tclSearch.Text)), who: tclPerson.Selected.K, cad: tclCadence.Selected.V, tg: tclTag.Selected.V},
+                                  SortByColumns(
+                                    Filter(
+                                      AddColumns(colTasks, Rank, LookUp(nfCadences, Label = CadenceType.Value, Rank)),
+                                      (IsBlank(who) || (who = "__team" && AssigneeType.Value = "Team") || AssigneePersonKey = who) &&
+                                      (IsBlank(cad) || CadenceType.Value = cad) &&
+                                      (IsBlank(tg) || !IsBlank(LookUp(Split(Coalesce(Tags, ""), ",") As th, Trim(th.Value) = tg))) &&
+                                      (IsBlank(q) || q in Lower(Title & " " & Comments & " " & Scope & " " & Tags))
+                                    ),
+                                    Rank, SortOrder.Ascending, CadenceDate, SortOrder.Ascending, Title, SortOrder.Ascending
+                                  )
+                                )
+                              TemplateSize: =50
+                            Children:
+                              - tclListLine:
+                                  Control: Rectangle@2.3.0
+                                  Properties:
+                                    X: =0
+                                    Y: =Parent.TemplateHeight - 1
+                                    Width: =Parent.TemplateWidth
+                                    Height: =1
+                                    Fill: =RGBA(238, 241, 245, 1)
+                              - tclCTask:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =ThisItem.Title
+                                    Size: =13
+                                    Color: =RGBA(19, 25, 34, 1)
+                                    X: =Parent.TemplateWidth * 0 + 10
+                                    Y: =4
+                                    Width: =Parent.TemplateWidth * 0.24 - 14
+                                    Height: =42
+                                    FontWeight: =FontWeight.Semibold
+                                    Wrap: =true
+                                    VerticalAlign: =VerticalAlign.Middle
+                              - tclCCad:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: |-
+                                      =Switch(ThisItem.CadenceType.Value,
+                                          "One-off date", If(IsBlank(ThisItem.CadenceDate), "One-off", Text(ThisItem.CadenceDate, "mmm d, yyyy")),
+                                          "Specific month", Coalesce(ThisItem.CadenceLabel, If(CountRows(Split(Coalesce(ThisItem.CadenceMonths, ""), ",")) = 1 && !IsBlank(ThisItem.CadenceMonths), Index(nfMonths, Value(ThisItem.CadenceMonths)).Value, "Specific month")),
+                                          "Month range", Coalesce(ThisItem.CadenceLabel, "Month range"),
+                                          ThisItem.CadenceType.Value)
+                                    Size: =12
+                                    Color: =RGBA(66, 75, 86, 1)
+                                    X: =Parent.TemplateWidth * 0.24 + 10
+                                    Y: =4
+                                    Width: =Parent.TemplateWidth * 0.11 - 14
+                                    Height: =42
+                                    VerticalAlign: =VerticalAlign.Middle
+                              - tclCWho:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =If(ThisItem.AssigneeType.Value = "Team", "Team", Coalesce(ThisItem.AssigneeName, "Unassigned"))
+                                    Size: =12
+                                    Color: =If(ThisItem.AssigneeType.Value = "Team", RGBA(0, 83, 161, 1), RGBA(19, 25, 34, 1))
+                                    X: =Parent.TemplateWidth * 0.35 + 10
+                                    Y: =4
+                                    Width: =Parent.TemplateWidth * 0.12 - 14
+                                    Height: =42
+                                    VerticalAlign: =VerticalAlign.Middle
+                                    FontWeight: =If(ThisItem.AssigneeType.Value = "Team", FontWeight.Semibold, FontWeight.Normal)
+                              - tclCScope:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =Coalesce(ThisItem.Scope, "—")
+                                    Size: =12
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =Parent.TemplateWidth * 0.47 + 10
+                                    Y: =4
+                                    Width: =Parent.TemplateWidth * 0.12 - 14
+                                    Height: =42
+                                    Wrap: =true
+                                    VerticalAlign: =VerticalAlign.Middle
+                              - tclCTags:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: |-
+                                      =If(IsBlank(ThisItem.Tags), "", "#" & Substitute(ThisItem.Tags, ", ", "  #"))
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =Parent.TemplateWidth * 0.59 + 10
+                                    Y: =4
+                                    Width: =Parent.TemplateWidth * 0.12 - 14
+                                    Height: =42
+                                    Wrap: =true
+                                    VerticalAlign: =VerticalAlign.Middle
+                              - tclCNote:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =ThisItem.Comments
+                                    Size: =12
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    X: =Parent.TemplateWidth * 0.71 + 10
+                                    Y: =4
+                                    Width: =Parent.TemplateWidth * 0.21 - 14
+                                    Height: =42
+                                    Wrap: =true
+                                    VerticalAlign: =VerticalAlign.Middle
+                              - tclCEdit:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    Text: ="Edit"
+                                    OnSelect: =Set(varTask, LookUp(colTasks, ID = ThisItem.ID)); Set(varTaskTeam, false); Navigate(scrTaskEdit, ScreenTransition.None)
+                                    Size: =13
+                                    X: =Parent.TemplateWidth * 0.92 + 10
+                                    Y: =9
+                                    Width: =64
+                                    Height: =32
+                                    Appearance: =ButtonAppearance.Subtle
+                                    Visible: =varIsAdmin
+                        - tclListEmpty:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="No tasks match these filters."
+                              Size: =13
+                              Color: =RGBA(124, 135, 148, 1)
+                              FillPortions: =0
                               Height: =30
-                              FontWeight: =FontWeight.Bold
-                  - tclList:
+                              AlignInContainer: =AlignInContainer.Stretch
+                              PaddingLeft: =14
+                              Visible: =CountRows(tclList.AllItems) = 0
+                  - tclMonths:
                       Control: Gallery@2.15.0
                       Variant: Vertical
                       Properties:
-                        TemplatePadding: =0
+                        TemplatePadding: =6
                         ShowScrollbar: =true
                         FillPortions: =1
                         LayoutMinHeight: =40
                         LayoutMinWidth: =40
                         AlignInContainer: =AlignInContainer.Stretch
+                        Visible: =!(Coalesce(locLayout, "list") = "list")
                         Items: |-
-                          =With({q: Lower(Trim(tclSearch.Text)), who: tclPerson.Selected.K, cad: tclCadence.Selected.V, tg: tclTag.Selected.V},
+                          =With({ft: With({q: Lower(Trim(tclSearch.Text)), who: tclPerson.Selected.K, cad: tclCadence.Selected.V, tg: tclTag.Selected.V},
                             SortByColumns(
                               Filter(
                                 AddColumns(colTasks, Rank, LookUp(nfCadences, Label = CadenceType.Value, Rank)),
@@ -452,238 +536,347 @@
                               ),
                               Rank, SortOrder.Ascending, CadenceDate, SortOrder.Ascending, Title, SortOrder.Ascending
                             )
+                          )},
+                            ForAll(Sequence(12) As m,
+                              {
+                                M: m.Value,
+                                Name: Index(nfMonths, m.Value).Value,
+                                Tasks: Filter(ft,
+                                  (CadenceType.Value = "One-off date" && !IsBlank(CadenceDate) && Month(CadenceDate) = m.Value) ||
+                                  (CadenceType.Value <> "One-off date" && !IsBlank(LookUp(Split(Coalesce(CadenceMonths, ""), ",") As mh, Trim(mh.Value) = Text(m.Value)))))
+                              }
+                            )
                           )
-                        TemplateSize: =50
+                        WrapCount: =3
+                        TemplateSize: =210
                       Children:
-                        - tclListLine:
+                        - tclMonBg:
                             Control: Rectangle@2.3.0
                             Properties:
                               X: =0
-                              Y: =Parent.TemplateHeight - 1
+                              Y: =0
                               Width: =Parent.TemplateWidth
-                              Height: =1
-                              Fill: =RGBA(238, 241, 245, 1)
-                        - tclCTask:
+                              Height: =Parent.TemplateHeight
+                              Fill: =RGBA(246, 248, 250, 1)
+                              BorderThickness: =1
+                              BorderColor: =RGBA(225, 230, 236, 1)
+                        - tclMonAccent:
+                            Control: Rectangle@2.3.0
+                            Properties:
+                              X: =0
+                              Y: =0
+                              Width: =Parent.TemplateWidth
+                              Height: =4
+                              Fill: =Switch(RoundUp(ThisItem.M / 3, 0), 1, RGBA(0, 83, 161, 1), 2, RGBA(0, 160, 198, 1), 3, RGBA(176, 106, 0, 1), RGBA(29, 122, 77, 1))
+                        - tclMonName:
                             Control: ModernText@1.0.0
                             Properties:
-                              Text: =ThisItem.Title
-                              Size: =13
+                              Text: =ThisItem.Name
+                              Size: =14
                               Color: =RGBA(19, 25, 34, 1)
-                              X: =Parent.TemplateWidth * 0 + 10
-                              Y: =4
-                              Width: =Parent.TemplateWidth * 0.24 - 14
-                              Height: =42
-                              FontWeight: =FontWeight.Semibold
-                              Wrap: =true
-                              VerticalAlign: =VerticalAlign.Middle
-                        - tclCCad:
+                              X: =14
+                              Y: =10
+                              Width: =Parent.TemplateWidth - 120
+                              Height: =22
+                              FontWeight: =FontWeight.Bold
+                        - tclMonCount:
                             Control: ModernText@1.0.0
                             Properties:
-                              Text: |-
-                                =Switch(ThisItem.CadenceType.Value,
-                                    "One-off date", If(IsBlank(ThisItem.CadenceDate), "One-off", Text(ThisItem.CadenceDate, "mmm d, yyyy")),
-                                    "Specific month", Coalesce(ThisItem.CadenceLabel, If(CountRows(Split(Coalesce(ThisItem.CadenceMonths, ""), ",")) = 1 && !IsBlank(ThisItem.CadenceMonths), Index(nfMonths, Value(ThisItem.CadenceMonths)).Value, "Specific month")),
-                                    "Month range", Coalesce(ThisItem.CadenceLabel, "Month range"),
-                                    ThisItem.CadenceType.Value)
-                              Size: =12
-                              Color: =RGBA(66, 75, 86, 1)
-                              X: =Parent.TemplateWidth * 0.24 + 10
-                              Y: =4
-                              Width: =Parent.TemplateWidth * 0.11 - 14
-                              Height: =42
-                              VerticalAlign: =VerticalAlign.Middle
-                        - tclCWho:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: =If(ThisItem.AssigneeType.Value = "Team", "Team", Coalesce(ThisItem.AssigneeName, "Unassigned"))
-                              Size: =12
-                              Color: =If(ThisItem.AssigneeType.Value = "Team", RGBA(0, 83, 161, 1), RGBA(19, 25, 34, 1))
-                              X: =Parent.TemplateWidth * 0.35 + 10
-                              Y: =4
-                              Width: =Parent.TemplateWidth * 0.12 - 14
-                              Height: =42
-                              VerticalAlign: =VerticalAlign.Middle
-                              FontWeight: =If(ThisItem.AssigneeType.Value = "Team", FontWeight.Semibold, FontWeight.Normal)
-                        - tclCScope:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: =Coalesce(ThisItem.Scope, "—")
-                              Size: =12
-                              Color: =RGBA(93, 103, 115, 1)
-                              X: =Parent.TemplateWidth * 0.47 + 10
-                              Y: =4
-                              Width: =Parent.TemplateWidth * 0.12 - 14
-                              Height: =42
-                              Wrap: =true
-                              VerticalAlign: =VerticalAlign.Middle
-                        - tclCTags:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: |-
-                                =If(IsBlank(ThisItem.Tags), "", "#" & Substitute(ThisItem.Tags, ", ", "  #"))
+                              Text: ="Q" & RoundUp(ThisItem.M / 3, 0) & " · " & CountRows(ThisItem.Tasks)
                               Size: =11
-                              Color: =RGBA(93, 103, 115, 1)
-                              X: =Parent.TemplateWidth * 0.59 + 10
-                              Y: =4
-                              Width: =Parent.TemplateWidth * 0.12 - 14
-                              Height: =42
-                              Wrap: =true
-                              VerticalAlign: =VerticalAlign.Middle
-                        - tclCNote:
+                              Color: =RGBA(124, 135, 148, 1)
+                              X: =Parent.TemplateWidth - 110
+                              Y: =10
+                              Width: =96
+                              Height: =22
+                              Align: =Align.Right
+                        - tclMonTasks:
+                            Control: Gallery@2.15.0
+                            Variant: Vertical
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =true
+                              X: =14
+                              Y: =36
+                              Width: =Parent.TemplateWidth - 28
+                              Height: =Parent.TemplateHeight - 44
+                              Items: =ThisItem.Tasks
+                              TemplateSize: =22
+                            Children:
+                              - tclMonTask:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =ThisItem.Title
+                                    Size: =12
+                                    Color: =RGBA(19, 25, 34, 1)
+                                    X: =0
+                                    Y: =1
+                                    Width: =Parent.TemplateWidth - 90
+                                    Height: =20
+                                    FontWeight: =FontWeight.Semibold
+                              - tclMonWho:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =If(ThisItem.AssigneeType.Value = "Team", "Team", First(Split(Coalesce(ThisItem.AssigneeName, " "), " ")).Value)
+                                    Size: =11
+                                    Color: =RGBA(124, 135, 148, 1)
+                                    X: =Parent.TemplateWidth - 86
+                                    Y: =1
+                                    Width: =84
+                                    Height: =20
+                                    Align: =Align.Right
+                        - tclMonEmpty:
                             Control: ModernText@1.0.0
                             Properties:
-                              Text: =ThisItem.Comments
+                              Text: ="Nothing scheduled"
                               Size: =12
-                              Color: =RGBA(93, 103, 115, 1)
-                              X: =Parent.TemplateWidth * 0.71 + 10
-                              Y: =4
-                              Width: =Parent.TemplateWidth * 0.21 - 14
-                              Height: =42
-                              Wrap: =true
-                              VerticalAlign: =VerticalAlign.Middle
-                        - tclCEdit:
-                            Control: ModernButton@1.0.0
-                            Properties:
-                              Text: ="Edit"
-                              OnSelect: =Set(varTask, LookUp(colTasks, ID = ThisItem.ID)); Set(varTaskTeam, false); Navigate(scrTaskEdit, ScreenTransition.None)
-                              Size: =13
-                              X: =Parent.TemplateWidth * 0.92 + 10
-                              Y: =9
-                              Width: =64
-                              Height: =32
-                              Appearance: =ButtonAppearance.Subtle
-                              Visible: =varIsAdmin
-                  - tclListEmpty:
+                              Color: =RGBA(155, 165, 178, 1)
+                              X: =14
+                              Y: =38
+                              Width: =200
+                              Height: =20
+                              Visible: =CountRows(ThisItem.Tasks) = 0
+            - tclSidebarContainer:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.Light
+                  LayoutGap: =8
+                  Fill: =RGBA(255, 255, 255, 1)
+                  RadiusTopLeft: =8
+                  RadiusTopRight: =8
+                  RadiusBottomLeft: =8
+                  RadiusBottomRight: =8
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =16
+                  PaddingRight: =16
+                  FillPortions: =0
+                  Width: =280
+                  LayoutMinHeight: =300
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - tclFiltersText:
                       Control: ModernText@1.0.0
                       Properties:
-                        Text: ="No tasks match these filters."
+                        Text: ="Filters"
+                        Size: =16
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =26
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Semibold
+                  - tclPersonField:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =4
+                        FillPortions: =0
+                        Height: =62
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - tclPersonFieldLbl:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Specialist"
+                              Size: =11
+                              Color: =RGBA(93, 103, 115, 1)
+                              FontWeight: =FontWeight.Semibold
+                              FillPortions: =0
+                              Height: =18
+                              AlignInContainer: =AlignInContainer.Stretch
+                        - tclPerson:
+                            Control: ModernDropdown@1.0.0
+                            Properties:
+                              Items: |-
+                                =ForAll(Sequence(CountRows(colPeople) + 2) As i,
+                                  If(i.Value = 1, {K: "", N: "All specialists"}, i.Value = 2, {K: "__team", N: "Team-wide only"},
+                                    With({r: Index(colPeople, i.Value - 2)}, {K: r.PersonKey, N: r.Title})))
+                              ItemDisplayText: =ThisItem.N
+                              Appearance: =Appearance.Outline
+                              Default: |-
+                                ={K: "", N: "All specialists"}
+                              AccessibleLabel: ="Filter by specialist"
+                              FillPortions: =0
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Stretch
+                  - tclCadenceField:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =4
+                        FillPortions: =0
+                        Height: =62
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - tclCadenceFieldLbl:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Cadence"
+                              Size: =11
+                              Color: =RGBA(93, 103, 115, 1)
+                              FontWeight: =FontWeight.Semibold
+                              FillPortions: =0
+                              Height: =18
+                              AlignInContainer: =AlignInContainer.Stretch
+                        - tclCadence:
+                            Control: ModernDropdown@1.0.0
+                            Properties:
+                              Items: |-
+                                =ForAll(Sequence(CountRows(nfCadences) + 1) As i, If(i.Value = 1, {V: "", N: "All cadences"}, With({r: Index(nfCadences, i.Value - 1)}, {V: r.Label, N: r.Label})))
+                              ItemDisplayText: =ThisItem.N
+                              Appearance: =Appearance.Outline
+                              Default: |-
+                                ={V: "", N: "All cadences"}
+                              AccessibleLabel: ="Filter by cadence"
+                              FillPortions: =0
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Stretch
+                  - tclTagField:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =4
+                        FillPortions: =0
+                        Height: =62
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - tclTagFieldLbl:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: ="Tag"
+                              Size: =11
+                              Color: =RGBA(93, 103, 115, 1)
+                              FontWeight: =FontWeight.Semibold
+                              FillPortions: =0
+                              Height: =18
+                              AlignInContainer: =AlignInContainer.Stretch
+                        - tclTag:
+                            Control: ModernDropdown@1.0.0
+                            Properties:
+                              Items: |-
+                                =With({tags: Sort(Distinct(Filter(ForAll(Split(Concat(colTasks, Tags, ","), ",") As tg, Trim(tg.Value)), Value <> ""), Value), Value)}, ForAll(Sequence(CountRows(tags) + 1) As i, If(i.Value = 1, {V: "", N: "All tags"}, With({r: Index(tags, i.Value - 1)}, {V: r.Value, N: "#" & r.Value}))))
+                              ItemDisplayText: =ThisItem.N
+                              Appearance: =Appearance.Outline
+                              Default: |-
+                                ={V: "", N: "All tags"}
+                              AccessibleLabel: ="Filter by tag"
+                              FillPortions: =0
+                              Height: =36
+                              AlignInContainer: =AlignInContainer.Stretch
+                  - tclClear:
+                      Control: ModernButton@1.0.0
+                      Properties:
+                        Text: ="Clear filters"
+                        OnSelect: =Reset(tclPerson); Reset(tclCadence); Reset(tclTag); Reset(tclSearch)
                         Size: =13
-                        Color: =RGBA(124, 135, 148, 1)
+                        FillPortions: =0
+                        Width: =130
+                        Height: =32
+                        AlignInContainer: =AlignInContainer.Start
+                        Appearance: =ButtonAppearance.Subtle
+                  - tclDivider1:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        FillPortions: =0
+                        Height: =1
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Fill: =RGBA(225, 230, 236, 1)
+                  - tclSummaryText:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Showing"
+                        Size: =14
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =22
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Semibold
+                  - tclCountAll:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: |-
+                          =With({ft: With({q: Lower(Trim(tclSearch.Text)), who: tclPerson.Selected.K, cad: tclCadence.Selected.V, tg: tclTag.Selected.V},
+                            SortByColumns(
+                              Filter(
+                                AddColumns(colTasks, Rank, LookUp(nfCadences, Label = CadenceType.Value, Rank)),
+                                (IsBlank(who) || (who = "__team" && AssigneeType.Value = "Team") || AssigneePersonKey = who) &&
+                                (IsBlank(cad) || CadenceType.Value = cad) &&
+                                (IsBlank(tg) || !IsBlank(LookUp(Split(Coalesce(Tags, ""), ",") As th, Trim(th.Value) = tg))) &&
+                                (IsBlank(q) || q in Lower(Title & " " & Comments & " " & Scope & " " & Tags))
+                              ),
+                              Rank, SortOrder.Ascending, CadenceDate, SortOrder.Ascending, Title, SortOrder.Ascending
+                            )
+                          )}, CountRows(ft) & " tasks")
+                        Size: =20
+                        Color: =RGBA(0, 83, 161, 1)
                         FillPortions: =0
                         Height: =30
                         AlignInContainer: =AlignInContainer.Stretch
-                        PaddingLeft: =14
-                        Visible: =CountRows(tclList.AllItems) = 0
-            - tclMonths:
-                Control: Gallery@2.15.0
-                Variant: Vertical
-                Properties:
-                  TemplatePadding: =6
-                  ShowScrollbar: =true
-                  FillPortions: =1
-                  LayoutMinHeight: =40
-                  LayoutMinWidth: =40
-                  AlignInContainer: =AlignInContainer.Stretch
-                  Visible: =!(Coalesce(locLayout, "list") = "list")
-                  Items: |-
-                    =With({ft: With({q: Lower(Trim(tclSearch.Text)), who: tclPerson.Selected.K, cad: tclCadence.Selected.V, tg: tclTag.Selected.V},
-                      SortByColumns(
-                        Filter(
-                          AddColumns(colTasks, Rank, LookUp(nfCadences, Label = CadenceType.Value, Rank)),
-                          (IsBlank(who) || (who = "__team" && AssigneeType.Value = "Team") || AssigneePersonKey = who) &&
-                          (IsBlank(cad) || CadenceType.Value = cad) &&
-                          (IsBlank(tg) || !IsBlank(LookUp(Split(Coalesce(Tags, ""), ",") As th, Trim(th.Value) = tg))) &&
-                          (IsBlank(q) || q in Lower(Title & " " & Comments & " " & Scope & " " & Tags))
-                        ),
-                        Rank, SortOrder.Ascending, CadenceDate, SortOrder.Ascending, Title, SortOrder.Ascending
-                      )
-                    )},
-                      ForAll(Sequence(12) As m,
-                        {
-                          M: m.Value,
-                          Name: Index(nfMonths, m.Value).Value,
-                          Tasks: Filter(ft,
-                            (CadenceType.Value = "One-off date" && !IsBlank(CadenceDate) && Month(CadenceDate) = m.Value) ||
-                            (CadenceType.Value <> "One-off date" && !IsBlank(LookUp(Split(Coalesce(CadenceMonths, ""), ",") As mh, Trim(mh.Value) = Text(m.Value)))))
-                        }
-                      )
-                    )
-                  WrapCount: =3
-                  TemplateSize: =210
-                Children:
-                  - tclMonBg:
-                      Control: Rectangle@2.3.0
-                      Properties:
-                        X: =0
-                        Y: =0
-                        Width: =Parent.TemplateWidth
-                        Height: =Parent.TemplateHeight
-                        Fill: =RGBA(255, 255, 255, 1)
-                        BorderThickness: =1
-                        BorderColor: =RGBA(225, 230, 236, 1)
-                  - tclMonAccent:
-                      Control: Rectangle@2.3.0
-                      Properties:
-                        X: =0
-                        Y: =0
-                        Width: =Parent.TemplateWidth
-                        Height: =4
-                        Fill: =Switch(RoundUp(ThisItem.M / 3, 0), 1, RGBA(0, 83, 161, 1), 2, RGBA(0, 160, 198, 1), 3, RGBA(176, 106, 0, 1), RGBA(29, 122, 77, 1))
-                  - tclMonName:
-                      Control: ModernText@1.0.0
-                      Properties:
-                        Text: =ThisItem.Name
-                        Size: =14
-                        Color: =RGBA(19, 25, 34, 1)
-                        X: =14
-                        Y: =10
-                        Width: =Parent.TemplateWidth - 120
-                        Height: =22
                         FontWeight: =FontWeight.Bold
-                  - tclMonCount:
+                  - tclCountScheduled:
                       Control: ModernText@1.0.0
                       Properties:
-                        Text: ="Q" & RoundUp(ThisItem.M / 3, 0) & " · " & CountRows(ThisItem.Tasks)
+                        Text: |-
+                          =With({ft: With({q: Lower(Trim(tclSearch.Text)), who: tclPerson.Selected.K, cad: tclCadence.Selected.V, tg: tclTag.Selected.V},
+                            SortByColumns(
+                              Filter(
+                                AddColumns(colTasks, Rank, LookUp(nfCadences, Label = CadenceType.Value, Rank)),
+                                (IsBlank(who) || (who = "__team" && AssigneeType.Value = "Team") || AssigneePersonKey = who) &&
+                                (IsBlank(cad) || CadenceType.Value = cad) &&
+                                (IsBlank(tg) || !IsBlank(LookUp(Split(Coalesce(Tags, ""), ",") As th, Trim(th.Value) = tg))) &&
+                                (IsBlank(q) || q in Lower(Title & " " & Comments & " " & Scope & " " & Tags))
+                              ),
+                              Rank, SortOrder.Ascending, CadenceDate, SortOrder.Ascending, Title, SortOrder.Ascending
+                            )
+                          )}, CountRows(Filter(ft, CadenceType.Value <> "Standing duty")) & " scheduled")
+                        Size: =12
+                        Color: =RGBA(93, 103, 115, 1)
+                        FillPortions: =0
+                        Height: =20
+                        AlignInContainer: =AlignInContainer.Stretch
+                  - tclCountStanding:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: |-
+                          =With({ft: With({q: Lower(Trim(tclSearch.Text)), who: tclPerson.Selected.K, cad: tclCadence.Selected.V, tg: tclTag.Selected.V},
+                            SortByColumns(
+                              Filter(
+                                AddColumns(colTasks, Rank, LookUp(nfCadences, Label = CadenceType.Value, Rank)),
+                                (IsBlank(who) || (who = "__team" && AssigneeType.Value = "Team") || AssigneePersonKey = who) &&
+                                (IsBlank(cad) || CadenceType.Value = cad) &&
+                                (IsBlank(tg) || !IsBlank(LookUp(Split(Coalesce(Tags, ""), ",") As th, Trim(th.Value) = tg))) &&
+                                (IsBlank(q) || q in Lower(Title & " " & Comments & " " & Scope & " " & Tags))
+                              ),
+                              Rank, SortOrder.Ascending, CadenceDate, SortOrder.Ascending, Title, SortOrder.Ascending
+                            )
+                          )}, CountRows(Filter(ft, CadenceType.Value = "Standing duty")) & " standing duties")
+                        Size: =12
+                        Color: =RGBA(93, 103, 115, 1)
+                        FillPortions: =0
+                        Height: =20
+                        AlignInContainer: =AlignInContainer.Stretch
+                  - tclDivider2:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        FillPortions: =0
+                        Height: =1
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Fill: =RGBA(225, 230, 236, 1)
+                  - tclHelp:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Admins add and edit tasks here. Everyone ticks tasks off and tags them from My Tasks."
                         Size: =11
                         Color: =RGBA(124, 135, 148, 1)
-                        X: =Parent.TemplateWidth - 110
-                        Y: =10
-                        Width: =96
-                        Height: =22
-                        Align: =Align.Right
-                  - tclMonTasks:
-                      Control: Gallery@2.15.0
-                      Variant: Vertical
-                      Properties:
-                        TemplatePadding: =0
-                        ShowScrollbar: =true
-                        X: =14
-                        Y: =36
-                        Width: =Parent.TemplateWidth - 28
-                        Height: =Parent.TemplateHeight - 44
-                        Items: =ThisItem.Tasks
-                        TemplateSize: =22
-                      Children:
-                        - tclMonTask:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: =ThisItem.Title
-                              Size: =12
-                              Color: =RGBA(19, 25, 34, 1)
-                              X: =0
-                              Y: =1
-                              Width: =Parent.TemplateWidth - 90
-                              Height: =20
-                              FontWeight: =FontWeight.Semibold
-                        - tclMonWho:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: =If(ThisItem.AssigneeType.Value = "Team", "Team", First(Split(Coalesce(ThisItem.AssigneeName, " "), " ")).Value)
-                              Size: =11
-                              Color: =RGBA(124, 135, 148, 1)
-                              X: =Parent.TemplateWidth - 86
-                              Y: =1
-                              Width: =84
-                              Height: =20
-                              Align: =Align.Right
-                  - tclMonEmpty:
-                      Control: ModernText@1.0.0
-                      Properties:
-                        Text: ="Nothing scheduled"
-                        Size: =12
-                        Color: =RGBA(155, 165, 178, 1)
-                        X: =14
-                        Y: =38
-                        Width: =200
-                        Height: =20
-                        Visible: =CountRows(ThisItem.Tasks) = 0
+                        FillPortions: =0
+                        Height: =52
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Wrap: =true

@@ -72,7 +72,7 @@ exists.
    | --- | --- | --- |
    | 01 | `scrToday` | Who's out today, this week, recurring tasks in play, birthdays |
    | 02 | `scrMyTasks` | Your duties grouped by when they're due, with ticking and tags |
-   | 03 | `scrTaskCalendar` | Every task, filterable, as a list or by month |
+   | 03 | `scrTaskCalendar` | Every task, filterable, as a list or by month. Prebuilt-screen layout. |
    | 04 | `scrWhereabouts` | The team month calendar, including pending PTO. Prebuilt-screen layout (Header and gallery). |
    | 05 | `scrEntryDetail` | One entry: visit, notes, hotel and flight |
    | 06 | `scrEntryEdit` | Add or edit an entry |
@@ -90,7 +90,7 @@ exists.
       Ctrl+V with the screen selected works too. The first paste asks for clipboard
       access; allow it.
    3. A container named like `tdyRoot` appears, filling the screen.
-   Files 04 and 12 use the layout of Power Apps' prebuilt responsive screens
+   Files 03, 04 and 12 use the layout of Power Apps' prebuilt responsive screens
    (**New screen** → *Header and gallery* / *Approval request*): a screen container,
    a header container with the modern **Header** control, and a main container of
    cards. The YAML builds that whole layout itself, so paste it onto a blank screen.

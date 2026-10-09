@@ -1,44 +1,63 @@
-- wbaRoot:
+- wbaScreenContainer:
     Control: GroupContainer@1.5.0
     Variant: AutoLayout
     Properties:
       LayoutDirection: =LayoutDirection.Vertical
       DropShadow: =DropShadow.None
-      LayoutGap: =0
+      LayoutGap: =8
       X: =0
       Y: =0
       Width: =Parent.Width
       Height: =Parent.Height
-      Fill: =RGBA(246, 248, 250, 1)
+      Fill: =RGBA(243, 242, 241, 1)
+      PaddingTop: =8
+      PaddingBottom: =8
+      PaddingLeft: =8
+      PaddingRight: =8
     Children:
-      - wbaHeader:
+      - wbaHeaderContainer:
           Control: GroupContainer@1.5.0
           Variant: AutoLayout
           Properties:
             LayoutDirection: =LayoutDirection.Horizontal
             DropShadow: =DropShadow.None
             LayoutAlignItems: =LayoutAlignItems.Center
-            LayoutGap: =4
+            LayoutGap: =0
             FillPortions: =0
-            Height: =60
+            Height: =56
+            AlignInContainer: =AlignInContainer.Stretch
+          Children:
+            - wbaHeader:
+                Control: Header
+                Properties:
+                  FillPortions: =1
+                  LayoutMinHeight: =48
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Height: =56
+                  Title: ="Team Planner · Whereabouts"
+                  IsLogoVisible: =false
+                  IsProfilePictureVisible: =true
+                  BasePaletteColor: =RGBA(0, 83, 161, 1)
+      - wbaNavContainer:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.Light
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =2
+            FillPortions: =0
+            Height: =44
             AlignInContainer: =AlignInContainer.Stretch
             Fill: =RGBA(255, 255, 255, 1)
-            BorderColor: =RGBA(225, 230, 236, 1)
-            BorderThickness: =1
-            PaddingLeft: =20
-            PaddingRight: =20
+            RadiusTopLeft: =8
+            RadiusTopRight: =8
+            RadiusBottomLeft: =8
+            RadiusBottomRight: =8
+            PaddingLeft: =8
+            PaddingRight: =8
           Children:
-            - wbaAppTitle:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: ="Team Planner"
-                  Size: =18
-                  Color: =RGBA(0, 83, 161, 1)
-                  FillPortions: =0
-                  Width: =150
-                  Height: =36
-                  AlignInContainer: =AlignInContainer.Center
-                  FontWeight: =FontWeight.Bold
             - wbaNavToday:
                 Control: ModernButton@1.0.0
                 Properties:
@@ -47,7 +66,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =76
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - wbaNavMyTasks:
@@ -58,7 +77,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =96
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - wbaNavTasks:
@@ -69,7 +88,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =124
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - wbaNavWhere:
@@ -80,7 +99,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =116
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Primary
             - wbaNavPrint:
@@ -91,7 +110,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =68
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - wbaNavCircuit:
@@ -102,7 +121,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =108
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - wbaNavPto:
@@ -113,7 +132,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =84
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - wbaNavEntries:
@@ -124,7 +143,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =102
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - wbaNavRoster:
@@ -135,425 +154,587 @@
                   Size: =13
                   FillPortions: =0
                   Width: =80
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
                   Visible: =varIsAdmin
-            - wbaHeaderSpacer:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: =""
-                  Size: =13
-                  Color: =RGBA(19, 25, 34, 1)
-                  FillPortions: =1
-                  LayoutMinWidth: =1
-                  Height: =10
-                  AlignInContainer: =AlignInContainer.Center
-            - wbaWho:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
-                  Size: =12
-                  Color: =RGBA(93, 103, 115, 1)
-                  FillPortions: =0
-                  Width: =200
-                  Height: =30
-                  AlignInContainer: =AlignInContainer.Center
-                  Align: =Align.Right
-      - wbaToolbar:
+      - wbaMainContainer:
           Control: GroupContainer@1.5.0
           Variant: AutoLayout
           Properties:
             LayoutDirection: =LayoutDirection.Horizontal
             DropShadow: =DropShadow.None
-            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutAlignItems: =LayoutAlignItems.Stretch
             LayoutGap: =8
-            FillPortions: =0
-            Height: =60
-            AlignInContainer: =AlignInContainer.Stretch
-            PaddingLeft: =20
-            PaddingRight: =20
-          Children:
-            - wbaPrev:
-                Control: ModernButton@1.0.0
-                Properties:
-                  Text: =""
-                  OnSelect: =Set(varAnchor, DateAdd(varAnchor, -1, TimeUnit.Months))
-                  Size: =13
-                  FillPortions: =0
-                  Width: =36
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Appearance: =ButtonAppearance.Outline
-                  Icon: ="ChevronLeft"
-                  Layout: =ButtonLayout.IconOnly
-                  AccessibleLabel: ="Previous"
-            - wbaPeriod:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: =Text(varAnchor, "mmmm yyyy")
-                  Size: =16
-                  Color: =RGBA(19, 25, 34, 1)
-                  FillPortions: =0
-                  Width: =170
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  FontWeight: =FontWeight.Bold
-                  Align: =Align.Center
-            - wbaNext:
-                Control: ModernButton@1.0.0
-                Properties:
-                  Text: =""
-                  OnSelect: =Set(varAnchor, DateAdd(varAnchor, 1, TimeUnit.Months))
-                  Size: =13
-                  FillPortions: =0
-                  Width: =36
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Appearance: =ButtonAppearance.Outline
-                  Icon: ="ChevronRight"
-                  Layout: =ButtonLayout.IconOnly
-                  AccessibleLabel: ="Next"
-            - wbaThisMonth:
-                Control: ModernButton@1.0.0
-                Properties:
-                  Text: ="Today"
-                  OnSelect: =Set(varAnchor, Date(Year(Today()), Month(Today()), 1))
-                  Size: =13
-                  FillPortions: =0
-                  Width: =72
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Appearance: =ButtonAppearance.Outline
-            - wbaPerson:
-                Control: ModernDropdown@1.0.0
-                Properties:
-                  Items: |-
-                    =ForAll(Sequence(CountRows(colPeople) + 1) As i, If(i.Value = 1, {K: "", N: "Whole team"}, With({r: Index(colPeople, i.Value - 1)}, {K: r.PersonKey, N: r.Title & If(r.Active, "", " (inactive)")})))
-                  ItemDisplayText: =ThisItem.N
-                  Appearance: =Appearance.Outline
-                  FillPortions: =0
-                  Width: =190
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Default: |-
-                    ={K: "", N: "Whole team"}
-                  AccessibleLabel: ="Filter by person"
-            - wbaStatus:
-                Control: ModernDropdown@1.0.0
-                Properties:
-                  Items: |-
-                    =ForAll(Sequence(CountRows(nfStatus) + 1) As i, If(i.Value = 1, {V: "", N: "All statuses"}, With({r: Index(nfStatus, i.Value - 1)}, {V: r.Label, N: r.Label})))
-                  ItemDisplayText: =ThisItem.N
-                  Appearance: =Appearance.Outline
-                  FillPortions: =0
-                  Width: =180
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Default: |-
-                    ={V: "", N: "All statuses"}
-                  AccessibleLabel: ="Filter by status"
-            - wbaToolSpacer:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: =""
-                  Size: =13
-                  Color: =RGBA(19, 25, 34, 1)
-                  FillPortions: =1
-                  LayoutMinWidth: =1
-                  Height: =10
-                  AlignInContainer: =AlignInContainer.Center
-            - wbaRequest:
-                Control: ModernButton@1.0.0
-                Properties:
-                  Text: ="Request PTO"
-                  OnSelect: =Navigate(scrRequestPTO, ScreenTransition.None)
-                  Size: =13
-                  FillPortions: =0
-                  Width: =124
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Appearance: =ButtonAppearance.Outline
-                  Visible: =!IsBlank(varMe)
-            - wbaAdd:
-                Control: ModernButton@1.0.0
-                Properties:
-                  Text: ="Add entry"
-                  OnSelect: |-
-                    =Set(varEntry, Blank()); Set(varNewDate, Today()); Navigate(scrEntryEdit, ScreenTransition.None, {locShowTravel: false})
-                  Size: =13
-                  FillPortions: =0
-                  Width: =120
-                  Height: =34
-                  AlignInContainer: =AlignInContainer.Center
-                  Icon: ="Add"
-                  DisplayMode: =If(IsBlank(varMe) && !varIsAdmin, DisplayMode.Disabled, DisplayMode.Edit)
-      - wbaBody:
-          Control: GroupContainer@1.5.0
-          Variant: AutoLayout
-          Properties:
-            LayoutDirection: =LayoutDirection.Vertical
-            DropShadow: =DropShadow.None
-            LayoutGap: =14
             FillPortions: =1
-            LayoutMinHeight: =200
+            LayoutMinHeight: =300
             LayoutMinWidth: =40
             AlignInContainer: =AlignInContainer.Stretch
-            PaddingLeft: =20
-            PaddingRight: =20
-            PaddingBottom: =16
           Children:
-            - wbaGridCard:
+            - wbaCalendarCard:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
                 Properties:
                   LayoutDirection: =LayoutDirection.Vertical
-                  DropShadow: =DropShadow.None
-                  LayoutGap: =0
+                  DropShadow: =DropShadow.Light
+                  LayoutGap: =10
+                  Fill: =RGBA(255, 255, 255, 1)
+                  RadiusTopLeft: =8
+                  RadiusTopRight: =8
+                  RadiusBottomLeft: =8
+                  RadiusBottomRight: =8
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =16
+                  PaddingRight: =16
                   FillPortions: =1
                   LayoutMinHeight: =300
                   LayoutMinWidth: =40
                   AlignInContainer: =AlignInContainer.Stretch
-                  Fill: =RGBA(255, 255, 255, 1)
-                  BorderColor: =RGBA(225, 230, 236, 1)
-                  BorderThickness: =1
-                  RadiusTopLeft: =12
-                  RadiusTopRight: =12
-                  RadiusBottomLeft: =12
-                  RadiusBottomRight: =12
                 Children:
-                  - wbaDow:
+                  - wbaToolbar:
                       Control: GroupContainer@1.5.0
                       Variant: AutoLayout
                       Properties:
                         LayoutDirection: =LayoutDirection.Horizontal
                         DropShadow: =DropShadow.None
                         LayoutAlignItems: =LayoutAlignItems.Center
-                        LayoutGap: =0
+                        LayoutGap: =8
                         FillPortions: =0
-                        Height: =34
+                        Height: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
+                        - wbaPrev:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: =""
+                              OnSelect: =Set(varAnchor, DateAdd(varAnchor, -1, TimeUnit.Months))
+                              Size: =13
+                              FillPortions: =0
+                              Width: =36
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                              Icon: ="ChevronLeft"
+                              Layout: =ButtonLayout.IconOnly
+                              AccessibleLabel: ="Previous"
+                        - wbaPeriod:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =Text(varAnchor, "mmmm yyyy")
+                              Size: =16
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =0
+                              Width: =170
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              FontWeight: =FontWeight.Bold
+                              Align: =Align.Center
+                        - wbaNext:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: =""
+                              OnSelect: =Set(varAnchor, DateAdd(varAnchor, 1, TimeUnit.Months))
+                              Size: =13
+                              FillPortions: =0
+                              Width: =36
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                              Icon: ="ChevronRight"
+                              Layout: =ButtonLayout.IconOnly
+                              AccessibleLabel: ="Next"
+                        - wbaThisMonth:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Today"
+                              OnSelect: =Set(varAnchor, Date(Year(Today()), Month(Today()), 1))
+                              Size: =13
+                              FillPortions: =0
+                              Width: =72
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                        - wbaPerson:
+                            Control: ModernDropdown@1.0.0
+                            Properties:
+                              Items: |-
+                                =ForAll(Sequence(CountRows(colPeople) + 1) As i, If(i.Value = 1, {K: "", N: "Whole team"}, With({r: Index(colPeople, i.Value - 1)}, {K: r.PersonKey, N: r.Title & If(r.Active, "", " (inactive)")})))
+                              ItemDisplayText: =ThisItem.N
+                              Appearance: =Appearance.Outline
+                              FillPortions: =0
+                              Width: =170
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Default: |-
+                                ={K: "", N: "Whole team"}
+                              AccessibleLabel: ="Filter by person"
+                        - wbaStatus:
+                            Control: ModernDropdown@1.0.0
+                            Properties:
+                              Items: |-
+                                =ForAll(Sequence(CountRows(nfStatus) + 1) As i, If(i.Value = 1, {V: "", N: "All statuses"}, With({r: Index(nfStatus, i.Value - 1)}, {V: r.Label, N: r.Label})))
+                              ItemDisplayText: =ThisItem.N
+                              Appearance: =Appearance.Outline
+                              FillPortions: =0
+                              Width: =160
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Default: |-
+                                ={V: "", N: "All statuses"}
+                              AccessibleLabel: ="Filter by status"
+                        - wbaToolSpacer:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =""
+                              Size: =13
+                              Color: =RGBA(19, 25, 34, 1)
+                              FillPortions: =1
+                              LayoutMinWidth: =1
+                              Height: =10
+                              AlignInContainer: =AlignInContainer.Center
+                        - wbaRequest:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Request PTO"
+                              OnSelect: =Navigate(scrRequestPTO, ScreenTransition.None)
+                              Size: =13
+                              FillPortions: =0
+                              Width: =120
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Appearance: =ButtonAppearance.Outline
+                              Visible: =!IsBlank(varMe)
+                        - wbaAdd:
+                            Control: ModernButton@1.0.0
+                            Properties:
+                              Text: ="Add entry"
+                              OnSelect: |-
+                                =Set(varEntry, Blank()); Set(varNewDate, Today()); Navigate(scrEntryEdit, ScreenTransition.None, {locShowTravel: false})
+                              Size: =13
+                              FillPortions: =0
+                              Width: =112
+                              Height: =34
+                              AlignInContainer: =AlignInContainer.Center
+                              Icon: ="Add"
+                              DisplayMode: =If(IsBlank(varMe) && !varIsAdmin, DisplayMode.Disabled, DisplayMode.Edit)
+                  - wbaGridFrame:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Vertical
+                        DropShadow: =DropShadow.None
+                        LayoutGap: =0
+                        FillPortions: =1
+                        LayoutMinHeight: =260
+                        LayoutMinWidth: =40
                         AlignInContainer: =AlignInContainer.Stretch
                         BorderColor: =RGBA(225, 230, 236, 1)
                         BorderThickness: =1
+                        RadiusTopLeft: =6
+                        RadiusTopRight: =6
+                        RadiusBottomLeft: =6
+                        RadiusBottomRight: =6
                       Children:
-                        - wbaDowMon:
-                            Control: ModernText@1.0.0
+                        - wbaDow:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
                             Properties:
-                              Text: ="MONDAY"
-                              Size: =11
-                              Color: =RGBA(93, 103, 115, 1)
+                              LayoutDirection: =LayoutDirection.Horizontal
+                              DropShadow: =DropShadow.None
+                              LayoutAlignItems: =LayoutAlignItems.Center
+                              LayoutGap: =0
+                              FillPortions: =0
+                              Height: =32
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Fill: =RGBA(246, 248, 250, 1)
+                            Children:
+                              - wbaDowMon:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="MONDAY"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =1
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                                    Align: =Align.Center
+                              - wbaDowTue:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="TUESDAY"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =1
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                                    Align: =Align.Center
+                              - wbaDowWed:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="WEDNESDAY"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =1
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                                    Align: =Align.Center
+                              - wbaDowThu:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="THURSDAY"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =1
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                                    Align: =Align.Center
+                              - wbaDowFri:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="FRIDAY"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FillPortions: =1
+                                    LayoutMinHeight: =28
+                                    LayoutMinWidth: =40
+                                    AlignInContainer: =AlignInContainer.Stretch
+                                    Height: =28
+                                    FontWeight: =FontWeight.Bold
+                                    Align: =Align.Center
+                        - wbaGrid:
+                            Control: Gallery@2.15.0
+                            Variant: Vertical
+                            Properties:
+                              TemplatePadding: =0
+                              ShowScrollbar: =true
                               FillPortions: =1
-                              LayoutMinHeight: =30
+                              LayoutMinHeight: =40
                               LayoutMinWidth: =40
                               AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                              Align: =Align.Center
-                        - wbaDowTue:
+                              Items: |-
+                                =With(
+                                  {
+                                    s: Value(Text(varAnchor, "yyyymmdd")),
+                                    e: Value(Text(DateAdd(DateAdd(varAnchor, 1, TimeUnit.Months), -1, TimeUnit.Days), "yyyymmdd")),
+                                    n: Day(DateAdd(DateAdd(varAnchor, 1, TimeUnit.Months), -1, TimeUnit.Days)),
+                                    wd: Weekday(varAnchor, StartOfWeek.Monday),
+                                    pk: wbaPerson.Selected.K,
+                                    st: wbaStatus.Selected.V
+                                  },
+                                  With(
+                                    {
+                                      lead: If(wd <= 5, wd - 1, 0),
+                                      chips: Filter(
+                                        Ungroup(
+                                          Table(
+                                            {G: ForAll(Filter('TP Entries', StartNum <= e && EndNum >= s) As x,
+                                              {Id: x.ID, Kind: "entry", PersonKey: x.PersonKey, FirstName: First(Split(Coalesce(x.PersonName, x.PersonKey), " ")).Value,
+                                               StartNum: x.StartNum, EndNum: x.EndNum, Status: x.Status.Value, Location: x.VisitLocation, Part: x.DayPart.Value,
+                                               HasNote: !IsBlank(x.Notes), HasTravel: !IsBlank(x.TravelJson)})},
+                                            {G: ForAll(Filter('TP PTO Requests', Status.Value = "Pending" && StartNum <= e && EndNum >= s) As r,
+                                              {Id: r.ID, Kind: "pending", PersonKey: r.PersonKey, FirstName: First(Split(Coalesce(LookUp(colPeople, PersonKey = r.PersonKey, Title), r.PersonKey), " ")).Value,
+                                               StartNum: r.StartNum, EndNum: r.EndNum, Status: r.LeaveType.Value, Location: "", Part: r.DayPart.Value,
+                                               HasNote: false, HasTravel: false})}
+                                          ),
+                                          G
+                                        ),
+                                        (IsBlank(pk) || PersonKey = pk) && (IsBlank(st) || Status = st)
+                                      )
+                                    },
+                                    AddColumns(
+                                      Filter(
+                                        ForAll(Sequence(lead + n) As i,
+                                          If(i.Value <= lead,
+                                            {IsPad: true, D: Blank(), Num: 0},
+                                            With({d: DateAdd(varAnchor, i.Value - lead - 1, TimeUnit.Days)}, {IsPad: false, D: d, Num: Value(Text(d, "yyyymmdd"))}))),
+                                        IsPad || Weekday(D, StartOfWeek.Monday) <= 5
+                                      ),
+                                      Chips, Sort(Filter(chips, !IsPad && StartNum <= Num && EndNum >= Num), FirstName)
+                                    )
+                                  )
+                                )
+                              WrapCount: =5
+                              TemplateSize: =Max(92, (Self.Height - 4) / Max(1, RoundUp(Self.AllItemsCount / 5, 0)))
+                            Children:
+                              - wbaCellBg:
+                                  Control: Rectangle@2.3.0
+                                  Properties:
+                                    X: =0
+                                    Y: =0
+                                    Width: =Parent.TemplateWidth
+                                    Height: =Parent.TemplateHeight
+                                    Fill: =If(ThisItem.IsPad, RGBA(246, 248, 250, 1), ThisItem.Num = Value(Text(Today(), "yyyymmdd")), RGBA(238, 244, 251, 1), RGBA(255, 255, 255, 1))
+                                    BorderColor: =RGBA(238, 241, 245, 1)
+                                    BorderThickness: =1
+                              - wbaCellDay:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: =If(ThisItem.IsPad, "", Text(Day(ThisItem.D)))
+                                    Size: =12
+                                    Color: =If(ThisItem.Num = Value(Text(Today(), "yyyymmdd")), RGBA(0, 83, 161, 1), RGBA(93, 103, 115, 1))
+                                    X: =7
+                                    Y: =3
+                                    Width: =40
+                                    Height: =20
+                                    FontWeight: =If(ThisItem.Num = Value(Text(Today(), "yyyymmdd")), FontWeight.Bold, FontWeight.Semibold)
+                              - wbaCellAdd:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    Text: =""
+                                    OnSelect: |-
+                                      =Set(varEntry, Blank()); Set(varNewDate, ThisItem.D); Navigate(scrEntryEdit, ScreenTransition.None, {locShowTravel: false})
+                                    Size: =13
+                                    X: =Parent.TemplateWidth - 32
+                                    Y: =1
+                                    Width: =30
+                                    Height: =24
+                                    Appearance: =ButtonAppearance.Transparent
+                                    Icon: ="Add"
+                                    Layout: =ButtonLayout.IconOnly
+                                    AccessibleLabel: ="Add entry for " & Text(ThisItem.D, "mmm d")
+                                    Visible: =!ThisItem.IsPad && (!IsBlank(varMe) || varIsAdmin)
+                              - wbaChips:
+                                  Control: Gallery@2.15.0
+                                  Variant: Vertical
+                                  Properties:
+                                    TemplatePadding: =1
+                                    ShowScrollbar: =false
+                                    X: =3
+                                    Y: =25
+                                    Width: =Parent.TemplateWidth - 6
+                                    Height: =Parent.TemplateHeight - 27
+                                    Items: =ThisItem.Chips
+                                    TemplateSize: =22
+                                  Children:
+                                    - wbaChip:
+                                        Control: ModernText@1.0.0
+                                        Properties:
+                                          Text: |-
+                                            =ThisItem.FirstName & " " &
+                                            If(ThisItem.Kind = "pending", ThisItem.Status & "?", Coalesce(ThisItem.Location, LookUp(nfStatus, Label = ThisItem.Status, Short))) &
+                                            If(ThisItem.Part = "AM" || ThisItem.Part = "PM", " " & ThisItem.Part, "") &
+                                            If(ThisItem.HasTravel, " ✈", "") & If(ThisItem.HasNote, " •", "")
+                                          Size: =11
+                                          Color: =LookUp(nfStatus, Label = ThisItem.Status, Fg)
+                                          X: =0
+                                          Y: =0
+                                          Width: =Parent.TemplateWidth
+                                          Height: =20
+                                          PaddingLeft: =5
+                                          RadiusTopLeft: =4
+                                          RadiusTopRight: =4
+                                          RadiusBottomLeft: =4
+                                          RadiusBottomRight: =4
+                                          BorderThickness: =1
+                                          Fill: =If(ThisItem.Kind = "pending", RGBA(255, 255, 255, 1), LookUp(nfStatus, Label = ThisItem.Status, Bg))
+                                          BorderColor: =If(ThisItem.Kind = "pending", LookUp(nfStatus, Label = ThisItem.Status, Fg), LookUp(nfStatus, Label = ThisItem.Status, Bd))
+                                          BorderStyle: =If(ThisItem.Kind = "pending", BorderStyle.Dashed, BorderStyle.Solid)
+                                          OnSelect: =If(ThisItem.Kind = "pending", Navigate(scrMyRequests, ScreenTransition.None), Set(varEntry, LookUp('TP Entries', ID = ThisItem.Id)); Navigate(scrEntryDetail, ScreenTransition.None))
+            - wbaSidebarContainer:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.Light
+                  LayoutGap: =8
+                  Fill: =RGBA(255, 255, 255, 1)
+                  RadiusTopLeft: =8
+                  RadiusTopRight: =8
+                  RadiusBottomLeft: =8
+                  RadiusBottomRight: =8
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =16
+                  PaddingRight: =16
+                  FillPortions: =0
+                  Width: =280
+                  LayoutMinHeight: =300
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - wbaOutTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Out today · " & Text(Today(), "ddd mmm d")
+                        Size: =15
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =24
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Semibold
+                  - wbaOutGal:
+                      Control: Gallery@2.15.0
+                      Variant: Vertical
+                      Properties:
+                        TemplatePadding: =0
+                        ShowScrollbar: =true
+                        FillPortions: =2
+                        LayoutMinHeight: =60
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Items: |-
+                          =With({t: Value(Text(Today(), "yyyymmdd"))}, Filter(Filter('TP Entries', StartNum <= t && EndNum >= t), LookUp(nfStatus, Label = Status.Value, Out)))
+                        TemplateSize: =46
+                        OnSelect: =Set(varEntry, ThisItem); Navigate(scrEntryDetail, ScreenTransition.None)
+                      Children:
+                        - wbaOutName:
                             Control: ModernText@1.0.0
                             Properties:
-                              Text: ="TUESDAY"
-                              Size: =11
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =1
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                              Align: =Align.Center
-                        - wbaDowWed:
+                              Text: =Coalesce(LookUp(colPeople, PersonKey = ThisItem.PersonKey, Title), ThisItem.PersonKey)
+                              Size: =13
+                              Color: =RGBA(19, 25, 34, 1)
+                              X: =0
+                              Y: =3
+                              Width: =Parent.TemplateWidth - 96
+                              Height: =20
+                              FontWeight: =FontWeight.Semibold
+                              OnSelect: =Select(Parent)
+                        - wbaOutSub:
                             Control: ModernText@1.0.0
                             Properties:
-                              Text: ="WEDNESDAY"
+                              Text: =Coalesce(ThisItem.VisitLocation, ThisItem.RawText, ThisItem.Status.Value) & If(ThisItem.DayPart.Value = "AM" || ThisItem.DayPart.Value = "PM", " · " & ThisItem.DayPart.Value, "")
                               Size: =11
                               Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =1
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                              Align: =Align.Center
-                        - wbaDowThu:
+                              X: =0
+                              Y: =23
+                              Width: =Parent.TemplateWidth - 96
+                              Height: =18
+                              OnSelect: =Select(Parent)
+                        - wbaOutChip:
                             Control: ModernText@1.0.0
                             Properties:
-                              Text: ="THURSDAY"
+                              Text: =ThisItem.Status.Value
                               Size: =11
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =1
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
+                              Color: =LookUp(nfStatus, Label = ThisItem.Status.Value, Fg)
+                              FontWeight: =FontWeight.Semibold
                               Align: =Align.Center
-                        - wbaDowFri:
-                            Control: ModernText@1.0.0
-                            Properties:
-                              Text: ="FRIDAY"
-                              Size: =11
-                              Color: =RGBA(93, 103, 115, 1)
-                              FillPortions: =1
-                              LayoutMinHeight: =30
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =30
-                              FontWeight: =FontWeight.Bold
-                              Align: =Align.Center
-                  - wbaGrid:
+                              Fill: =LookUp(nfStatus, Label = ThisItem.Status.Value, Bg)
+                              BorderColor: =LookUp(nfStatus, Label = ThisItem.Status.Value, Bd)
+                              BorderThickness: =1
+                              RadiusTopLeft: =10
+                              RadiusTopRight: =10
+                              RadiusBottomLeft: =10
+                              RadiusBottomRight: =10
+                              X: =Parent.TemplateWidth - 92
+                              Y: =11
+                              Width: =90
+                              Height: =22
+                              OnSelect: =Select(Parent)
+                  - wbaOutEmpty:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Nobody is marked out today."
+                        Size: =12
+                        Color: =RGBA(124, 135, 148, 1)
+                        FillPortions: =0
+                        Height: =20
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Visible: =CountRows(wbaOutGal.AllItems) = 0
+                  - wbaDivider1:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        FillPortions: =0
+                        Height: =1
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Fill: =RGBA(225, 230, 236, 1)
+                  - wbaPendingTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Awaiting approval · " & Text(varAnchor, "mmmm")
+                        Size: =15
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =24
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Semibold
+                  - wbaPendingGal:
                       Control: Gallery@2.15.0
                       Variant: Vertical
                       Properties:
                         TemplatePadding: =0
                         ShowScrollbar: =true
                         FillPortions: =1
-                        LayoutMinHeight: =40
+                        LayoutMinHeight: =50
                         LayoutMinWidth: =40
                         AlignInContainer: =AlignInContainer.Stretch
                         Items: |-
-                          =With(
-                            {
-                              s: Value(Text(varAnchor, "yyyymmdd")),
-                              e: Value(Text(DateAdd(DateAdd(varAnchor, 1, TimeUnit.Months), -1, TimeUnit.Days), "yyyymmdd")),
-                              n: Day(DateAdd(DateAdd(varAnchor, 1, TimeUnit.Months), -1, TimeUnit.Days)),
-                              wd: Weekday(varAnchor, StartOfWeek.Monday),
-                              pk: wbaPerson.Selected.K,
-                              st: wbaStatus.Selected.V
-                            },
-                            With(
-                              {
-                                lead: If(wd <= 5, wd - 1, 0),
-                                chips: Filter(
-                                  Ungroup(
-                                    Table(
-                                      {G: ForAll(Filter('TP Entries', StartNum <= e && EndNum >= s) As x,
-                                        {Id: x.ID, Kind: "entry", PersonKey: x.PersonKey, FirstName: First(Split(Coalesce(x.PersonName, x.PersonKey), " ")).Value,
-                                         StartNum: x.StartNum, EndNum: x.EndNum, Status: x.Status.Value, Location: x.VisitLocation, Part: x.DayPart.Value,
-                                         HasNote: !IsBlank(x.Notes), HasTravel: !IsBlank(x.TravelJson)})},
-                                      {G: ForAll(Filter('TP PTO Requests', Status.Value = "Pending" && StartNum <= e && EndNum >= s) As r,
-                                        {Id: r.ID, Kind: "pending", PersonKey: r.PersonKey, FirstName: First(Split(Coalesce(LookUp(colPeople, PersonKey = r.PersonKey, Title), r.PersonKey), " ")).Value,
-                                         StartNum: r.StartNum, EndNum: r.EndNum, Status: r.LeaveType.Value, Location: "", Part: r.DayPart.Value,
-                                         HasNote: false, HasTravel: false})}
-                                    ),
-                                    G
-                                  ),
-                                  (IsBlank(pk) || PersonKey = pk) && (IsBlank(st) || Status = st)
-                                )
-                              },
-                              AddColumns(
-                                Filter(
-                                  ForAll(Sequence(lead + n) As i,
-                                    If(i.Value <= lead,
-                                      {IsPad: true, D: Blank(), Num: 0},
-                                      With({d: DateAdd(varAnchor, i.Value - lead - 1, TimeUnit.Days)}, {IsPad: false, D: d, Num: Value(Text(d, "yyyymmdd"))}))),
-                                  IsPad || Weekday(D, StartOfWeek.Monday) <= 5
-                                ),
-                                Chips, Sort(Filter(chips, !IsPad && StartNum <= Num && EndNum >= Num), FirstName)
-                              )
-                            )
-                          )
-                        WrapCount: =5
-                        TemplateSize: =Max(96, (Self.Height - 4) / Max(1, RoundUp(Self.AllItemsCount / 5, 0)))
+                          =With({s: Value(Text(varAnchor, "yyyymmdd")), e: Value(Text(DateAdd(DateAdd(varAnchor, 1, TimeUnit.Months), -1, TimeUnit.Days), "yyyymmdd"))}, SortByColumns(Filter('TP PTO Requests', Status.Value = "Pending" && StartNum <= e && EndNum >= s), StartNum, SortOrder.Ascending))
+                        TemplateSize: =44
+                        OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
                       Children:
-                        - wbaCellBg:
-                            Control: Rectangle@2.3.0
-                            Properties:
-                              X: =0
-                              Y: =0
-                              Width: =Parent.TemplateWidth
-                              Height: =Parent.TemplateHeight
-                              Fill: =If(ThisItem.IsPad, RGBA(246, 248, 250, 1), ThisItem.Num = Value(Text(Today(), "yyyymmdd")), RGBA(238, 244, 251, 1), RGBA(255, 255, 255, 1))
-                              BorderColor: =RGBA(238, 241, 245, 1)
-                              BorderThickness: =1
-                        - wbaCellDay:
+                        - wbaPendingName:
                             Control: ModernText@1.0.0
                             Properties:
-                              Text: =If(ThisItem.IsPad, "", Text(Day(ThisItem.D)))
-                              Size: =12
-                              Color: =If(ThisItem.Num = Value(Text(Today(), "yyyymmdd")), RGBA(0, 83, 161, 1), RGBA(93, 103, 115, 1))
-                              X: =7
-                              Y: =3
-                              Width: =40
-                              Height: =20
-                              FontWeight: =If(ThisItem.Num = Value(Text(Today(), "yyyymmdd")), FontWeight.Bold, FontWeight.Semibold)
-                        - wbaCellAdd:
-                            Control: ModernButton@1.0.0
-                            Properties:
-                              Text: =""
-                              OnSelect: |-
-                                =Set(varEntry, Blank()); Set(varNewDate, ThisItem.D); Navigate(scrEntryEdit, ScreenTransition.None, {locShowTravel: false})
+                              Text: =Coalesce(LookUp(colPeople, PersonKey = ThisItem.PersonKey, Title), ThisItem.PersonKey) & " · " & ThisItem.LeaveType.Value
                               Size: =13
-                              X: =Parent.TemplateWidth - 32
-                              Y: =1
-                              Width: =30
-                              Height: =24
-                              Appearance: =ButtonAppearance.Transparent
-                              Icon: ="Add"
-                              Layout: =ButtonLayout.IconOnly
-                              AccessibleLabel: ="Add entry for " & Text(ThisItem.D, "mmm d")
-                              Visible: =!ThisItem.IsPad && (!IsBlank(varMe) || varIsAdmin)
-                        - wbaChips:
-                            Control: Gallery@2.15.0
-                            Variant: Vertical
+                              Color: =RGBA(19, 25, 34, 1)
+                              X: =0
+                              Y: =3
+                              Width: =Parent.TemplateWidth
+                              Height: =20
+                              FontWeight: =FontWeight.Semibold
+                              OnSelect: =Select(Parent)
+                        - wbaPendingWhen:
+                            Control: ModernText@1.0.0
                             Properties:
-                              TemplatePadding: =1
-                              ShowScrollbar: =false
-                              X: =3
-                              Y: =25
-                              Width: =Parent.TemplateWidth - 6
-                              Height: =Parent.TemplateHeight - 27
-                              Items: =ThisItem.Chips
-                              TemplateSize: =22
-                            Children:
-                              - wbaChip:
-                                  Control: ModernText@1.0.0
-                                  Properties:
-                                    Text: |-
-                                      =ThisItem.FirstName & " " &
-                                      If(ThisItem.Kind = "pending", ThisItem.Status & "?", Coalesce(ThisItem.Location, LookUp(nfStatus, Label = ThisItem.Status, Short))) &
-                                      If(ThisItem.Part = "AM" || ThisItem.Part = "PM", " " & ThisItem.Part, "") &
-                                      If(ThisItem.HasTravel, " ✈", "") & If(ThisItem.HasNote, " •", "")
-                                    Size: =11
-                                    Color: =LookUp(nfStatus, Label = ThisItem.Status, Fg)
-                                    X: =0
-                                    Y: =0
-                                    Width: =Parent.TemplateWidth
-                                    Height: =20
-                                    PaddingLeft: =5
-                                    RadiusTopLeft: =4
-                                    RadiusTopRight: =4
-                                    RadiusBottomLeft: =4
-                                    RadiusBottomRight: =4
-                                    BorderThickness: =1
-                                    Fill: =If(ThisItem.Kind = "pending", RGBA(255, 255, 255, 1), LookUp(nfStatus, Label = ThisItem.Status, Bg))
-                                    BorderColor: =If(ThisItem.Kind = "pending", LookUp(nfStatus, Label = ThisItem.Status, Fg), LookUp(nfStatus, Label = ThisItem.Status, Bd))
-                                    BorderStyle: =If(ThisItem.Kind = "pending", BorderStyle.Dashed, BorderStyle.Solid)
-                                    OnSelect: =If(ThisItem.Kind = "pending", Navigate(scrMyRequests, ScreenTransition.None), Set(varEntry, LookUp('TP Entries', ID = ThisItem.Id)); Navigate(scrEntryDetail, ScreenTransition.None))
-            - wbaLegend:
-                Control: GroupContainer@1.5.0
-                Variant: AutoLayout
-                Properties:
-                  LayoutDirection: =LayoutDirection.Horizontal
-                  DropShadow: =DropShadow.None
-                  LayoutAlignItems: =LayoutAlignItems.Center
-                  LayoutGap: =6
-                  FillPortions: =0
-                  Height: =28
-                  AlignInContainer: =AlignInContainer.Stretch
-                Children:
+                              Text: =If(IsBlank(ThisItem.EndDate) || ThisItem.EndDate = ThisItem.StartDate, Text(ThisItem.StartDate, "mmm d"), Month(ThisItem.StartDate) = Month(ThisItem.EndDate) && Year(ThisItem.StartDate) = Year(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Day(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Text(ThisItem.EndDate, "mmm d")) & If(ThisItem.DayPart.Value = "Full day", "", " · " & ThisItem.DayPart.Value)
+                              Size: =11
+                              Color: =RGBA(176, 106, 0, 1)
+                              X: =0
+                              Y: =23
+                              Width: =Parent.TemplateWidth
+                              Height: =18
+                              OnSelect: =Select(Parent)
+                  - wbaPendingEmpty:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="No requests waiting this month."
+                        Size: =12
+                        Color: =RGBA(124, 135, 148, 1)
+                        FillPortions: =0
+                        Height: =20
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Visible: =CountRows(wbaPendingGal.AllItems) = 0
+                  - wbaDivider2:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        FillPortions: =0
+                        Height: =1
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Fill: =RGBA(225, 230, 236, 1)
+                  - wbaKeyTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Key"
+                        Size: =13
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =22
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Semibold
                   - wbaLegendGal:
                       Control: Gallery@2.15.0
-                      Variant: Horizontal
+                      Variant: Vertical
                       Properties:
                         TemplatePadding: =0
                         ShowScrollbar: =false
-                        FillPortions: =1
-                        LayoutMinHeight: =24
-                        LayoutMinWidth: =40
+                        FillPortions: =0
+                        Height: =216
                         AlignInContainer: =AlignInContainer.Stretch
                         Items: =nfStatus
-                        TemplateSize: =132
+                        TemplateSize: =24
                       Children:
                         - wbaLegendChip:
                             Control: ModernText@1.0.0
@@ -562,7 +743,7 @@
                               Size: =11
                               Color: =LookUp(nfStatus, Label = ThisItem.Label, Fg)
                               FontWeight: =FontWeight.Semibold
-                              Align: =Align.Center
+                              Align: =Align.Left
                               Fill: =LookUp(nfStatus, Label = ThisItem.Label, Bg)
                               BorderColor: =LookUp(nfStatus, Label = ThisItem.Label, Bd)
                               BorderThickness: =1
@@ -571,16 +752,17 @@
                               RadiusBottomLeft: =4
                               RadiusBottomRight: =4
                               X: =0
-                              Y: =2
-                              Width: =124
-                              Height: =22
+                              Y: =1
+                              Width: =Parent.TemplateWidth
+                              Height: =21
+                              PaddingLeft: =8
                   - wbaLegendKey:
                       Control: ModernText@1.0.0
                       Properties:
-                        Text: ="✈ hotel/flight detail · • note · dashed = PTO request awaiting approval"
+                        Text: ="✈ hotel/flight detail · • note · dashed outline = PTO request awaiting approval"
                         Size: =11
                         Color: =RGBA(124, 135, 148, 1)
                         FillPortions: =0
-                        Width: =430
-                        Height: =24
-                        AlignInContainer: =AlignInContainer.Center
+                        Height: =34
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Wrap: =true

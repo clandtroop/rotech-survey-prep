@@ -68,6 +68,9 @@ const TYPES = {
   gallery: "Gallery@2.15.0",
   rect: "Rectangle@2.3.0",
   html: "HtmlViewer@2.1.0",
+  // No version: the Header control isn't in Microsoft's 2026 rename list, and
+  // leaving the version off lets Studio use whichever one the tenant has.
+  header: "Header",
 };
 
 const node = (type, name, props = {}, children, variant) => ({ name, type, variant, props, children });
@@ -222,6 +225,61 @@ function root(p, active, children, headerExtra) {
   return vbox(`${p}Root`, {
     X: 0, Y: 0, Width: "Parent.Width", Height: "Parent.Height", Fill: K.gray50, LayoutGap: 0,
   }, [header(p, active, headerExtra), ...children]);
+}
+
+// ─── PREBUILT-SCREEN LAYOUT ──────────────────────────────────────────────────
+// The shape of Power Apps' prebuilt responsive screens (New screen → Header
+// and gallery / Approval request): a screen container holding a header
+// container with the modern Header control, then a main container of white
+// cards. The Header control can't do app navigation (per its docs), so a slim
+// nav strip sits between the two.
+
+const PAGE_BG = "RGBA(243, 242, 241, 1)";
+
+function tcard(name, props, children) {
+  return vbox(name, {
+    Fill: K.white, ...radius(8), DropShadow: "DropShadow.Light",
+    PaddingTop: 16, PaddingBottom: 16, PaddingLeft: 16, PaddingRight: 16, LayoutGap: 10, ...props,
+  }, children);
+}
+
+function navStrip(p, active) {
+  return hbox(`${p}NavContainer`, { ...fixed(44), Fill: K.white, ...radius(8), DropShadow: "DropShadow.Light", PaddingLeft: 8, PaddingRight: 8, LayoutGap: 2 },
+    NAV.map(n => button(`${p}Nav${n.id}`, str(n.label), `Navigate(${n.screen}, ScreenTransition.None)`, {
+      ...fixedW(n.w, 32),
+      Appearance: n.id === active ? "ButtonAppearance.Primary" : "ButtonAppearance.Subtle",
+      ...(n.admin ? { Visible: "varIsAdmin" } : {}),
+    })));
+}
+
+function templateScreen(p, title, active, mainChildren) {
+  return vbox(`${p}ScreenContainer`, {
+    X: 0, Y: 0, Width: "Parent.Width", Height: "Parent.Height", Fill: PAGE_BG,
+    PaddingTop: 8, PaddingBottom: 8, PaddingLeft: 8, PaddingRight: 8, LayoutGap: 8,
+  }, [
+    hbox(`${p}HeaderContainer`, { ...fixed(56), LayoutGap: 0 }, [
+      node(TYPES.header, `${p}Header`, {
+        ...fill(1, { LayoutMinHeight: 48 }), Height: 56, Title: str(title),
+        IsLogoVisible: "false", IsProfilePictureVisible: "true", BasePaletteColor: K.blue600,
+      }),
+    ]),
+    navStrip(p, active),
+    hbox(`${p}MainContainer`, { ...fill(1, { LayoutMinHeight: 300 }), LayoutGap: 8, LayoutAlignItems: "LayoutAlignItems.Stretch" }, mainChildren),
+  ]);
+}
+
+const divider = name => rect(name, { ...fixed(1), Fill: K.gray200 });
+
+// PTO request status pill: Approved green, Pending amber, Rejected red, else grey.
+function requestPill(name, statusExpr, props = {}) {
+  const pick = (approved, pending, rejected, other) => `Switch(${statusExpr}, "Approved", ${approved}, "Pending", ${pending}, "Rejected", ${rejected}, ${other})`;
+  return text(name, statusExpr, {
+    Size: 11, FontWeight: "FontWeight.Bold", Align: "Align.Center",
+    Fill: pick(K.successBg, K.warningBg, K.errorBg, K.gray100),
+    Color: pick(K.success, K.warning, K.error, K.gray600),
+    BorderColor: pick(K.successBorder, K.warningBorder, K.errorBorder, K.gray300),
+    BorderThickness: 1, ...radius(12), ...props,
+  });
 }
 
 function toolbar(name, children, props = {}) {
@@ -439,25 +497,28 @@ If(ThisItem.Part = "AM" || ThisItem.Part = "PM", " " & ThisItem.Part, "") &
 If(ThisItem.HasTravel, " ✈", "") & If(ThisItem.HasNote, " •", "")`;
   const pending = 'ThisItem.Kind = "pending"';
 
-  return root(p, "Where", [
-    toolbar(`${p}Toolbar`, [
-      ...pager(p),
-      dropdown(`${p}Person`, people, "ThisItem.N", { ...fixedW(190, 34), Default: '{K: "", N: "Whole team"}', AccessibleLabel: '"Filter by person"' }),
-      dropdown(`${p}Status`, statuses, "ThisItem.N", { ...fixedW(180, 34), Default: '{V: "", N: "All statuses"}', AccessibleLabel: '"Filter by status"' }),
-      spacer(`${p}ToolSpacer`),
-      button(`${p}Request`, '"Request PTO"', "Navigate(scrRequestPTO, ScreenTransition.None)", { ...fixedW(124, 34), Appearance: "ButtonAppearance.Outline", Visible: "!IsBlank(varMe)" }),
-      button(`${p}Add`, '"Add entry"', `Set(varEntry, Blank()); Set(varNewDate, Today()); Navigate(scrEntryEdit, ScreenTransition.None, {locShowTravel: false})`, {
-        ...fixedW(120, 34), Icon: '"Add"', DisplayMode: "If(IsBlank(varMe) && !varIsAdmin, DisplayMode.Disabled, DisplayMode.Edit)",
-      }),
-    ]),
-    content(`${p}Body`, [
-      vbox(`${p}GridCard`, { ...fill(1, { LayoutMinHeight: 300 }), Fill: K.white, BorderColor: K.gray200, BorderThickness: 1, ...radius(12), LayoutGap: 0 }, [
-        hbox(`${p}Dow`, { ...fixed(34), LayoutGap: 0, BorderColor: K.gray200, BorderThickness: 1 },
+  const outToday = `With({t: ${todayNum}}, Filter(Filter('TP Entries', StartNum <= t && EndNum >= t), LookUp(nfStatus, Label = Status.Value, Out)))`;
+  const pendingMonth = `With({s: ${dnum("varAnchor")}, e: ${dnum(eom("varAnchor"))}}, SortByColumns(Filter('TP PTO Requests', Status.Value = "Pending" && StartNum <= e && EndNum >= s), StartNum, SortOrder.Ascending))`;
+
+  return templateScreen(p, "Team Planner · Whereabouts", "Where", [
+    tcard(`${p}CalendarCard`, { ...fill(1, { LayoutMinHeight: 300 }), LayoutGap: 10 }, [
+      hbox(`${p}Toolbar`, { ...fixed(40), LayoutGap: 8 }, [
+        ...pager(p),
+        dropdown(`${p}Person`, people, "ThisItem.N", { ...fixedW(170, 34), Default: '{K: "", N: "Whole team"}', AccessibleLabel: '"Filter by person"' }),
+        dropdown(`${p}Status`, statuses, "ThisItem.N", { ...fixedW(160, 34), Default: '{V: "", N: "All statuses"}', AccessibleLabel: '"Filter by status"' }),
+        spacer(`${p}ToolSpacer`),
+        button(`${p}Request`, '"Request PTO"', "Navigate(scrRequestPTO, ScreenTransition.None)", { ...fixedW(120, 34), Appearance: "ButtonAppearance.Outline", Visible: "!IsBlank(varMe)" }),
+        button(`${p}Add`, '"Add entry"', `Set(varEntry, Blank()); Set(varNewDate, Today()); Navigate(scrEntryEdit, ScreenTransition.None, {locShowTravel: false})`, {
+          ...fixedW(112, 34), Icon: '"Add"', DisplayMode: "If(IsBlank(varMe) && !varIsAdmin, DisplayMode.Disabled, DisplayMode.Edit)",
+        }),
+      ]),
+      vbox(`${p}GridFrame`, { ...fill(1, { LayoutMinHeight: 260 }), BorderColor: K.gray200, BorderThickness: 1, ...radius(6), LayoutGap: 0 }, [
+        hbox(`${p}Dow`, { ...fixed(32), LayoutGap: 0, Fill: K.gray50 },
           ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map(d =>
-            text(`${p}Dow${d.slice(0, 3)}`, str(d.toUpperCase()), { ...fill(1, { LayoutMinHeight: 30 }), Height: 30, Size: 11, FontWeight: "FontWeight.Bold", Color: K.gray600, Align: "Align.Center" }))),
+            text(`${p}Dow${d.slice(0, 3)}`, str(d.toUpperCase()), { ...fill(1, { LayoutMinHeight: 28 }), Height: 28, Size: 11, FontWeight: "FontWeight.Bold", Color: K.gray600, Align: "Align.Center" }))),
         gallery(`${p}Grid`, "Vertical", {
           ...fill(1), Items: grid, WrapCount: 5,
-          TemplateSize: "Max(96, (Self.Height - 4) / Max(1, RoundUp(Self.AllItemsCount / 5, 0)))",
+          TemplateSize: "Max(92, (Self.Height - 4) / Max(1, RoundUp(Self.AllItemsCount / 5, 0)))",
         }, [
           rect(`${p}CellBg`, {
             X: 0, Y: 0, Width: "Parent.TemplateWidth", Height: "Parent.TemplateHeight",
@@ -489,12 +550,38 @@ If(ThisItem.HasTravel, " ✈", "") & If(ThisItem.HasNote, " •", "")`;
           ]),
         ]),
       ]),
-      hbox(`${p}Legend`, { ...fixed(28), LayoutGap: 6 }, [
-        gallery(`${p}LegendGal`, "Horizontal", { ...fill(1, { LayoutMinHeight: 24 }), Items: "nfStatus", TemplateSize: 132, ShowScrollbar: "false" }, [
-          chip(`${p}LegendChip`, "ThisItem.Label", { X: 0, Y: 2, Width: 124, Height: 22, ...radius(4) }),
-        ]),
-        text(`${p}LegendKey`, '"✈ hotel/flight detail · • note · dashed = PTO request awaiting approval"', { ...fixedW(430, 24), Size: 11, Color: K.gray500 }),
+    ]),
+    tcard(`${p}SidebarContainer`, { FillPortions: 0, Width: 280, LayoutMinHeight: 300, AlignInContainer: "AlignInContainer.Stretch", LayoutGap: 8 }, [
+      text(`${p}OutTitle`, `"Out today · " & Text(Today(), "ddd mmm d")`, { ...fixed(24), Size: 15, FontWeight: "FontWeight.Semibold" }),
+      gallery(`${p}OutGal`, "Vertical", {
+        ...fill(2, { LayoutMinHeight: 60 }), Items: outToday, TemplateSize: 46,
+        OnSelect: "Set(varEntry, ThisItem); Navigate(scrEntryDetail, ScreenTransition.None)",
+      }, [
+        text(`${p}OutName`, personName("ThisItem.PersonKey"), { X: 0, Y: 3, Width: "Parent.TemplateWidth - 96", Height: 20, FontWeight: "FontWeight.Semibold", OnSelect: "Select(Parent)" }),
+        text(`${p}OutSub`, `Coalesce(ThisItem.VisitLocation, ThisItem.RawText, ThisItem.Status.Value) & If(ThisItem.DayPart.Value = "AM" || ThisItem.DayPart.Value = "PM", " · " & ThisItem.DayPart.Value, "")`, {
+          X: 0, Y: 23, Width: "Parent.TemplateWidth - 96", Height: 18, Size: 11, Color: K.gray600, OnSelect: "Select(Parent)",
+        }),
+        chip(`${p}OutChip`, "ThisItem.Status.Value", { X: "Parent.TemplateWidth - 92", Y: 11, Width: 90, Height: 22, OnSelect: "Select(Parent)" }),
       ]),
+      text(`${p}OutEmpty`, '"Nobody is marked out today."', { ...fixed(20), Size: 12, Color: K.gray500, Visible: `CountRows(${p}OutGal.AllItems) = 0` }),
+      divider(`${p}Divider1`),
+      text(`${p}PendingTitle`, `"Awaiting approval · " & Text(varAnchor, "mmmm")`, { ...fixed(24), Size: 15, FontWeight: "FontWeight.Semibold" }),
+      gallery(`${p}PendingGal`, "Vertical", {
+        ...fill(1, { LayoutMinHeight: 50 }), Items: pendingMonth, TemplateSize: 44,
+        OnSelect: "Navigate(scrMyRequests, ScreenTransition.None)",
+      }, [
+        text(`${p}PendingName`, `${personName("ThisItem.PersonKey")} & " · " & ThisItem.LeaveType.Value`, { X: 0, Y: 3, Width: "Parent.TemplateWidth", Height: 20, FontWeight: "FontWeight.Semibold", OnSelect: "Select(Parent)" }),
+        text(`${p}PendingWhen`, `${range("ThisItem.StartDate", "ThisItem.EndDate")} & If(ThisItem.DayPart.Value = "Full day", "", " · " & ThisItem.DayPart.Value)`, {
+          X: 0, Y: 23, Width: "Parent.TemplateWidth", Height: 18, Size: 11, Color: K.warning, OnSelect: "Select(Parent)",
+        }),
+      ]),
+      text(`${p}PendingEmpty`, '"No requests waiting this month."', { ...fixed(20), Size: 12, Color: K.gray500, Visible: `CountRows(${p}PendingGal.AllItems) = 0` }),
+      divider(`${p}Divider2`),
+      text(`${p}KeyTitle`, '"Key"', { ...fixed(22), Size: 13, FontWeight: "FontWeight.Semibold" }),
+      gallery(`${p}LegendGal`, "Vertical", { ...fixed(9 * 24), Items: "nfStatus", TemplateSize: 24, ShowScrollbar: "false" }, [
+        chip(`${p}LegendChip`, "ThisItem.Label", { X: 0, Y: 1, Width: "Parent.TemplateWidth", Height: 21, Align: "Align.Left", PaddingLeft: 8, ...radius(4) }),
+      ]),
+      text(`${p}LegendKey`, '"✈ hotel/flight detail · • note · dashed outline = PTO request awaiting approval"', { ...fixed(34), Size: 11, Color: K.gray500, Wrap: "true" }),
     ]),
   ]);
 }
@@ -1576,46 +1663,98 @@ function screenRequestPTO() {
   )
 )`;
 
-  return root(p, "Pto", [
-    hbox(`${p}Body`, { ...fill(1, { LayoutMinHeight: 300 }), PaddingTop: 16, PaddingBottom: 16, LayoutJustifyContent: "LayoutJustifyContent.Center", LayoutAlignItems: "LayoutAlignItems.Stretch" }, [
-      card(`${p}Card`, { FillPortions: 0, Width: 780, LayoutMinHeight: 300, AlignInContainer: "AlignInContainer.Stretch" }, [
-        text(`${p}Title`, '"Request PTO"', { ...fixed(30), Size: 20, FontWeight: "FontWeight.Bold" }),
-        text(`${p}GoesTo`, `If(IsBlank(varMe), "Your sign-in isn't linked to a roster person yet — an admin can link it on the Roster screen.", IsBlank(${approver}.Email), "No approver is set for you yet — an admin can add one on the Roster screen.", "Goes to " & ${approver}.DisplayName & " for approval. Once approved it's added to the planner and your Outlook calendar.")`, {
-          ...fixed(22), Size: 12, Color: `If(IsBlank(varMe) || IsBlank(${approver}.Email), ${K.warning}, ${K.gray600})`,
-        }),
-        row(`${p}Row1`, [
-          field(`${p}TypeField`, "Type", dropdown(`${p}Type`, "nfLeaveTypes", "ThisItem.Value", { Default: '{Value: "PTO"}' })),
-          field(`${p}StartField`, "First day", datePicker(`${p}Start`, { DefaultDate: "Today()" })),
-          field(`${p}EndField`, "Last day", datePicker(`${p}End`, { DefaultDate: "Today()", StartDate: sd })),
-          field(`${p}PartField`, "Day part — single days only", dropdown(`${p}Part`, "nfDayParts", "ThisItem.Value", {
-            Default: '{Value: "Full day"}', DisplayMode: `If(${single}, DisplayMode.Edit, DisplayMode.View)`,
-          })),
-        ]),
-        text(`${p}Summary`, `If(IsBlank(${sd}), "", ${half}, "Half day (" & ${p}Part.Selected.Value & ") · " & Text(${sd}, "dddd, mmmm d"), ${days} & " weekday(s) · " & ${range(sd, ed)})`, {
-          ...fixed(22), FontWeight: "FontWeight.Semibold", Color: K.blue600,
-        }),
-        vbox(`${p}NotesField`, { ...fixed(100), LayoutGap: 4 }, [
-          label(`${p}NotesLbl`, "Notes for your approver (optional)", fixed(18)),
-          input(`${p}Notes`, { ...fixed(74), Type: "TextInputType.Multiline", Placeholder: '"Family trip — Cody has Tuesday coverage"' }),
-        ]),
-        vbox(`${p}OverlapBox`, { ...fill(1, { LayoutMinHeight: 80 }), Visible: `CountRows(${overlaps}) > 0`, Fill: K.warningBg, ...radius(8), PaddingTop: 10, PaddingLeft: 12, PaddingRight: 12, PaddingBottom: 10, LayoutGap: 6 }, [
-          text(`${p}OverlapTitle`, '"You already have entries on these days:"', { ...fixed(22), FontWeight: "FontWeight.Semibold", Color: K.warning }),
-          gallery(`${p}OverlapGal`, "Vertical", { ...fill(1, { LayoutMinHeight: 30 }), Items: overlaps, TemplateSize: 26 }, [
-            text(`${p}OverlapRow`, `${range("ThisItem.StartDate", "ThisItem.EndDate")} & " · " & ThisItem.Status.Value & If(IsBlank(ThisItem.VisitLocation), "", " · " & ThisItem.VisitLocation)`, {
-              X: 0, Y: 2, Width: "Parent.TemplateWidth", Height: 22, Size: 12, Color: K.gray700,
-            }),
-          ]),
-          hbox(`${p}OverlapChoice`, { ...fixed(40), Visible: `!${half}` }, [
-            text(`${p}OverlapLbl`, '"When this is approved:"', { ...fixedW(170, 30), Size: 12, FontWeight: "FontWeight.Semibold", Color: K.gray700 }),
-            dropdown(`${p}Overlap`, '["Replace these", "Keep both"]', "ThisItem.Value", { ...fixedW(200, 34), Default: '{Value: "Replace these"}' }),
-          ]),
-          text(`${p}OverlapHalf`, '"Half-day requests keep the existing entry — the other half of the day still needs it."', { ...fixed(20), Size: 12, Color: K.gray700, Visible: half }),
-        ]),
-        hbox(`${p}Footer`, { ...fixed(44), LayoutJustifyContent: "LayoutJustifyContent.End" }, [
-          button(`${p}Cancel`, '"Cancel"', "Back()", { ...fixedW(90, 36), Appearance: "ButtonAppearance.Outline" }),
-          button(`${p}Submit`, '"Send for approval"', submit, { ...fixedW(160, 36), Icon: '"Send"' }),
-        ]),
+  // The approval path, in the shape of the Approval request screen's
+  // ReviewersGallery (Step, Name, Title, Status, Current).
+  const stages = `With({ap: ${approver}},
+  Table(
+    {Step: 1, Name: Coalesce(varMe.Title, User().FullName), Title: "Fills in and sends this request", Status: "In progress", Current: true},
+    {Step: 2, Name: If(IsBlank(ap.Email), "No approver set", ap.DisplayName),
+     Title: If(IsBlank(ap.Email), "An admin needs to add one on the Roster screen", "Approves or declines from Outlook or Teams"),
+     Status: If(IsBlank(ap.Email), "Blocked", "Not started"), Current: false},
+    {Step: 3, Name: "Team Planner", Title: "Adds it to the calendar and sends you an Outlook invite", Status: "Not started", Current: false}
+  )
+)`;
+  const stagePick = (inProgress, blocked, other) => `Switch(ThisItem.Status, "In progress", ${inProgress}, "Blocked", ${blocked}, ${other})`;
+  const recent = "FirstN(SortByColumns(Filter('TP PTO Requests', PersonKey = varMe.PersonKey), ID, SortOrder.Descending), 5)";
+
+  return templateScreen(p, "Team Planner · Request PTO", "Pto", [
+    tcard(`${p}FormContainer`, { ...fill(1, { LayoutMinHeight: 300 }), LayoutOverflowY: "LayoutOverflow.Scroll", LayoutGap: 10, PaddingLeft: 20, PaddingRight: 20 }, [
+      text(`${p}FormTitleText`, '"New PTO request"', { ...fixed(32), Size: 20, FontWeight: "FontWeight.Semibold" }),
+      text(`${p}GoesTo`, `If(IsBlank(varMe), "Your sign-in isn't linked to a roster person yet — an admin can link it on the Roster screen.", IsBlank(${approver}.Email), "No approver is set for you yet — an admin can add one on the Roster screen.", "Once it's approved, it's added to the planner and your Outlook calendar.")`, {
+        ...fixed(22), Size: 12, Color: `If(IsBlank(varMe) || IsBlank(${approver}.Email), ${K.warning}, ${K.gray600})`,
+      }),
+      row(`${p}Row1`, [
+        field(`${p}TypeField`, "Type", dropdown(`${p}Type`, "nfLeaveTypes", "ThisItem.Value", { Default: '{Value: "PTO"}' })),
+        field(`${p}PartField`, "Day part — single days only", dropdown(`${p}Part`, "nfDayParts", "ThisItem.Value", {
+          Default: '{Value: "Full day"}', DisplayMode: `If(${single}, DisplayMode.Edit, DisplayMode.View)`,
+        })),
       ]),
+      row(`${p}Row2`, [
+        field(`${p}StartField`, "First day", datePicker(`${p}Start`, { DefaultDate: "Today()" })),
+        field(`${p}EndField`, "Last day", datePicker(`${p}End`, { DefaultDate: "Today()", StartDate: sd })),
+      ]),
+      text(`${p}Summary`, `If(IsBlank(${sd}), "", ${half}, "Half day (" & ${p}Part.Selected.Value & ") · " & Text(${sd}, "dddd, mmmm d"), ${days} & " weekday(s) · " & ${range(sd, ed)})`, {
+        ...fixed(24), Size: 14, FontWeight: "FontWeight.Semibold", Color: K.blue600,
+      }),
+      vbox(`${p}NotesField`, { ...fixed(104), LayoutGap: 4 }, [
+        label(`${p}NotesLbl`, "Notes for your approver (optional)", fixed(18)),
+        input(`${p}Notes`, { ...fixed(78), Type: "TextInputType.Multiline", Placeholder: '"Family trip — Cody has Tuesday coverage"' }),
+      ]),
+      vbox(`${p}OverlapBox`, { ...fill(1, { LayoutMinHeight: 80 }), Visible: `CountRows(${overlaps}) > 0`, Fill: K.warningBg, ...radius(8), PaddingTop: 10, PaddingLeft: 12, PaddingRight: 12, PaddingBottom: 10, LayoutGap: 6 }, [
+        text(`${p}OverlapTitle`, '"You already have entries on these days:"', { ...fixed(22), FontWeight: "FontWeight.Semibold", Color: K.warning }),
+        gallery(`${p}OverlapGal`, "Vertical", { ...fill(1, { LayoutMinHeight: 30 }), Items: overlaps, TemplateSize: 26 }, [
+          text(`${p}OverlapRow`, `${range("ThisItem.StartDate", "ThisItem.EndDate")} & " · " & ThisItem.Status.Value & If(IsBlank(ThisItem.VisitLocation), "", " · " & ThisItem.VisitLocation)`, {
+            X: 0, Y: 2, Width: "Parent.TemplateWidth", Height: 22, Size: 12, Color: K.gray700,
+          }),
+        ]),
+        hbox(`${p}OverlapChoice`, { ...fixed(40), Visible: `!${half}` }, [
+          text(`${p}OverlapLbl`, '"When this is approved:"', { ...fixedW(170, 30), Size: 12, FontWeight: "FontWeight.Semibold", Color: K.gray700 }),
+          dropdown(`${p}Overlap`, '["Replace these", "Keep both"]', "ThisItem.Value", { ...fixedW(200, 34), Default: '{Value: "Replace these"}' }),
+        ]),
+        text(`${p}OverlapHalf`, '"Half-day requests keep the existing entry — the other half of the day still needs it."', { ...fixed(20), Size: 12, Color: K.gray700, Visible: half }),
+      ]),
+      text(`${p}FormSpacer`, '""', { FillPortions: 1, LayoutMinHeight: 1, Height: 1, AlignInContainer: "AlignInContainer.Stretch" }),
+      hbox(`${p}ButtonContainer`, { ...fixed(40), LayoutJustifyContent: "LayoutJustifyContent.End" }, [
+        button(`${p}Cancel`, '"Cancel"', "Back()", { ...fixedW(90, 34), Appearance: "ButtonAppearance.Outline" }),
+        button(`${p}Submit`, '"Submit request"', submit, { ...fixedW(150, 34), Icon: '"Send"' }),
+      ]),
+    ]),
+    tcard(`${p}SidebarContainer`, { FillPortions: 0, Width: 320, LayoutMinHeight: 300, AlignInContainer: "AlignInContainer.Stretch", LayoutGap: 8 }, [
+      text(`${p}ReviewersText`, '"Approval path"', { ...fixed(26), Size: 16, FontWeight: "FontWeight.Semibold" }),
+      gallery(`${p}ReviewersGallery`, "Vertical", { ...fixed(3 * 84), Items: stages, TemplateSize: 84, ShowScrollbar: "false" }, [
+        rect(`${p}StepLine`, { X: 17, Y: 36, Width: 2, Height: "Parent.TemplateHeight - 36", Fill: K.gray300, Visible: "ThisItem.Step < 3" }),
+        text(`${p}StepDot`, "Upper(Left(ThisItem.Name, 1))", {
+          X: 2, Y: 2, Width: 32, Height: 32, Size: 13, FontWeight: "FontWeight.Bold", Align: "Align.Center", ...radius(16), BorderThickness: 1,
+          Fill: stagePick(K.blue600, K.errorBg, K.gray100),
+          Color: stagePick(K.white, K.error, K.gray600),
+          BorderColor: stagePick(K.blue600, K.errorBorder, K.gray300),
+        }),
+        text(`${p}StepName`, "ThisItem.Name", {
+          X: 46, Y: 2, Width: "Parent.TemplateWidth - 48", Height: 20, Size: 13,
+          FontWeight: "If(ThisItem.Current, FontWeight.Bold, FontWeight.Semibold)",
+        }),
+        text(`${p}StepTitle`, "ThisItem.Title", { X: 46, Y: 22, Width: "Parent.TemplateWidth - 48", Height: 36, Size: 12, Color: K.gray600, Wrap: "true", VerticalAlign: "VerticalAlign.Top" }),
+        text(`${p}StepStatus`, "ThisItem.Status", {
+          X: 46, Y: 58, Width: "Parent.TemplateWidth - 48", Height: 18, Size: 11, FontWeight: "FontWeight.Semibold",
+          Color: stagePick(K.blue600, K.error, K.gray500),
+        }),
+      ]),
+      divider(`${p}Divider`),
+      text(`${p}RecentText`, '"Your recent requests"', { ...fixed(24), Size: 14, FontWeight: "FontWeight.Semibold" }),
+      gallery(`${p}RecentGallery`, "Vertical", {
+        ...fill(1, { LayoutMinHeight: 60 }), Items: recent, TemplateSize: 46,
+        OnSelect: "Navigate(scrMyRequests, ScreenTransition.None)",
+      }, [
+        text(`${p}RecentWhat`, `ThisItem.LeaveType.Value & " · " & ${range("ThisItem.StartDate", "ThisItem.EndDate")}`, {
+          X: 0, Y: 3, Width: "Parent.TemplateWidth - 96", Height: 20, Size: 12, FontWeight: "FontWeight.Semibold", OnSelect: "Select(Parent)",
+        }),
+        text(`${p}RecentSub`, `If(ThisItem.DayPart.Value = "Full day", ThisItem.Weekdays & " weekday(s)", "Half day (" & ThisItem.DayPart.Value & ")")`, {
+          X: 0, Y: 23, Width: "Parent.TemplateWidth - 96", Height: 18, Size: 11, Color: K.gray600, OnSelect: "Select(Parent)",
+        }),
+        requestPill(`${p}RecentStatus`, "ThisItem.Status.Value", { X: "Parent.TemplateWidth - 90", Y: 11, Width: 88, Height: 24, OnSelect: "Select(Parent)" }),
+      ]),
+      text(`${p}RecentEmpty`, '"No requests yet."', { ...fixed(20), Size: 12, Color: K.gray500, Visible: `CountRows(${p}RecentGallery.AllItems) = 0` }),
+      button(`${p}ViewAll`, '"See all my requests"', "Navigate(scrMyRequests, ScreenTransition.None)", fixedW(170, 32, { Appearance: "ButtonAppearance.Subtle", AlignInContainer: "AlignInContainer.Start" })),
     ]),
   ]);
 }
@@ -1662,13 +1801,7 @@ function screenMyRequests() {
         // A Text pill rather than ModernBadge: the updated Badge control isn't
         // rolled out everywhere yet, and Studio rejected it ("Unknown control
         // type 'ModernBadge'") on the first real paste.
-        text(`${p}Status`, "ThisItem.Status.Value", {
-          X: "Parent.TemplateWidth - 300", Y: 13, Width: 110, Height: 26, Size: 11, FontWeight: "FontWeight.Bold", Align: "Align.Center",
-          Fill: `Switch(ThisItem.Status.Value, "Approved", ${K.successBg}, "Pending", ${K.warningBg}, "Rejected", ${K.errorBg}, ${K.gray100})`,
-          Color: `Switch(ThisItem.Status.Value, "Approved", ${K.success}, "Pending", ${K.warning}, "Rejected", ${K.error}, ${K.gray600})`,
-          BorderColor: `Switch(ThisItem.Status.Value, "Approved", ${K.successBorder}, "Pending", ${K.warningBorder}, "Rejected", ${K.errorBorder}, ${K.gray300})`,
-          BorderThickness: 1, ...radius(13),
-        }),
+        requestPill(`${p}Status`, "ThisItem.Status.Value", { X: "Parent.TemplateWidth - 300", Y: 13, Width: 110, Height: 26 }),
         button(`${p}Cancel`, 'If(ThisItem.Status.Value = "Pending", "Withdraw", "Cancel PTO")', cancel, {
           X: "Parent.TemplateWidth - 170", Y: 10, Width: 150, Height: 34, Appearance: "ButtonAppearance.Outline",
           Visible: `(${live}) && (ThisItem.PersonKey = varMe.PersonKey || varIsAdmin)`,

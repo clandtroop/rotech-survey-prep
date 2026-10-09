@@ -73,7 +73,7 @@ exists.
    | 01 | `scrToday` | Who's out today, this week, recurring tasks in play, birthdays |
    | 02 | `scrMyTasks` | Your duties grouped by when they're due, with ticking and tags |
    | 03 | `scrTaskCalendar` | Every task, filterable, as a list or by month |
-   | 04 | `scrWhereabouts` | The team month calendar, including pending PTO |
+   | 04 | `scrWhereabouts` | The team month calendar, including pending PTO. Prebuilt-screen layout (Header and gallery). |
    | 05 | `scrEntryDetail` | One entry: visit, notes, hotel and flight |
    | 06 | `scrEntryEdit` | Add or edit an entry |
    | 07 | `scrTaskEdit` | Add or edit a task (tags only for assigned work) |
@@ -81,7 +81,7 @@ exists.
    | 09 | `scrMyEntries` | Bulk delete of your own entries |
    | 10 | `scrRoster` | Admin: sign-ins, approvers, admin/active, remove |
    | 11 | `scrSiteCircuit` | The monthly leadership visit email |
-   | 12 | `scrRequestPTO` | Request PTO |
+   | 12 | `scrRequestPTO` | Request PTO. Prebuilt-screen layout (Approval request). |
    | 13 | `scrMyRequests` | Your PTO requests, with withdraw and cancel |
 
 2. Paste each file onto its screen:
@@ -90,6 +90,13 @@ exists.
       Ctrl+V with the screen selected works too. The first paste asks for clipboard
       access; allow it.
    3. A container named like `tdyRoot` appears, filling the screen.
+   Files 04 and 12 use the layout of Power Apps' prebuilt responsive screens
+   (**New screen** → *Header and gallery* / *Approval request*): a screen container,
+   a header container with the modern **Header** control, and a main container of
+   cards. The YAML builds that whole layout itself, so paste it onto a blank screen.
+   If you start from the prebuilt screen instead, delete its `ScreenContainer1`
+   first, then paste. The prebuilt Approval request form isn't kept, because it
+   writes straight to a list; PTO requests go through the approval flow instead.
 3. Set **OnVisible** on the four screens listed in `OnVisible.txt`: `scrEntryEdit`,
    `scrTaskEdit`, `scrRequestPTO` and `scrMyEntries`.
 4. Select **App** and set **StartScreen** to `scrToday`.

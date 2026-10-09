@@ -1,44 +1,63 @@
-- rqpRoot:
+- rqpScreenContainer:
     Control: GroupContainer@1.5.0
     Variant: AutoLayout
     Properties:
       LayoutDirection: =LayoutDirection.Vertical
       DropShadow: =DropShadow.None
-      LayoutGap: =0
+      LayoutGap: =8
       X: =0
       Y: =0
       Width: =Parent.Width
       Height: =Parent.Height
-      Fill: =RGBA(246, 248, 250, 1)
+      Fill: =RGBA(243, 242, 241, 1)
+      PaddingTop: =8
+      PaddingBottom: =8
+      PaddingLeft: =8
+      PaddingRight: =8
     Children:
-      - rqpHeader:
+      - rqpHeaderContainer:
           Control: GroupContainer@1.5.0
           Variant: AutoLayout
           Properties:
             LayoutDirection: =LayoutDirection.Horizontal
             DropShadow: =DropShadow.None
             LayoutAlignItems: =LayoutAlignItems.Center
-            LayoutGap: =4
+            LayoutGap: =0
             FillPortions: =0
-            Height: =60
+            Height: =56
+            AlignInContainer: =AlignInContainer.Stretch
+          Children:
+            - rqpHeader:
+                Control: Header
+                Properties:
+                  FillPortions: =1
+                  LayoutMinHeight: =48
+                  LayoutMinWidth: =40
+                  AlignInContainer: =AlignInContainer.Stretch
+                  Height: =56
+                  Title: ="Team Planner · Request PTO"
+                  IsLogoVisible: =false
+                  IsProfilePictureVisible: =true
+                  BasePaletteColor: =RGBA(0, 83, 161, 1)
+      - rqpNavContainer:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            LayoutDirection: =LayoutDirection.Horizontal
+            DropShadow: =DropShadow.Light
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =2
+            FillPortions: =0
+            Height: =44
             AlignInContainer: =AlignInContainer.Stretch
             Fill: =RGBA(255, 255, 255, 1)
-            BorderColor: =RGBA(225, 230, 236, 1)
-            BorderThickness: =1
-            PaddingLeft: =20
-            PaddingRight: =20
+            RadiusTopLeft: =8
+            RadiusTopRight: =8
+            RadiusBottomLeft: =8
+            RadiusBottomRight: =8
+            PaddingLeft: =8
+            PaddingRight: =8
           Children:
-            - rqpAppTitle:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: ="Team Planner"
-                  Size: =18
-                  Color: =RGBA(0, 83, 161, 1)
-                  FillPortions: =0
-                  Width: =150
-                  Height: =36
-                  AlignInContainer: =AlignInContainer.Center
-                  FontWeight: =FontWeight.Bold
             - rqpNavToday:
                 Control: ModernButton@1.0.0
                 Properties:
@@ -47,7 +66,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =76
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - rqpNavMyTasks:
@@ -58,7 +77,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =96
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - rqpNavTasks:
@@ -69,7 +88,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =124
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - rqpNavWhere:
@@ -80,7 +99,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =116
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - rqpNavPrint:
@@ -91,7 +110,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =68
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - rqpNavCircuit:
@@ -102,7 +121,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =108
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - rqpNavPto:
@@ -113,7 +132,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =84
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Primary
             - rqpNavEntries:
@@ -124,7 +143,7 @@
                   Size: =13
                   FillPortions: =0
                   Width: =102
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
             - rqpNavRoster:
@@ -135,32 +154,11 @@
                   Size: =13
                   FillPortions: =0
                   Width: =80
-                  Height: =34
+                  Height: =32
                   AlignInContainer: =AlignInContainer.Center
                   Appearance: =ButtonAppearance.Subtle
                   Visible: =varIsAdmin
-            - rqpHeaderSpacer:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: =""
-                  Size: =13
-                  Color: =RGBA(19, 25, 34, 1)
-                  FillPortions: =1
-                  LayoutMinWidth: =1
-                  Height: =10
-                  AlignInContainer: =AlignInContainer.Center
-            - rqpWho:
-                Control: ModernText@1.0.0
-                Properties:
-                  Text: =Coalesce(varMe.Title, User().FullName) & If(varIsAdmin, " · admin", "")
-                  Size: =12
-                  Color: =RGBA(93, 103, 115, 1)
-                  FillPortions: =0
-                  Width: =200
-                  Height: =30
-                  AlignInContainer: =AlignInContainer.Center
-                  Align: =Align.Right
-      - rqpBody:
+      - rqpMainContainer:
           Control: GroupContainer@1.5.0
           Variant: AutoLayout
           Properties:
@@ -172,47 +170,43 @@
             LayoutMinHeight: =300
             LayoutMinWidth: =40
             AlignInContainer: =AlignInContainer.Stretch
-            PaddingTop: =16
-            PaddingBottom: =16
-            LayoutJustifyContent: =LayoutJustifyContent.Center
           Children:
-            - rqpCard:
+            - rqpFormContainer:
                 Control: GroupContainer@1.5.0
                 Variant: AutoLayout
                 Properties:
                   LayoutDirection: =LayoutDirection.Vertical
-                  DropShadow: =DropShadow.None
+                  DropShadow: =DropShadow.Light
                   LayoutGap: =10
                   Fill: =RGBA(255, 255, 255, 1)
-                  BorderColor: =RGBA(225, 230, 236, 1)
-                  BorderThickness: =1
-                  RadiusTopLeft: =12
-                  RadiusTopRight: =12
-                  RadiusBottomLeft: =12
-                  RadiusBottomRight: =12
+                  RadiusTopLeft: =8
+                  RadiusTopRight: =8
+                  RadiusBottomLeft: =8
+                  RadiusBottomRight: =8
                   PaddingTop: =16
                   PaddingBottom: =16
-                  PaddingLeft: =18
-                  PaddingRight: =18
-                  FillPortions: =0
-                  Width: =780
+                  PaddingLeft: =20
+                  PaddingRight: =20
+                  FillPortions: =1
                   LayoutMinHeight: =300
+                  LayoutMinWidth: =40
                   AlignInContainer: =AlignInContainer.Stretch
+                  LayoutOverflowY: =LayoutOverflow.Scroll
                 Children:
-                  - rqpTitle:
+                  - rqpFormTitleText:
                       Control: ModernText@1.0.0
                       Properties:
-                        Text: ="Request PTO"
+                        Text: ="New PTO request"
                         Size: =20
                         Color: =RGBA(19, 25, 34, 1)
                         FillPortions: =0
-                        Height: =30
+                        Height: =32
                         AlignInContainer: =AlignInContainer.Stretch
-                        FontWeight: =FontWeight.Bold
+                        FontWeight: =FontWeight.Semibold
                   - rqpGoesTo:
                       Control: ModernText@1.0.0
                       Properties:
-                        Text: =If(IsBlank(varMe), "Your sign-in isn't linked to a roster person yet — an admin can link it on the Roster screen.", IsBlank(LookUp(colPeople, PersonKey = varMe.PersonKey).Approver.Email), "No approver is set for you yet — an admin can add one on the Roster screen.", "Goes to " & LookUp(colPeople, PersonKey = varMe.PersonKey).Approver.DisplayName & " for approval. Once approved it's added to the planner and your Outlook calendar.")
+                        Text: =If(IsBlank(varMe), "Your sign-in isn't linked to a roster person yet — an admin can link it on the Roster screen.", IsBlank(LookUp(colPeople, PersonKey = varMe.PersonKey).Approver.Email), "No approver is set for you yet — an admin can add one on the Roster screen.", "Once it's approved, it's added to the planner and your Outlook calendar.")
                         Size: =12
                         Color: =If(IsBlank(varMe) || IsBlank(LookUp(colPeople, PersonKey = varMe.PersonKey).Approver.Email), RGBA(176, 106, 0, 1), RGBA(93, 103, 115, 1))
                         FillPortions: =0
@@ -264,6 +258,53 @@
                                     FillPortions: =0
                                     Height: =36
                                     AlignInContainer: =AlignInContainer.Stretch
+                        - rqpPartField:
+                            Control: GroupContainer@1.5.0
+                            Variant: AutoLayout
+                            Properties:
+                              LayoutDirection: =LayoutDirection.Vertical
+                              DropShadow: =DropShadow.None
+                              LayoutGap: =4
+                              FillPortions: =1
+                              LayoutMinHeight: =60
+                              LayoutMinWidth: =40
+                              AlignInContainer: =AlignInContainer.Stretch
+                              Height: =62
+                            Children:
+                              - rqpPartFieldLbl:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Text: ="Day part — single days only"
+                                    Size: =11
+                                    Color: =RGBA(93, 103, 115, 1)
+                                    FontWeight: =FontWeight.Semibold
+                                    FillPortions: =0
+                                    Height: =18
+                                    AlignInContainer: =AlignInContainer.Stretch
+                              - rqpPart:
+                                  Control: ModernDropdown@1.0.0
+                                  Properties:
+                                    Items: =nfDayParts
+                                    ItemDisplayText: =ThisItem.Value
+                                    Appearance: =Appearance.Outline
+                                    Default: |-
+                                      ={Value: "Full day"}
+                                    DisplayMode: =If((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)), DisplayMode.Edit, DisplayMode.View)
+                                    FillPortions: =0
+                                    Height: =36
+                                    AlignInContainer: =AlignInContainer.Stretch
+                  - rqpRow2:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        DropShadow: =DropShadow.None
+                        LayoutAlignItems: =LayoutAlignItems.Start
+                        LayoutGap: =12
+                        FillPortions: =0
+                        Height: =64
+                        AlignInContainer: =AlignInContainer.Stretch
+                      Children:
                         - rqpStartField:
                             Control: GroupContainer@1.5.0
                             Variant: AutoLayout
@@ -331,50 +372,15 @@
                                     FillPortions: =0
                                     Height: =36
                                     AlignInContainer: =AlignInContainer.Stretch
-                        - rqpPartField:
-                            Control: GroupContainer@1.5.0
-                            Variant: AutoLayout
-                            Properties:
-                              LayoutDirection: =LayoutDirection.Vertical
-                              DropShadow: =DropShadow.None
-                              LayoutGap: =4
-                              FillPortions: =1
-                              LayoutMinHeight: =60
-                              LayoutMinWidth: =40
-                              AlignInContainer: =AlignInContainer.Stretch
-                              Height: =62
-                            Children:
-                              - rqpPartFieldLbl:
-                                  Control: ModernText@1.0.0
-                                  Properties:
-                                    Text: ="Day part — single days only"
-                                    Size: =11
-                                    Color: =RGBA(93, 103, 115, 1)
-                                    FontWeight: =FontWeight.Semibold
-                                    FillPortions: =0
-                                    Height: =18
-                                    AlignInContainer: =AlignInContainer.Stretch
-                              - rqpPart:
-                                  Control: ModernDropdown@1.0.0
-                                  Properties:
-                                    Items: =nfDayParts
-                                    ItemDisplayText: =ThisItem.Value
-                                    Appearance: =Appearance.Outline
-                                    Default: |-
-                                      ={Value: "Full day"}
-                                    DisplayMode: =If((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)), DisplayMode.Edit, DisplayMode.View)
-                                    FillPortions: =0
-                                    Height: =36
-                                    AlignInContainer: =AlignInContainer.Stretch
                   - rqpSummary:
                       Control: ModernText@1.0.0
                       Properties:
                         Text: |-
                           =If(IsBlank(rqpStart.SelectedDate), "", ((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) && rqpPart.Selected.Value <> "Full day"), "Half day (" & rqpPart.Selected.Value & ") · " & Text(rqpStart.SelectedDate, "dddd, mmmm d"), With({a: rqpStart.SelectedDate, b: Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)}, CountRows(Filter(ForAll(Sequence(Max(0, DateDiff(a, b, TimeUnit.Days) + 1)) As wdk, DateAdd(a, wdk.Value - 1, TimeUnit.Days)), Weekday(Value, StartOfWeek.Monday) <= 5))) & " weekday(s) · " & If(IsBlank(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) || Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate) = rqpStart.SelectedDate, Text(rqpStart.SelectedDate, "mmm d"), Month(rqpStart.SelectedDate) = Month(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) && Year(rqpStart.SelectedDate) = Year(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)), Text(rqpStart.SelectedDate, "mmm d") & " – " & Day(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)), Text(rqpStart.SelectedDate, "mmm d") & " – " & Text(Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate), "mmm d")))
-                        Size: =13
+                        Size: =14
                         Color: =RGBA(0, 83, 161, 1)
                         FillPortions: =0
-                        Height: =22
+                        Height: =24
                         AlignInContainer: =AlignInContainer.Stretch
                         FontWeight: =FontWeight.Semibold
                   - rqpNotesField:
@@ -385,7 +391,7 @@
                         DropShadow: =DropShadow.None
                         LayoutGap: =4
                         FillPortions: =0
-                        Height: =100
+                        Height: =104
                         AlignInContainer: =AlignInContainer.Stretch
                       Children:
                         - rqpNotesLbl:
@@ -404,7 +410,7 @@
                               Appearance: =Appearance.Outline
                               TriggerOutput: =TriggerOutput.Keypress
                               FillPortions: =0
-                              Height: =74
+                              Height: =78
                               AlignInContainer: =AlignInContainer.Stretch
                               Type: =TextInputType.Multiline
                               Placeholder: ="Family trip — Cody has Tuesday coverage"
@@ -513,7 +519,17 @@
                               Height: =20
                               AlignInContainer: =AlignInContainer.Stretch
                               Visible: =((rqpStart.SelectedDate = Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)) && rqpPart.Selected.Value <> "Full day")
-                  - rqpFooter:
+                  - rqpFormSpacer:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: =""
+                        Size: =13
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =1
+                        LayoutMinHeight: =1
+                        Height: =1
+                        AlignInContainer: =AlignInContainer.Stretch
+                  - rqpButtonContainer:
                       Control: GroupContainer@1.5.0
                       Variant: AutoLayout
                       Properties:
@@ -522,7 +538,7 @@
                         LayoutAlignItems: =LayoutAlignItems.Center
                         LayoutGap: =8
                         FillPortions: =0
-                        Height: =44
+                        Height: =40
                         AlignInContainer: =AlignInContainer.Stretch
                         LayoutJustifyContent: =LayoutJustifyContent.End
                       Children:
@@ -534,13 +550,13 @@
                               Size: =13
                               FillPortions: =0
                               Width: =90
-                              Height: =36
+                              Height: =34
                               AlignInContainer: =AlignInContainer.Center
                               Appearance: =ButtonAppearance.Outline
                         - rqpSubmit:
                             Control: ModernButton@1.0.0
                             Properties:
-                              Text: ="Send for approval"
+                              Text: ="Submit request"
                               OnSelect: |-
                                 =With({sd: rqpStart.SelectedDate, ed: Coalesce(rqpEnd.SelectedDate, rqpStart.SelectedDate)},
                                   With({single: sd = ed, wd: CountRows(Filter(ForAll(Sequence(Max(0, DateDiff(sd, ed, TimeUnit.Days) + 1)) As wdk, DateAdd(sd, wdk.Value - 1, TimeUnit.Days)), Weekday(Value, StartOfWeek.Monday) <= 5))},
@@ -569,7 +585,216 @@
                                 )
                               Size: =13
                               FillPortions: =0
-                              Width: =160
-                              Height: =36
+                              Width: =150
+                              Height: =34
                               AlignInContainer: =AlignInContainer.Center
                               Icon: ="Send"
+            - rqpSidebarContainer:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  LayoutDirection: =LayoutDirection.Vertical
+                  DropShadow: =DropShadow.Light
+                  LayoutGap: =8
+                  Fill: =RGBA(255, 255, 255, 1)
+                  RadiusTopLeft: =8
+                  RadiusTopRight: =8
+                  RadiusBottomLeft: =8
+                  RadiusBottomRight: =8
+                  PaddingTop: =16
+                  PaddingBottom: =16
+                  PaddingLeft: =16
+                  PaddingRight: =16
+                  FillPortions: =0
+                  Width: =320
+                  LayoutMinHeight: =300
+                  AlignInContainer: =AlignInContainer.Stretch
+                Children:
+                  - rqpReviewersText:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Approval path"
+                        Size: =16
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =26
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Semibold
+                  - rqpReviewersGallery:
+                      Control: Gallery@2.15.0
+                      Variant: Vertical
+                      Properties:
+                        TemplatePadding: =0
+                        ShowScrollbar: =false
+                        FillPortions: =0
+                        Height: =252
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Items: |-
+                          =With({ap: LookUp(colPeople, PersonKey = varMe.PersonKey).Approver},
+                            Table(
+                              {Step: 1, Name: Coalesce(varMe.Title, User().FullName), Title: "Fills in and sends this request", Status: "In progress", Current: true},
+                              {Step: 2, Name: If(IsBlank(ap.Email), "No approver set", ap.DisplayName),
+                               Title: If(IsBlank(ap.Email), "An admin needs to add one on the Roster screen", "Approves or declines from Outlook or Teams"),
+                               Status: If(IsBlank(ap.Email), "Blocked", "Not started"), Current: false},
+                              {Step: 3, Name: "Team Planner", Title: "Adds it to the calendar and sends you an Outlook invite", Status: "Not started", Current: false}
+                            )
+                          )
+                        TemplateSize: =84
+                      Children:
+                        - rqpStepLine:
+                            Control: Rectangle@2.3.0
+                            Properties:
+                              X: =17
+                              Y: =36
+                              Width: =2
+                              Height: =Parent.TemplateHeight - 36
+                              Fill: =RGBA(197, 204, 213, 1)
+                              Visible: =ThisItem.Step < 3
+                        - rqpStepDot:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =Upper(Left(ThisItem.Name, 1))
+                              Size: =13
+                              Color: =Switch(ThisItem.Status, "In progress", RGBA(255, 255, 255, 1), "Blocked", RGBA(192, 57, 43, 1), RGBA(93, 103, 115, 1))
+                              X: =2
+                              Y: =2
+                              Width: =32
+                              Height: =32
+                              FontWeight: =FontWeight.Bold
+                              Align: =Align.Center
+                              RadiusTopLeft: =16
+                              RadiusTopRight: =16
+                              RadiusBottomLeft: =16
+                              RadiusBottomRight: =16
+                              BorderThickness: =1
+                              Fill: =Switch(ThisItem.Status, "In progress", RGBA(0, 83, 161, 1), "Blocked", RGBA(251, 234, 231, 1), RGBA(238, 241, 245, 1))
+                              BorderColor: =Switch(ThisItem.Status, "In progress", RGBA(0, 83, 161, 1), "Blocked", RGBA(224, 160, 153, 1), RGBA(197, 204, 213, 1))
+                        - rqpStepName:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.Name
+                              Size: =13
+                              Color: =RGBA(19, 25, 34, 1)
+                              X: =46
+                              Y: =2
+                              Width: =Parent.TemplateWidth - 48
+                              Height: =20
+                              FontWeight: =If(ThisItem.Current, FontWeight.Bold, FontWeight.Semibold)
+                        - rqpStepTitle:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.Title
+                              Size: =12
+                              Color: =RGBA(93, 103, 115, 1)
+                              X: =46
+                              Y: =22
+                              Width: =Parent.TemplateWidth - 48
+                              Height: =36
+                              Wrap: =true
+                              VerticalAlign: =VerticalAlign.Top
+                        - rqpStepStatus:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.Status
+                              Size: =11
+                              Color: =Switch(ThisItem.Status, "In progress", RGBA(0, 83, 161, 1), "Blocked", RGBA(192, 57, 43, 1), RGBA(124, 135, 148, 1))
+                              X: =46
+                              Y: =58
+                              Width: =Parent.TemplateWidth - 48
+                              Height: =18
+                              FontWeight: =FontWeight.Semibold
+                  - rqpDivider:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        FillPortions: =0
+                        Height: =1
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Fill: =RGBA(225, 230, 236, 1)
+                  - rqpRecentText:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="Your recent requests"
+                        Size: =14
+                        Color: =RGBA(19, 25, 34, 1)
+                        FillPortions: =0
+                        Height: =24
+                        AlignInContainer: =AlignInContainer.Stretch
+                        FontWeight: =FontWeight.Semibold
+                  - rqpRecentGallery:
+                      Control: Gallery@2.15.0
+                      Variant: Vertical
+                      Properties:
+                        TemplatePadding: =0
+                        ShowScrollbar: =true
+                        FillPortions: =1
+                        LayoutMinHeight: =60
+                        LayoutMinWidth: =40
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Items: =FirstN(SortByColumns(Filter('TP PTO Requests', PersonKey = varMe.PersonKey), ID, SortOrder.Descending), 5)
+                        TemplateSize: =46
+                        OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                      Children:
+                        - rqpRecentWhat:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.LeaveType.Value & " · " & If(IsBlank(ThisItem.EndDate) || ThisItem.EndDate = ThisItem.StartDate, Text(ThisItem.StartDate, "mmm d"), Month(ThisItem.StartDate) = Month(ThisItem.EndDate) && Year(ThisItem.StartDate) = Year(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Day(ThisItem.EndDate), Text(ThisItem.StartDate, "mmm d") & " – " & Text(ThisItem.EndDate, "mmm d"))
+                              Size: =12
+                              Color: =RGBA(19, 25, 34, 1)
+                              X: =0
+                              Y: =3
+                              Width: =Parent.TemplateWidth - 96
+                              Height: =20
+                              FontWeight: =FontWeight.Semibold
+                              OnSelect: =Select(Parent)
+                        - rqpRecentSub:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =If(ThisItem.DayPart.Value = "Full day", ThisItem.Weekdays & " weekday(s)", "Half day (" & ThisItem.DayPart.Value & ")")
+                              Size: =11
+                              Color: =RGBA(93, 103, 115, 1)
+                              X: =0
+                              Y: =23
+                              Width: =Parent.TemplateWidth - 96
+                              Height: =18
+                              OnSelect: =Select(Parent)
+                        - rqpRecentStatus:
+                            Control: ModernText@1.0.0
+                            Properties:
+                              Text: =ThisItem.Status.Value
+                              Size: =11
+                              Color: =Switch(ThisItem.Status.Value, "Approved", RGBA(29, 122, 77, 1), "Pending", RGBA(176, 106, 0, 1), "Rejected", RGBA(192, 57, 43, 1), RGBA(93, 103, 115, 1))
+                              FontWeight: =FontWeight.Bold
+                              Align: =Align.Center
+                              Fill: =Switch(ThisItem.Status.Value, "Approved", RGBA(231, 244, 236, 1), "Pending", RGBA(251, 240, 219, 1), "Rejected", RGBA(251, 234, 231, 1), RGBA(238, 241, 245, 1))
+                              BorderColor: =Switch(ThisItem.Status.Value, "Approved", RGBA(143, 201, 163, 1), "Pending", RGBA(227, 200, 148, 1), "Rejected", RGBA(224, 160, 153, 1), RGBA(197, 204, 213, 1))
+                              BorderThickness: =1
+                              RadiusTopLeft: =12
+                              RadiusTopRight: =12
+                              RadiusBottomLeft: =12
+                              RadiusBottomRight: =12
+                              X: =Parent.TemplateWidth - 90
+                              Y: =11
+                              Width: =88
+                              Height: =24
+                              OnSelect: =Select(Parent)
+                  - rqpRecentEmpty:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Text: ="No requests yet."
+                        Size: =12
+                        Color: =RGBA(124, 135, 148, 1)
+                        FillPortions: =0
+                        Height: =20
+                        AlignInContainer: =AlignInContainer.Stretch
+                        Visible: =CountRows(rqpRecentGallery.AllItems) = 0
+                  - rqpViewAll:
+                      Control: ModernButton@1.0.0
+                      Properties:
+                        Text: ="See all my requests"
+                        OnSelect: =Navigate(scrMyRequests, ScreenTransition.None)
+                        Size: =13
+                        FillPortions: =0
+                        Width: =170
+                        Height: =32
+                        AlignInContainer: =AlignInContainer.Start
+                        Appearance: =ButtonAppearance.Subtle

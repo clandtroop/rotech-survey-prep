@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
 import { T, BRAND, Icon, cardStyle } from "./theme";
-import { loadTrendData, TRENDS_COLLECTION, toIsoDate, monthLabel } from "./trendData";
+import { loadTrendData, TRENDS_COLLECTION, toIsoDate, monthLabel, siteLabel } from "./trendData";
 
 // ─── ISSUE TREND DASHBOARD ───────────────────────────────────────────────────
 // Company-wide view of every issue recorded on a finalized visit.
@@ -239,7 +239,7 @@ function Chip({ children, onRemove }) {
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
-export default function TrendDashboard() {
+export default function TrendDashboard({ locations = [] }) {
   const [localData] = useState(loadTrendData);
   const [firestoreRecords, setFirestoreRecords] = useState([]);
   const [firestoreLoading, setFirestoreLoading] = useState(true);
@@ -289,14 +289,18 @@ export default function TrendDashboard() {
     return () => document.removeEventListener("mousedown", close);
   }, [showExport]);
 
+  const rosterByLawson = useMemo(() => new Map(locations.map(l => [String(l.lawson), l])), [locations]);
+
   // Merge: Firestore is authoritative; localStorage fills in anything not yet
   // synced. Dates are normalized to ISO here, once, so every downstream
-  // comparison and bucket works off a sortable value.
+  // comparison and bucket works off a sortable value. `site` is likewise
+  // derived once and is what every view groups, filters and labels by — not
+  // `location`, which is the DBA name and is "Rotech" for most sites.
   const allRecords = useMemo(() => {
     const synced = new Set(firestoreRecords.map(r => r.visitId));
     return [...firestoreRecords, ...localData.filter(r => !synced.has(r.visitId))]
-      .map(r => ({ ...r, iso: toIsoDate(r.date), areaManager: r.areaManager || "Unassigned" }));
-  }, [firestoreRecords, localData]);
+      .map(r => ({ ...r, iso: toIsoDate(r.date), areaManager: r.areaManager || "Unassigned", site: siteLabel(r, rosterByLawson) }));
+  }, [firestoreRecords, localData, rosterByLawson]);
 
   const issuesAll = useMemo(
     () => allRecords.filter(r => r.itemText !== "_clean" && r.section !== "_summary" && r.visitType !== "note"),
@@ -310,7 +314,7 @@ export default function TrendDashboard() {
     allRecords.forEach(r => {
       if (m.has(r.visitId)) return;
       m.set(r.visitId, {
-        visitId: r.visitId, location: r.location, city: r.city, lawson: r.lawson,
+        visitId: r.visitId, site: r.site,
         iso: r.iso, date: r.date, specialist: r.specialist, region: r.region, areaManager: r.areaManager,
       });
     });
@@ -318,7 +322,7 @@ export default function TrendDashboard() {
   }, [allRecords]);
 
   const options = useMemo(() => ({
-    locations:   [...new Set(allRecords.map(r => r.location).filter(Boolean))].sort(),
+    sites:       [...new Set(allRecords.map(r => r.site))].sort(),
     sections:    [...new Set(issuesAll.map(r => r.section).filter(Boolean))].sort(),
     specialists: [...new Set(allRecords.map(r => r.specialist).filter(Boolean))].sort(),
     managers:    [...new Set(allRecords.map(r => r.areaManager))].sort(),
@@ -328,7 +332,7 @@ export default function TrendDashboard() {
   // Visit-level filters apply to both visits and issues; section + search only
   // narrow issues (a visit isn't "in" or "out" of a section).
   const matchesVisit = r => {
-    if (filterLoc    && !String(r.location || "").toLowerCase().includes(filterLoc.toLowerCase())) return false;
+    if (filterLoc    && !r.site.toLowerCase().includes(filterLoc.toLowerCase())) return false;
     if (filterSpec   && r.specialist !== filterSpec) return false;
     if (filterAM     && r.areaManager !== filterAM) return false;
     if (filterRegion && r.region !== filterRegion) return false;
@@ -346,7 +350,7 @@ export default function TrendDashboard() {
       if (!matchesVisit(r)) return false;
       if (filterSection && r.section !== filterSection) return false;
       if (needle) {
-        const hay = `${r.itemText} ${r.comment} ${r.location} ${r.section}`.toLowerCase();
+        const hay = `${r.itemText} ${r.comment} ${r.site} ${r.section}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
       return true;
@@ -368,26 +372,26 @@ export default function TrendDashboard() {
     // Per-location rollup: issue count plus the visit count it should be read
     // against, so a site with 3 visits isn't compared naively to one with 1.
     const locMap = new Map();
-    const touch = loc => {
-      if (!locMap.has(loc)) locMap.set(loc, { location: loc, issues: 0, visits: 0, region: "", areaManager: "", lastVisit: "", topItem: "", items: new Map() });
-      return locMap.get(loc);
+    const touch = site => {
+      if (!locMap.has(site)) locMap.set(site, { site, issues: 0, visits: 0, region: "", areaManager: "", lastVisit: "", topItem: "", items: new Map() });
+      return locMap.get(site);
     };
     visits.forEach(v => {
-      const e = touch(v.location);
+      const e = touch(v.site);
       e.visits += 1;
       e.region = e.region || v.region || "";
       e.areaManager = e.areaManager || v.areaManager;
       if (v.iso > e.lastVisit) e.lastVisit = v.iso;
     });
     filtered.forEach(r => {
-      const e = touch(r.location);
+      const e = touch(r.site);
       e.issues += 1;
       e.items.set(r.itemText, (e.items.get(r.itemText) || 0) + 1);
     });
     const locations = [...locMap.values()].map(e => {
       const top = [...e.items.entries()].sort((a, b) => b[1] - a[1])[0];
       return { ...e, topItem: top ? top[0] : "", avg: e.visits ? e.issues / e.visits : 0 };
-    }).sort((a, b) => b.issues - a.issues || a.location.localeCompare(b.location));
+    }).sort((a, b) => b.issues - a.issues || a.site.localeCompare(b.site));
 
     // Recurring = the same item failing at the same site on two or more
     // *separate* visits. Counting raw records instead would flag a single
@@ -395,8 +399,8 @@ export default function TrendDashboard() {
     // finding, not a recurrence.
     const recMap = new Map();
     filtered.forEach(r => {
-      const k = `${r.location}||${r.itemText}`;
-      if (!recMap.has(k)) recMap.set(k, { location: r.location, item: r.itemText, section: r.section, areaManager: r.areaManager, region: r.region, visitIds: new Set(), records: 0, lastSeen: "" });
+      const k = `${r.site}||${r.itemText}`;
+      if (!recMap.has(k)) recMap.set(k, { site: r.site, item: r.itemText, section: r.section, areaManager: r.areaManager, region: r.region, visitIds: new Set(), records: 0, lastSeen: "" });
       const e = recMap.get(k);
       e.visitIds.add(r.visitId);
       e.records += 1;
@@ -405,14 +409,14 @@ export default function TrendDashboard() {
     const recurring = [...recMap.values()]
       .filter(e => e.visitIds.size >= 2)
       .map(e => ({ ...e, count: e.visitIds.size }))
-      .sort((a, b) => b.count - a.count || b.records - a.records || a.location.localeCompare(b.location));
+      .sort((a, b) => b.count - a.count || b.records - a.records || a.site.localeCompare(b.site));
 
     // Manager rollup with their sites, worst-first.
     const amSites = new Map();
     filtered.forEach(r => {
       if (!amSites.has(r.areaManager)) amSites.set(r.areaManager, new Map());
       const m = amSites.get(r.areaManager);
-      m.set(r.location, (m.get(r.location) || 0) + 1);
+      m.set(r.site, (m.get(r.site) || 0) + 1);
     });
     const managerRows = managers.map(([am, count]) => ({
       areaManager: am,
@@ -501,7 +505,7 @@ export default function TrendDashboard() {
   // Drill-down: every ranked row jumps into the issue log already scoped to
   // what was clicked, so the ranking and the detail can't disagree.
   function drill(patch) {
-    if ("location" in patch) setFilterLoc(patch.location);
+    if ("site"     in patch) setFilterLoc(patch.site);
     if ("section"  in patch) setFilterSection(patch.section);
     if ("manager"  in patch) setFilterAM(patch.manager);
     if ("item"     in patch) setQ(patch.item);
@@ -535,9 +539,9 @@ export default function TrendDashboard() {
   ];
 
   const logRows = () => {
-    const rows = [["Date", "Visit ID", "Lawson #", "Location", "City", "Region", "Area Manager", "Specialist", "Section", "Form Ref", "Item", "Comment"]];
+    const rows = [["Date", "Visit ID", "Site", "Lawson #", "Location Name", "City", "Region", "Area Manager", "Specialist", "Section", "Form Ref", "Item", "Comment"]];
     sortedLog.forEach(r => rows.push([
-      r.date || "", r.visitId, r.lawson || "", r.location, r.city || "", r.region || "",
+      r.date || "", r.visitId, r.site, r.lawson || "", r.location, r.city || "", r.region || "",
       r.areaManager, r.specialist || "", r.section, r.formRef || "", r.itemText, r.comment || "",
     ]));
     return rows;
@@ -557,7 +561,7 @@ export default function TrendDashboard() {
   function exportLogXLSX() {
     setShowExport(false);
     const wb = XLSX.utils.book_new();
-    sheet(wb, "Issue Log", logRows(), [12, 18, 10, 26, 18, 12, 20, 20, 26, 14, 60, 50]);
+    sheet(wb, "Issue Log", logRows(), [12, 18, 30, 10, 26, 18, 12, 20, 20, 26, 14, 60, 50]);
     download(wb, "IssueLog");
   }
 
@@ -575,18 +579,18 @@ export default function TrendDashboard() {
       [["Month", "Issues"], ...stats.months.map(m => [m.label, m.count])], [14, 10]);
 
     sheet(wb, "Recurring Issues",
-      [["Location", "Item", "Section", "Area Manager", "Visits Failed", "Total Findings", "Last Seen"],
-        ...stats.recurring.map(r => [r.location, r.item, r.section, r.areaManager, r.count, r.records, r.lastSeen || ""])],
-      [26, 60, 26, 20, 13, 14, 12]);
+      [["Site", "Item", "Section", "Area Manager", "Visits Failed", "Total Findings", "Last Seen"],
+        ...stats.recurring.map(r => [r.site, r.item, r.section, r.areaManager, r.count, r.records, r.lastSeen || ""])],
+      [30, 60, 26, 20, 13, 14, 12]);
 
     sheet(wb, "By Location",
-      [["Location", "Region", "Area Manager", "Visits", "Issues", "Avg per Visit", "Last Visit", "Most Common Issue"],
-        ...stats.locations.map(l => [l.location, l.region, l.areaManager, l.visits, l.issues, Number(l.avg.toFixed(2)), l.lastVisit || "", l.topItem])],
-      [26, 12, 20, 8, 8, 13, 12, 60]);
+      [["Site", "Region", "Area Manager", "Visits", "Issues", "Avg per Visit", "Last Visit", "Most Common Issue"],
+        ...stats.locations.map(l => [l.site, l.region, l.areaManager, l.visits, l.issues, Number(l.avg.toFixed(2)), l.lastVisit || "", l.topItem])],
+      [30, 12, 20, 8, 8, 13, 12, 60]);
 
     sheet(wb, "By Item",
       [["Item", "Findings", "Sites Affected"],
-        ...stats.items.map(([item, count]) => [item, count, new Set(filtered.filter(r => r.itemText === item).map(r => r.location)).size])],
+        ...stats.items.map(([item, count]) => [item, count, new Set(filtered.filter(r => r.itemText === item).map(r => r.site)).size])],
       [70, 10, 14]);
 
     sheet(wb, "By Section",
@@ -596,10 +600,11 @@ export default function TrendDashboard() {
 
     sheet(wb, "By Area Manager",
       [["Area Manager", "Visits", "Issues", "Sites with Issues", "Sites (issue count)"],
-        ...stats.managers.map(m => [m.areaManager, m.visits, m.issues, m.sites.length, m.sites.map(([loc, c]) => `${loc} (${c})`).join(", ")])],
+        // "; " and ": " because the site label already has a comma and parens.
+        ...stats.managers.map(m => [m.areaManager, m.visits, m.issues, m.sites.length, m.sites.map(([site, c]) => `${site}: ${c}`).join("; ")])],
       [22, 8, 8, 18, 70]);
 
-    sheet(wb, "Issue Log", logRows(), [12, 18, 10, 26, 18, 12, 20, 20, 26, 14, 60, 50]);
+    sheet(wb, "Issue Log", logRows(), [12, 18, 30, 10, 26, 18, 12, 20, 20, 26, 14, 60, 50]);
 
     download(wb, "Full");
   }
@@ -783,8 +788,8 @@ export default function TrendDashboard() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 10, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.gray100}` }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, color: T.gray600, fontWeight: 600, marginBottom: 4 }}>Location</label>
-                <input list="trend-locs" value={filterLoc} onChange={e => setFilterLoc(e.target.value)} placeholder="All locations" style={inputStyle} />
-                <datalist id="trend-locs">{options.locations.map(l => <option key={l} value={l} />)}</datalist>
+                <input list="trend-locs" value={filterLoc} onChange={e => setFilterLoc(e.target.value)} placeholder="City, ST or Lawson #" style={inputStyle} />
+                <datalist id="trend-locs">{options.sites.map(s => <option key={s} value={s} />)}</datalist>
               </div>
               {selectField("Section", filterSection, setFilterSection, options.sections, "All sections")}
               {selectField("Specialist", filterSpec, setFilterSpec, options.specialists, "All specialists")}
@@ -875,9 +880,9 @@ export default function TrendDashboard() {
                 {stats.recurring.length === 0
                   ? <EmptyRow>Nothing is repeating in this slice. 🎉</EmptyRow>
                   : stats.recurring.slice(0, OVERVIEW_PREVIEW).map((r, i, arr) => (
-                    <BarRow key={`${r.location}|${r.item}`} label={r.item} sub={r.location}
+                    <BarRow key={`${r.site}|${r.item}`} label={r.item} sub={r.site}
                       value={r.count} max={stats.recurring[0].count} tone={T.error} track={T.errorBg}
-                      last={i === arr.length - 1} onClick={() => drill({ location: r.location, item: r.item })} />
+                      last={i === arr.length - 1} onClick={() => drill({ site: r.site, item: r.item })} />
                   ))}
               </Panel>
 
@@ -889,9 +894,9 @@ export default function TrendDashboard() {
                 {stats.sitesAffected === 0
                   ? <EmptyRow>No issues in this slice.</EmptyRow>
                   : stats.locations.filter(l => l.issues > 0).slice(0, OVERVIEW_PREVIEW).map((l, i, arr) => (
-                    <BarRow key={l.location} label={l.location} sub={`${l.visits} visit${l.visits === 1 ? "" : "s"} · ${l.avg.toFixed(1)} per visit`}
+                    <BarRow key={l.site} label={l.site} sub={`${l.visits} visit${l.visits === 1 ? "" : "s"} · ${l.avg.toFixed(1)} per visit`}
                       value={l.issues} max={stats.locations[0].issues}
-                      last={i === arr.length - 1} onClick={() => drill({ location: l.location })} />
+                      last={i === arr.length - 1} onClick={() => drill({ site: l.site })} />
                   ))}
               </Panel>
 
@@ -932,10 +937,10 @@ export default function TrendDashboard() {
             {stats.recurring.length === 0
               ? <EmptyRow>No item has failed twice at the same site in this slice.</EmptyRow>
               : stats.recurring.map((r, i, arr) => (
-                <div key={`${r.location}|${r.item}`} style={{ padding: "11px 0", borderBottom: i === arr.length - 1 ? "none" : `1px solid ${T.gray100}` }}>
+                <div key={`${r.site}|${r.item}`} style={{ padding: "11px 0", borderBottom: i === arr.length - 1 ? "none" : `1px solid ${T.gray100}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: T.error, marginBottom: 2 }}>{r.location}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: T.error, marginBottom: 2 }}>{r.site}</div>
                       <div style={{ fontSize: 13, color: T.ink, lineHeight: 1.45 }}>{r.item}</div>
                       <div style={{ fontSize: 11.5, color: T.gray500, marginTop: 3 }}>
                         {r.section} · {r.areaManager}{r.lastSeen ? ` · last seen ${r.lastSeen}` : ""}
@@ -945,7 +950,7 @@ export default function TrendDashboard() {
                       <span style={{ background: T.errorBg, color: T.error, border: `1px solid ${T.errorBorder}`, borderRadius: T.radiusPill, padding: "2px 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
                         {r.count} visits
                       </span>
-                      <button onClick={() => drill({ location: r.location, item: r.item })} style={linkBtn}>Detail →</button>
+                      <button onClick={() => drill({ site: r.site, item: r.item })} style={linkBtn}>Detail →</button>
                     </div>
                   </div>
                 </div>
@@ -970,9 +975,9 @@ export default function TrendDashboard() {
                   </thead>
                   <tbody>
                     {stats.locations.map((l, i) => (
-                      <tr key={l.location} style={{ borderTop: `1px solid ${T.gray100}`, background: i % 2 ? T.gray50 : T.white, cursor: "pointer" }}
-                        onClick={() => drill({ location: l.location })}>
-                        <td style={{ ...tdStyle, fontWeight: 700, color: BRAND }}>{l.location}</td>
+                      <tr key={l.site} style={{ borderTop: `1px solid ${T.gray100}`, background: i % 2 ? T.gray50 : T.white, cursor: "pointer" }}
+                        onClick={() => drill({ site: l.site })}>
+                        <td style={{ ...tdStyle, fontWeight: 700, color: BRAND }}>{l.site}</td>
                         <td style={tdStyle}>{l.region || "—"}</td>
                         <td style={tdStyle}>{l.areaManager}</td>
                         <td style={numTd}>{l.visits}</td>
@@ -993,7 +998,7 @@ export default function TrendDashboard() {
           <Panel title="Failed items" count={stats.items.length}
             subtitle="Every distinct checklist item with at least one finding, worst first.">
             {stats.items.length === 0 ? <EmptyRow>No issues in this slice.</EmptyRow> : stats.items.map(([item, count], i, arr) => {
-              const sites = new Set(filtered.filter(r => r.itemText === item).map(r => r.location)).size;
+              const sites = new Set(filtered.filter(r => r.itemText === item).map(r => r.site)).size;
               return (
                 <BarRow key={item} label={item} sub={`${sites} site${sites === 1 ? "" : "s"} affected`}
                   value={count} max={stats.items[0][1]} last={i === arr.length - 1}
@@ -1037,9 +1042,9 @@ export default function TrendDashboard() {
                   <div style={{ width: `${(m.issues / stats.managers[0].issues) * 100}%`, height: "100%", background: BRAND, borderRadius: "0 4px 4px 0" }} />
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {m.sites.map(([loc, c]) => (
-                    <span key={loc} style={{ fontSize: 11, background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: T.radiusPill, padding: "2px 10px", color: T.gray600 }}>
-                      {loc} <strong style={{ color: BRAND }}>{c}</strong>
+                  {m.sites.map(([site, c]) => (
+                    <span key={site} style={{ fontSize: 11, background: T.gray50, border: `1px solid ${T.gray200}`, borderRadius: T.radiusPill, padding: "2px 10px", color: T.gray600 }}>
+                      {site} <strong style={{ color: BRAND }}>{c}</strong>
                     </span>
                   ))}
                 </div>
@@ -1060,7 +1065,7 @@ export default function TrendDashboard() {
                     <thead>
                       <tr>
                         {[
-                          ["iso", "Date"], ["location", "Location"], ["region", "Region"],
+                          ["iso", "Date"], ["site", "Site"], ["region", "Region"],
                           ["areaManager", "Area manager"], ["section", "Section"], ["itemText", "Item"],
                           ["comment", "Comment"], ["specialist", "Specialist"],
                         ].map(([key, label]) => (
@@ -1081,7 +1086,7 @@ export default function TrendDashboard() {
                       {sortedLog.slice(page * LOG_PAGE_SIZE, page * LOG_PAGE_SIZE + LOG_PAGE_SIZE).map((r, i) => (
                         <tr key={`${r.visitId}-${page}-${i}`} style={{ borderTop: `1px solid ${T.gray100}`, background: i % 2 ? T.gray50 : T.white }}>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap", color: T.gray600 }}>{r.date || "—"}</td>
-                          <td style={{ ...tdStyle, fontWeight: 600, color: BRAND }}>{r.location}</td>
+                          <td style={{ ...tdStyle, fontWeight: 600, color: BRAND }}>{r.site}</td>
                           <td style={{ ...tdStyle, color: T.gray600, whiteSpace: "nowrap" }}>{r.region || "—"}</td>
                           <td style={{ ...tdStyle, color: T.gray600, whiteSpace: "nowrap" }}>{r.areaManager}</td>
                           <td style={{ ...tdStyle, color: T.gray600 }}>{r.section}</td>
@@ -1247,14 +1252,14 @@ function PrintReport({ mode, scope, kpis, stats, rows, filteredCount }) {
           ? <div style={{ fontSize: 10 }}>None in this slice.</div>
           : <PrintTable head={["Site", "Item", "Section", "Area manager", "Visits", "Last seen"]}
               align={["left", "left", "left", "left", "right", "left"]}
-              rows={stats.recurring.map(r => [r.location, r.item, r.section, r.areaManager, r.count, r.lastSeen])} />}
+              rows={stats.recurring.map(r => [r.site, r.item, r.section, r.areaManager, r.count, r.lastSeen])} />}
       </div>
 
       <div style={P.section}>
         <h2 style={P.h2}>Sites ({stats.locations.length})</h2>
         <PrintTable head={["Site", "Region", "Area manager", "Visits", "Issues", "Avg", "Most common issue"]}
           align={["left", "left", "left", "right", "right", "right", "left"]}
-          rows={stats.locations.map(l => [l.location, l.region, l.areaManager, l.visits, l.issues, l.avg.toFixed(1), l.topItem])} />
+          rows={stats.locations.map(l => [l.site, l.region, l.areaManager, l.visits, l.issues, l.avg.toFixed(1), l.topItem])} />
       </div>
 
       <div style={P.section}>
@@ -1279,7 +1284,7 @@ function PrintReport({ mode, scope, kpis, stats, rows, filteredCount }) {
         <div style={{ ...P.section, pageBreakBefore: "always" }}>
           <h2 style={P.h2}>Full issue log ({rows.length})</h2>
           <PrintTable head={["Date", "Site", "Area manager", "Section", "Item", "Comment", "Specialist"]}
-            rows={rows.map(r => [r.date, r.location, r.areaManager, r.section, r.itemText, r.comment, r.specialist])} />
+            rows={rows.map(r => [r.date, r.site, r.areaManager, r.section, r.itemText, r.comment, r.specialist])} />
         </div>
       )}
 

@@ -5904,7 +5904,11 @@ function SurveyPrepApp() {
             </div>
           )}
           {/* Issue Trends tab content */}
-          {isTrendsTab && <TrendDashboard locations={locations} />}
+          {isTrendsTab && (
+            <TrendDashboard locations={locations}
+              isAdmin={ADMIN_EMAILS.includes(auth.currentUser?.email)}
+              savedVisitIds={savedVisits.map(v => v.id)} />
+          )}
           {/* Follow-Up Dashboard tab content */}
           {isFollowUpTab && <FollowUpDashboard />}
           {/* Location Roster tab content */}

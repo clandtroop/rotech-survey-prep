@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "./firebase";
+import { collection, doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import { db, auth } from "./firebase";
 import { T, BRAND, Icon, cardStyle } from "./theme";
-import { loadTrendData, TRENDS_COLLECTION, toIsoDate, monthLabel, siteLabel } from "./trendData";
+import { loadTrendData, TREND_KEY, TRENDS_COLLECTION, toIsoDate, monthLabel, siteLabel } from "./trendData";
 
 // ─── ISSUE TREND DASHBOARD ───────────────────────────────────────────────────
 // Company-wide view of every issue recorded on a finalized visit.
@@ -26,6 +26,7 @@ const VIEWS = [
   { id: "sections",  label: "Sections",   icon: "clipboard-list" },
   { id: "managers",  label: "Managers",   icon: "users" },
   { id: "log",       label: "Issue Log",  icon: "table" },
+  { id: "visits",    label: "Visits",     icon: "calendar", adminOnly: true },
 ];
 
 const LOG_PAGE_SIZE = 25;
@@ -215,6 +216,15 @@ function BarRow({ label, sub, value, max, tone = BRAND, track = T.blue50, onClic
   );
 }
 
+function Badge({ children, color, bg, border }) {
+  return (
+    <span style={{
+      fontSize: 10.5, fontWeight: 700, color, background: bg, border: `1px solid ${border}`,
+      borderRadius: T.radiusPill, padding: "1px 8px", whiteSpace: "nowrap",
+    }}>{children}</span>
+  );
+}
+
 function EmptyRow({ children }) {
   return <div style={{ fontSize: 12.5, color: T.gray500, padding: "18px 0", textAlign: "center" }}>{children}</div>;
 }
@@ -239,10 +249,14 @@ function Chip({ children, onRemove }) {
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
-export default function TrendDashboard({ locations = [] }) {
-  const [localData] = useState(loadTrendData);
+export default function TrendDashboard({ locations = [], isAdmin = false, savedVisitIds = [] }) {
+  const [localData, setLocalData] = useState(loadTrendData);
   const [firestoreRecords, setFirestoreRecords] = useState([]);
+  // visitId -> { docId, finalizedAt } for every visitTrends doc, removed ones
+  // included — see removeVisit for why a removed visit still has a doc.
+  const [cloudVisits, setCloudVisits] = useState(new Map());
   const [firestoreLoading, setFirestoreLoading] = useState(true);
+  const [removing, setRemoving] = useState("");
 
   const [view, setView] = useState("overview");
   const [q, setQ] = useState("");
@@ -270,11 +284,14 @@ export default function TrendDashboard({ locations = [] }) {
       collection(db, TRENDS_COLLECTION),
       snap => {
         const records = [];
+        const cloud = new Map();
         snap.forEach(docSnap => {
           const d = docSnap.data();
+          cloud.set(d.visitId || docSnap.id, { docId: docSnap.id, finalizedAt: d.finalizedAt || "" });
           if (Array.isArray(d.records)) records.push(...d.records);
         });
         setFirestoreRecords(records);
+        setCloudVisits(cloud);
         setFirestoreLoading(false);
       },
       () => setFirestoreLoading(false) // on error, fall back to local data
@@ -292,15 +309,16 @@ export default function TrendDashboard({ locations = [] }) {
   const rosterByLawson = useMemo(() => new Map(locations.map(l => [String(l.lawson), l])), [locations]);
 
   // Merge: Firestore is authoritative; localStorage fills in anything not yet
-  // synced. Dates are normalized to ISO here, once, so every downstream
-  // comparison and bucket works off a sortable value. `site` is likewise
-  // derived once and is what every view groups, filters and labels by — not
-  // `location`, which is the DBA name and is "Rotech" for most sites.
+  // synced. "Synced" means the visit has a doc at all, so a removed visit's
+  // empty doc keeps this device's backup copy of it from being merged back in.
+  // Dates are normalized to ISO here, once, so every downstream comparison and
+  // bucket works off a sortable value. `site` is likewise derived once and is
+  // what every view groups, filters and labels by — not `location`, which is
+  // the DBA name and is "Rotech" for most sites.
   const allRecords = useMemo(() => {
-    const synced = new Set(firestoreRecords.map(r => r.visitId));
-    return [...firestoreRecords, ...localData.filter(r => !synced.has(r.visitId))]
+    return [...firestoreRecords, ...localData.filter(r => !cloudVisits.has(r.visitId))]
       .map(r => ({ ...r, iso: toIsoDate(r.date), areaManager: r.areaManager || "Unassigned", site: siteLabel(r, rosterByLawson) }));
-  }, [firestoreRecords, localData, rosterByLawson]);
+  }, [firestoreRecords, cloudVisits, localData, rosterByLawson]);
 
   const issuesAll = useMemo(
     () => allRecords.filter(r => r.itemText !== "_clean" && r.section !== "_summary" && r.visitType !== "note"),
@@ -468,6 +486,79 @@ export default function TrendDashboard({ locations = [] }) {
       return av.localeCompare(bv, "en", { numeric: true }) * dir;
     });
   }, [filtered, sortKey, sortDir]);
+
+  // Admin "Visits" view: one row per visit ID. The same visit can end up
+  // finalized under two IDs (it gets a fresh one whenever it's re-entered
+  // without being loaded from Saved Visits first), which the dashboard can
+  // only count as two visits — so visits sharing a site, date and specialist
+  // are flagged and listed first.
+  const savedIds = useMemo(() => new Set(savedVisitIds), [savedVisitIds]);
+  const visitRows = useMemo(() => {
+    const findings = new Map();
+    issuesAll.forEach(r => findings.set(r.visitId, (findings.get(r.visitId) || 0) + 1));
+    const sameVisit = v => `${v.site}|${v.iso || v.date}|${v.specialist}`;
+    const twins = new Map();
+    allVisits.forEach(v => twins.set(sameVisit(v), (twins.get(sameVisit(v)) || 0) + 1));
+    return visits.map(v => ({
+      ...v,
+      findings: findings.get(v.visitId) || 0,
+      finalizedAt: cloudVisits.get(v.visitId)?.finalizedAt || "",
+      inCloud: cloudVisits.has(v.visitId),
+      saved: savedIds.has(v.visitId),
+      duplicate: twins.get(sameVisit(v)) > 1,
+    })).sort((a, b) => Number(b.duplicate) - Number(a.duplicate)
+      || a.site.localeCompare(b.site) || b.iso.localeCompare(a.iso) || b.finalizedAt.localeCompare(a.finalizedAt));
+  }, [visits, allVisits, issuesAll, cloudVisits, savedIds]);
+
+  // Takes one visit out of the trend data for everyone. Two things make this
+  // more than a deleteDoc:
+  //  - The device that finalized the visit holds its own backup copy, which
+  //    the merge above adds back for any visit Firestore has no doc for. A
+  //    deleted doc would bring the visit straight back on that device, so the
+  //    doc is emptied in place instead (still valid under firestore.rules).
+  //  - The full doc is written to the audit log first, and nothing is removed
+  //    if that write fails, so a wrong removal can always be restored.
+  async function removeVisit(v) {
+    const n = v.findings;
+    if (!window.confirm(
+      `Remove this visit from Issue Trends?\n\n${v.site}\n${v.date || "No date"} · ${v.specialist || "No specialist"} · ${n} finding${n === 1 ? "" : "s"}\nVisit ID: ${v.visitId}\n\n`
+      + "It is removed for everyone. The saved visit itself is not touched, and a full copy is kept in the audit log."
+    )) return;
+    setRemoving(v.visitId);
+    try {
+      if (v.inCloud) {
+        const ref = doc(db, TRENDS_COLLECTION, cloudVisits.get(v.visitId).docId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          await setDoc(doc(collection(db, "auditLog")), {
+            collection: TRENDS_COLLECTION,
+            docId: ref.id,
+            action: "remove-visit",
+            before: snap.data(),
+            after: null,
+            user: auth.currentUser?.displayName || "",
+            userEmail: auth.currentUser?.email || "",
+            at: Date.now(),
+          });
+          await setDoc(ref, {
+            visitId: v.visitId,
+            finalizedAt: snap.data().finalizedAt || "",
+            records: [],
+            removedAt: new Date().toISOString(),
+            removedBy: auth.currentUser?.email || "",
+          });
+        }
+      }
+      const kept = loadTrendData().filter(r => r.visitId !== v.visitId);
+      try { localStorage.setItem(TREND_KEY, JSON.stringify(kept)); } catch {}
+      setLocalData(kept);
+    } catch (err) {
+      console.error("removeVisit failed", err);
+      alert(`Couldn't remove the visit, so nothing was changed.\n\n${err?.message || err}`);
+    } finally {
+      setRemoving("");
+    }
+  }
 
   const activeFilters = [
     filterLoc     && { key: "loc",     label: `Location: ${filterLoc}`,   clear: () => setFilterLoc("") },
@@ -674,6 +765,7 @@ export default function TrendDashboard({ locations = [] }) {
     sections:  stats.sections.length,
     managers:  stats.managers.length,
     log:       filtered.length,
+    visits:    visits.length,
   };
 
   const menuItem = {
@@ -837,7 +929,7 @@ export default function TrendDashboard({ locations = [] }) {
 
         {/* View switcher */}
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 16, borderBottom: `1px solid ${T.gray200}`, paddingBottom: 2 }}>
-          {VIEWS.map(v => {
+          {VIEWS.filter(v => !v.adminOnly || isAdmin).map(v => {
             const on = view === v.id;
             return (
               <button key={v.id} onClick={() => setView(v.id)} aria-current={on ? "page" : undefined}
@@ -1113,6 +1205,60 @@ export default function TrendDashboard({ locations = [] }) {
                   </div>
                 </div>
               </>
+            )}
+          </Panel>
+        )}
+
+        {/* ── VISITS (admin) ── */}
+        {view === "visits" && isAdmin && (
+          <Panel title="Finalized visits" count={visitRows.length}
+            subtitle="One row per visit ID. Visits sharing a site, date and specialist are flagged as possible duplicates and listed first. Removing one takes it out of Issue Trends for everyone; the saved visit itself isn't touched."
+            pad={false}>
+            {visitRows.length === 0 ? <div style={{ padding: 18 }}><EmptyRow>No visits in this slice.</EmptyRow></div> : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      {["Visit date", "Site", "Specialist", "Findings", "Finalized", "Visit ID", ""].map((h, i) => (
+                        <th key={i} style={{ ...thStyle, textAlign: i === 3 ? "right" : "left" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visitRows.map((v, i) => (
+                      <tr key={v.visitId} style={{ borderTop: `1px solid ${T.gray100}`, background: v.duplicate ? T.errorBg : i % 2 ? T.gray50 : T.white }}>
+                        <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{v.date || "—"}</td>
+                        <td style={{ ...tdStyle, fontWeight: 600, color: BRAND }}>
+                          {v.site}
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                            {v.duplicate && <Badge color={T.error} bg={T.white} border={T.errorBorder}>Possible duplicate</Badge>}
+                            {v.saved && <Badge color={T.blue700} bg={T.blue50} border={T.blueBorder}>In your Saved Visits</Badge>}
+                            {!v.inCloud && <Badge color={T.gray600} bg={T.gray50} border={T.gray200}>This device only</Badge>}
+                          </div>
+                        </td>
+                        <td style={{ ...tdStyle, whiteSpace: "nowrap", color: T.gray600 }}>{v.specialist || "—"}</td>
+                        <td style={numTd}>{v.findings}</td>
+                        <td style={{ ...tdStyle, whiteSpace: "nowrap", color: T.gray600 }}>
+                          {v.finalizedAt ? new Date(v.finalizedAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}
+                        </td>
+                        <td style={{ ...tdStyle, color: T.gray500, fontSize: 11.5, wordBreak: "break-all" }}>{v.visitId}</td>
+                        <td style={{ ...tdStyle, textAlign: "right" }}>
+                          <button onClick={() => removeVisit(v)} disabled={!!removing}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", fontSize: 12, fontWeight: 600,
+                              borderRadius: T.radius, border: `1px solid ${T.errorBorder}`, background: T.white, color: T.error,
+                              cursor: removing ? "default" : "pointer", opacity: removing && removing !== v.visitId ? 0.5 : 1,
+                              fontFamily: "inherit", whiteSpace: "nowrap",
+                            }}>
+                            <Icon name="trash" size={13} />
+                            {removing === v.visitId ? "Removing…" : "Remove"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </Panel>
         )}

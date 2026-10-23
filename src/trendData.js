@@ -26,6 +26,23 @@ export function toIsoDate(value) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// The Location Name is "Rotech" for most sites, so grouping by it merged every
+// plain-"Rotech" branch into one site. A site is identified as
+// "City, ST (Lawson)" instead. City/state come from the location roster first:
+// the visit form's City / State field is free text, and records written
+// without it fell back to the roster's city alone, so reading the record's own
+// value would split one Lawson # across several spellings. A visit logged as
+// "Other / Not Listed" has no Lawson #, so it falls back to whatever it has.
+export function siteLabel(record, rosterByLawson) {
+  const lawson = String(record.lawson || "").trim();
+  const listed = lawson && lawson !== "other";
+  const known = listed ? rosterByLawson.get(lawson) : null;
+  const rosterCity = known ? [known.city, known.state].filter(Boolean).join(", ") : "";
+  const city = rosterCity || String(record.city || "").trim();
+  if (listed) return city ? `${city} (${lawson})` : `Lawson ${lawson}`;
+  return city || record.location || "Unknown";
+}
+
 // "2026-07" -> "Jul '26". Built from the parts rather than new Date(key) so it
 // can't slip a month backwards in a negative-offset timezone.
 export function monthLabel(key) {

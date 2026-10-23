@@ -5904,7 +5904,7 @@ function SurveyPrepApp() {
             </div>
           )}
           {/* Issue Trends tab content */}
-          {isTrendsTab && <TrendDashboard />}
+          {isTrendsTab && <TrendDashboard locations={locations} />}
           {/* Follow-Up Dashboard tab content */}
           {isFollowUpTab && <FollowUpDashboard />}
           {/* Location Roster tab content */}

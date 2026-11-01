@@ -3405,9 +3405,7 @@ function SurveyPrepApp() {
       document.removeEventListener("keydown", onEsc);
     };
   }, [showMoreActions]);
-  const [emailText, setEmailText] = useState("");
   const [reportLines, setReportLines] = useState([]);
-  const [copied, setCopied] = useState(false);
   const [hasDraft, setHasDraft] = useState(!!draft);
   const [savedAt, setSavedAt] = useState(draft?.savedAt ?? null);
   const [savedVisits, setSavedVisits] = useState(loadVisits);
@@ -3698,31 +3696,6 @@ function SurveyPrepApp() {
       });
     });
     return { no, expired, expiring };
-  }
-
-  function getAllIssues() {
-    const existing = SECTIONS.flatMap((sec, si) =>
-      sec.items.flatMap((item, ii) => {
-        const key = `${si}-${ii}`;
-        if (states[key] === "no") return [{ section: sec.label, text: item.text, comment: comments[key] }];
-        return [];
-      })
-    );
-    const op541 = op541Sections.flatMap(sec =>
-      sec.items.flatMap(item => {
-        if (op541States[item.key] === "no")
-          return [{ section: `OP 541 — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`, text: item.text, comment: op541Comments[item.key] }];
-        return [];
-      })
-    );
-    const op541t = op541tSections.flatMap(sec =>
-      sec.items.flatMap(item => {
-        if (op541tStates[item.key] === "no")
-          return [{ section: `OP 541T — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`, text: item.text, comment: op541tComments[item.key] }];
-        return [];
-      })
-    );
-    return [...existing, ...op541, ...op541t];
   }
 
   function buildSummaryData() {
@@ -4274,7 +4247,7 @@ function SurveyPrepApp() {
     // and their answers reset for the new visit.
     setJc427Slots([]); setJc427Answers({}); setJc427Dates({}); setJc427Comments({});
     setTabComments({ pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
-    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
+    setActiveTab(0); setView("form"); setReportLines([]); setHasDraft(false); setSavedAt(null);
     setCurrentVisitId(null); setVisitFinalized(false); setChecklistLink("");
     setTabPatientInfo({ pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments("");
@@ -4451,7 +4424,7 @@ function SurveyPrepApp() {
     setAfterVisitEmail(visit.afterVisitEmail ?? null);
     // jc427BufferBytes is left alone — it's the bundled template's bytes,
     // not per-visit data, and stays valid across a visit load.
-    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null); setOp541tBufferBytes(null);
+    setActiveTab(0); setView("form"); setReportLines([]); setOp541BufferBytes(null); setOp541tBufferBytes(null);
     setVisitFinalized(false);
     setShowVisits(false);
   }
@@ -4463,21 +4436,11 @@ function SurveyPrepApp() {
     deleteVisitFromFirestore(id).catch(() => {}); // best-effort — it's already gone locally either way
   }
 
-  function generateOutputs() {
-    const issues = getAllIssues();
-    const summaryData = buildSummaryData();
-    const loc  = meta.location  || "[Location]";
-    const city = meta.city      || "[City, ST]";
-    const spec = meta.specialist || "[Specialist]";
-    const date = meta.date      || new Date().toLocaleDateString("en-US");
-
-    const issueBlock = issues.length === 0
-      ? "No issues identified. All reviewed areas are compliant."
-      : issues.map(i => `- [${i.section}] ${i.text}${i.comment ? ` — Note: ${i.comment}` : ""}`).join("\n");
-
-    setEmailText(`Subject: Accreditation Survey Prep Follow-Up — ${loc}, ${city} — ${date}\n\nHello,\n\nThank you for your time during the accreditation survey prep visit on ${date} for ${loc}, ${city}.\n\n${issues.length === 0 ? "All reviewed areas were found to be in compliance. No corrective action is required at this time." : `The following items require corrective action:\n\n${issueBlock}\n\nPlease address each item and report back with your findings. A follow-up Teams call with the LCM and Area/Region Manager will be scheduled.`}\n\nBest regards,\n${spec}\nAccreditation Specialist`);
-    setReportLines(summaryData);
-    setView("email");
+  // Builds the Survey Prep Report from the visit as it stands. The report's
+  // own view renders it; the email to the location is the After Visit Email
+  // on the Emails tab.
+  function generateReport() {
+    setReportLines(buildSummaryData());
   }
 
   async function exportFollowUpXLSX() {
@@ -4797,10 +4760,6 @@ function SurveyPrepApp() {
     setTimeout(restoreTitle, 5000); // fallback in case afterprint doesn't fire
   }
 
-  function copyText(txt) {
-    navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
-  }
-
   const isOp541Tab    = activeTab === TAB.op541;
   const isOp541tTab   = activeTab === TAB.op541t;
   const isJc427Tab    = activeTab === TAB.jc427;
@@ -4839,8 +4798,7 @@ function SurveyPrepApp() {
     window.scrollTo({ top: 0 });
   }
   function goReport() {
-    // Same generation as the email flow, but landing on the report instead.
-    generateOutputs();
+    generateReport();
     setView("report");
     window.scrollTo({ top: 0 });
   }
@@ -4935,7 +4893,7 @@ function SurveyPrepApp() {
   const navItems = [
     { key: "dashboard", label: "Dashboard",    icon: "home",            active: view === "dashboard",                     onClick: () => { setView("dashboard"); window.scrollTo({ top: 0 }); } },
     { key: "form",      label: MODULE_LABEL,   icon: "clipboard-list",  active: view === "form" && !REFERENCE_TABS.includes(activeTab), onClick: goChecklist },
-    { key: "report",    label: "Report",       icon: "file-text",       active: view === "report" || view === "email",     onClick: goReport },
+    { key: "report",    label: "Report",       icon: "file-text",       active: view === "report",                         onClick: goReport },
     { key: "trends",    label: "Issue Trends", icon: "trending-up",     active: view === "form" && isTrendsTab,            onClick: () => goTab(TAB.trends) },
     { key: "planner",   label: "Team Planner", icon: "calendar",        active: view === "planner",                        onClick: goPlanner },
     { key: "circuit",   label: "Site Circuit", icon: "mail",            active: view === "circuit",                        onClick: goCircuit },
@@ -5443,7 +5401,7 @@ function SurveyPrepApp() {
                 style={showVisits ? { ...btnOutline, background: T.blue50 } : btnOutline}>
                 Saved Visits{savedVisits.length > 0 ? ` (${savedVisits.length})` : ""}
               </button>
-              <button onClick={generateOutputs} style={btnPrimary}>Generate Email &amp; Report</button>
+              <button onClick={goReport} style={btnPrimary}>Generate Report</button>
               {/* Destructive and rarely used — kept out of thumb's reach of
                   "Save Progress" rather than sitting next to it. */}
               <div ref={moreActionsRef} style={{ position: "relative" }}>
@@ -6106,25 +6064,6 @@ function SurveyPrepApp() {
           {isRosterTab && <LocationRoster locations={locations} onReload={reloadLocations} />}
 
           {isReadinessTab && <ReadinessDashboard />}
-        </div>
-      )}
-
-      {/* EMAIL VIEW */}
-      {view === "email" && (
-        <div style={{ maxWidth: WIDTH_REPORT, margin: "0 auto", padding: "24px 28px 80px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>Manager Follow-Up Email</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => copyText(emailText)}
-                style={copied ? { ...btnOutline, background: T.successBg, color: T.success, borderColor: T.successBorder } : btnOutline}>
-                {copied ? "✓ Copied" : "Copy email"}
-              </button>
-              <button onClick={() => setView("report")} style={btnPrimary}>View Report →</button>
-            </div>
-          </div>
-          <textarea value={emailText} onChange={e => setEmailText(e.target.value)} aria-label="Follow-up email body"
-            style={{ width: "100%", minHeight: 420, fontSize: 14, lineHeight: 1.7, padding: 14, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, resize: "vertical", color: T.ink, background: T.white, boxSizing: "border-box", fontFamily: "inherit" }} />
-          <div style={{ marginTop: 12, fontSize: 13, color: T.gray500 }}>You can edit this email before copying. Click “View Report →” for the full report.</div>
         </div>
       )}
 

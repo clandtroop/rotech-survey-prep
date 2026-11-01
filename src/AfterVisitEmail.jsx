@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { T, cardStyle, Icon, metaLabel, metaField, btnOutline } from "./theme";
+import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline } from "./theme";
 import { clean, esc, paragraphsHtml, infoGridHtml, signatureHtml, EmailOutputCard } from "./emailKit";
 
 // ─── AFTER VISIT EMAIL ───────────────────────────────────────────────────────
@@ -21,6 +21,11 @@ import { clean, esc, paragraphsHtml, infoGridHtml, signatureHtml, EmailOutputCar
 // visit, or picking it up on another device. Like the other emails it is never
 // sent by the application — it goes to Outlook by copy and paste.
 //
+// Above the priorities the email repeats the Survey Prep Report's Total
+// Compliant / Total Issues tiles and its Follow-Up Checklist reminder; below
+// them it carries the checklist link, and the screen nags until that link has
+// been generated for the visit (it lives in followUpChecklists/<visitId>).
+//
 // Grouping: checklist binders collapse into one "Binders" category shown last,
 // as a single paragraph pointing at the binder guide/report by default (the
 // template's convention) or as individual items. OP 541 / 541T findings group
@@ -32,13 +37,14 @@ import { clean, esc, paragraphsHtml, infoGridHtml, signatureHtml, EmailOutputCar
 
 export const BINDERS = "Binders";
 
+// The Survey Prep Report carries the findings; the two guides are references
+// for organising the binders and the warehouse.
 const ATTACHMENTS = [
-  { key: "reports",        label: "Visit reports" },
-  { key: "warehouseGuide", label: "Warehouse Organization Guide" },
+  { key: "reports",        label: "Survey Prep Report" },
   { key: "binderGuide",    label: "OP 840 Location Binder Guide" },
-  { key: "binderReport",   label: "Survey Prep Binder Report" },
+  { key: "warehouseGuide", label: "Warehouse Organization Guide" },
 ];
-const DEFAULT_ATTACH = { reports: true, warehouseGuide: true, binderGuide: true, binderReport: true };
+const DEFAULT_ATTACH = { reports: true, binderGuide: true, warehouseGuide: true };
 
 // The stored draft is whatever the visit document carried — possibly nothing,
 // possibly written by an older build — so every read goes through here.
@@ -52,7 +58,10 @@ function normalizeDraft(raw) {
     customCategories: Array.isArray(x.customCategories) ? x.customCategories : [],
     binderMode: x.binderMode === "list" ? "list" : "paragraph",
     binderParagraph: !!x.binderParagraph,
-    attach: { ...DEFAULT_ATTACH, ...obj(x.attach) },
+    // Only the current attachment keys: a draft from the first release also
+    // carries "binderReport", which no longer exists.
+    attach: Object.fromEntries(Object.keys(DEFAULT_ATTACH).map(k =>
+      [k, typeof obj(x.attach)[k] === "boolean" ? x.attach[k] : DEFAULT_ATTACH[k]])),
     text: obj(x.text),
   };
 }
@@ -69,18 +78,27 @@ function teamName(meta) {
 
 function defaultTexts(meta, attach, followUpDisplay) {
   const team = teamName(meta);
-  const binderRefs = [
-    attach.binderGuide && "OP 840 Location Binder Guide",
-    attach.binderReport && "Accreditation Survey Prep Binder Report",
-  ].filter(Boolean);
+  // Each attachment sentence reads naturally whichever others are ticked —
+  // no "also" on the first one, and no two "I have also attached" in a row.
+  const warehouseLead = attach.binderGuide
+    ? "The Warehouse Organization Guide is attached as well."
+    : `I have ${attach.reports ? "also " : ""}attached the Warehouse Organization Guide.`;
+  const binderRefs = attach.reports && attach.binderGuide
+    ? "Please refer to the attached Survey Prep Report for specific findings and corrections needed, and use the OP 840 Location Binder Guide as a reference when organizing your binders."
+    : attach.reports
+      ? "Please refer to the attached Survey Prep Report for specific findings and corrections needed."
+      : attach.binderGuide
+        ? "Please use the attached OP 840 Location Binder Guide as a reference when organizing your binders."
+        : "Please review each binder against OP 840 and correct the missing items prior to our Follow-Up Call.";
   return {
+    salutation: "Hello,",
     greeting: `It was great meeting you and the ${team ? `${team} ` : ""}team — I appreciate everyone's receptiveness during our visit.`,
-    reports: "Attached you will find the reports completed during our visit. Please ensure that these are thoroughly reviewed and that corrective action is taken on every area of non-compliance prior to our Follow-Up Call.",
-    warehouseGuide: `I have ${attach.reports ? "also " : ""}attached the Warehouse Organization Guide. Please review this with your team and ensure you are utilizing your space efficiently while remaining compliant with the standards outlined.`,
+    reports: "Attached you will find the Survey Prep Report completed during our visit. Please ensure that it is thoroughly reviewed and that corrective action is taken on every area of non-compliance prior to our Follow-Up Call.",
+    binderGuide: `I have ${attach.reports ? "also " : ""}attached the OP 840 Location Binder Guide for reference as you organize your binders.`,
+    warehouseGuide: `${warehouseLead} Please review this with your team and ensure you are utilizing your space efficiently while remaining compliant with the standards outlined.`,
     priorityIntro: "The following items require your immediate attention and should be treated as top priorities:",
-    binders: "Each binder reviewed has missing items. " + (binderRefs.length
-      ? `Please refer to the attached ${binderRefs.join(" and the ")} for specific findings and corrections needed.`
-      : "Please review each binder against OP 840 and correct the missing items prior to our Follow-Up Call."),
+    binders: `Each binder reviewed has missing items. ${binderRefs}`,
+    checklistNote: "Use this checklist to mark items off as you correct them before our Follow-Up Call.",
     encouragement: "I know this is a lot to work through, and I have full confidence in your team's ability to get these items corrected. Addressing these findings proactively is what separates a well-prepared location from one that is caught off guard — and you have the opportunity to be in a great position before your survey.",
     followup: followUpDisplay || "",
     followupNote: "A calendar invite has already been sent. Please have Teams available on your phone, as I will want to do a walkthrough of the location, warehouse, and vehicle, as well as review any updated documentation at that time.",
@@ -125,7 +143,7 @@ function buildBlocks(categories, d, txt) {
 // The After Visit Email template, with every style inlined so it survives the
 // paste into Outlook. Section order and colours follow the template exactly.
 
-function buildEmailHtml({ meta, blocks, txt, attach, signature }) {
+function buildEmailHtml({ meta, blocks, txt, attach, signature, totals, checklistUrl }) {
   const P = html => `<p style="font-size:14.5px;color:#24303d;margin:0 0 16px;">${html}</p>`;
   const paras = text => paragraphsHtml(text).map(P).join("");
   const lawson = clean(meta.lawson);
@@ -137,8 +155,35 @@ function buildEmailHtml({ meta, blocks, txt, attach, signature }) {
     ["Visit Date", meta.date],
   ]);
 
-  const intro = [txt("greeting"), attach.reports && txt("reports"), attach.warehouseGuide && txt("warehouseGuide")]
-    .filter(Boolean).map(paras).join("");
+  const intro = [
+    txt("salutation"), txt("greeting"),
+    attach.reports && txt("reports"), attach.binderGuide && txt("binderGuide"), attach.warehouseGuide && txt("warehouseGuide"),
+  ].filter(Boolean).map(paras).join("");
+
+  // The Survey Prep Report's own summary tiles and reminder, repeated so the
+  // email opens on the same numbers the attached report does. Left out when
+  // nothing on the visit has been answered yet.
+  const totalsHtml = totals && (totals.compliant || totals.issues) ? `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:20px;">
+    <tr>
+      <td width="50%" align="center" valign="top" style="background:#e7f4ec;border-bottom:2px solid #1d7a4d;padding:10px 12px;">
+        <div style="font-size:26px;font-weight:700;line-height:1.2;color:#1d7a4d;">${totals.compliant}</div>
+        <div style="font-size:11px;color:#1d7a4d;margin-top:1px;">Total Compliant</div>
+      </td>
+      <td width="50%" align="center" valign="top" style="background:#fbeae7;border-bottom:2px solid #c0392b;padding:10px 12px;">
+        <div style="font-size:26px;font-weight:700;line-height:1.2;color:#c0392b;">${totals.issues}</div>
+        <div style="font-size:11px;color:#c0392b;margin-top:1px;">Total Issues</div>
+      </td>
+    </tr>
+  </table>
+  <div style="font-size:12px;color:#5d6773;font-style:italic;margin-top:8px;">Friendly reminder: please refer back to the Follow-Up Checklist regularly and mark items off as they're completed.</div>` : "";
+
+  const checklistHtml = clean(checklistUrl) ? `
+  <div style="background:#f7f9fc;border:1px solid #dde3ea;border-radius:8px;padding:14px 20px;margin:20px 0;font-size:13.5px;">
+    <div style="font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#143a63;margin-bottom:4px;">Your Follow-Up Checklist</div>
+    <a href="${esc(checklistUrl)}" style="color:#143a63;font-weight:700;word-break:break-all;">${esc(checklistUrl)}</a>
+    ${clean(txt("checklistNote")) ? `<div style="color:#6b7686;margin-top:4px;">${esc(txt("checklistNote"))}</div>` : ""}
+  </div>` : "";
 
   const blockHtml = (b, last) => {
     const label = `<div style="font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#143a63;margin-bottom:8px;">${esc(b.name)}</div>`;
@@ -158,7 +203,7 @@ function buildEmailHtml({ meta, blocks, txt, attach, signature }) {
   // Without a follow-up banner between them, the encouragement and closing
   // share one card so the stack has no orphaned borders.
   const encouragement = `
-  <div style="background:#ffffff;border:1px solid #dde3ea;border-radius:${followup ? "8px" : "8px 8px 0 0"};padding:24px 28px 8px;${blocks.length ? "" : "margin-top:20px;"}">
+  <div style="background:#ffffff;border:1px solid #dde3ea;border-radius:${followup ? "8px" : "8px 8px 0 0"};padding:24px 28px 8px;${blocks.length || checklistHtml ? "" : "margin-top:20px;"}">
     ${paras(txt("encouragement"))}
     ${followup ? "" : paras(txt("closing"))}
   </div>`;
@@ -186,7 +231,9 @@ function buildEmailHtml({ meta, blocks, txt, attach, signature }) {
   <div style="background:#ffffff;border:1px solid #dde3ea;border-top:none;padding:24px 28px 8px;">
     ${intro}
   </div>
+  ${totalsHtml}
   ${priority}
+  ${checklistHtml}
   ${encouragement}
   ${followupHtml}
   ${signatureHtml({ name: meta.specialist, phone: signature.phone, email: signature.email })}
@@ -278,7 +325,69 @@ function CustomRow({ item, autoFocus, onChange, onRemove }) {
   );
 }
 
-export default function AfterVisitEmail({ visit, draft, setDraft, signature, setSignature, onOpenChecklist, onOpenDashboard }) {
+// Whether this visit's Follow-Up Checklist exists, and the one-click way to
+// make it when it doesn't. The email's checklist box is only as good as the
+// checklist behind it, so the reminder shows at the top of the screen and
+// again beside the Copy button.
+function ChecklistNotice({ checklist, onOpenChecklist, compact }) {
+  if (!checklist) return null;
+  const { status, url, busy, onGenerate } = checklist;
+  const box = (tone, children, action) => {
+    const [bg, fg, br] = {
+      ok:   [T.successBg, T.success, T.successBorder],
+      warn: [T.warningBg, T.warning, "#f0d68a"],
+      info: [T.blue50, T.blue800, "#c5d9ef"],
+    }[tone];
+    return (
+      <div role={tone === "warn" ? "alert" : "status"}
+        style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap",
+          background: bg, color: fg, border: `1px solid ${br}`, borderRadius: T.radius, padding: "10px 14px",
+          fontSize: 13, marginBottom: compact ? 12 : 16 }}>
+        <div style={{ flex: "1 1 320px", minWidth: 0 }}>{children}</div>
+        {action}
+      </div>
+    );
+  };
+  const generate = label => (
+    <button onClick={onGenerate} disabled={busy}
+      style={{ ...btnPrimary, opacity: busy ? 0.6 : 1, cursor: busy ? "default" : "pointer" }}>
+      {busy ? "Generating…" : label}
+    </button>
+  );
+
+  switch (status) {
+    case "exists":
+      return compact ? null : box("ok",
+        <><b>Follow-Up Checklist link included</b> in the email, after the priority items.
+          <span style={{ display: "block", wordBreak: "break-all", color: T.gray600, marginTop: 2 }}>{url}</span></>);
+    case "stale":
+      return box("warn",
+        <><b>The Follow-Up Checklist is out of date.</b> It was generated before this visit's findings last changed, so it
+          doesn't list everything. Update it before sending — the link stays the same.</>,
+        generate("Update checklist"));
+    case "missing":
+      return box("warn",
+        <><b>The Follow-Up Checklist link hasn't been generated for this visit yet.</b> Generate it before sending so the
+          location gets the link in this email.</>,
+        generate("Generate checklist link"));
+    case "error":
+      return box("warn",
+        <><b>Couldn't check for this visit's Follow-Up Checklist</b> — no connection? Generate the link to be sure it
+          exists and is included in this email.</>,
+        generate("Generate checklist link"));
+    case "unsaved":
+      return box("warn",
+        <><b>Save this visit before generating its Follow-Up Checklist link.</b> Use Save Progress on the checklist, then
+          come back here to generate the link.</>,
+        <button onClick={onOpenChecklist} style={btnOutline}>Go to Checklist</button>);
+    case "checking":
+      return compact ? null : box("info", "Checking for this visit's Follow-Up Checklist…");
+    default:
+      return null;
+  }
+}
+
+export default function AfterVisitEmail({ visit, draft, setDraft, signature, setSignature, checklist, totals, onOpenChecklist, onOpenDashboard }) {
   const { meta = {}, findings = [], followUpDisplay = "", hasVisit } = visit;
   const d = normalizeDraft(draft);
   const defaults = defaultTexts(meta, d.attach, followUpDisplay);
@@ -287,7 +396,8 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
 
   const categories = groupCategories(findings, d);
   const blocks = buildBlocks(categories, d, txt);
-  const html = buildEmailHtml({ meta, blocks, txt, attach: d.attach, signature });
+  const checklistUrl = checklist && (checklist.status === "exists" || checklist.status === "stale") ? checklist.url : "";
+  const html = buildEmailHtml({ meta, blocks, txt, attach: d.attach, signature, totals, checklistUrl });
   const listedCount = blocks.reduce((n, b) => n + (b.type === "list" ? b.items.length : 1), 0);
 
   const [collapsed, setCollapsed] = useState({});
@@ -469,9 +579,15 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
 
   const followupOverridden = has(d.text, "followup");
 
+  const textBlock = (k, label, rows = 3, hint) => (
+    <TextBlock key={k} id={`av-text-${k}`} label={label} value={txt(k)} rows={rows}
+      overridden={has(d.text, k)} onChange={v => setText(k, v)} onReset={() => resetText(k)} hint={hint} />
+  );
+
   return (
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "0 16px 64px" }}>
       {header}
+      <ChecklistNotice checklist={checklist} onOpenChecklist={onOpenChecklist} />
 
       {/* 1 — what goes in the priorities block */}
       <div style={{ ...cardStyle(), padding: "20px 22px", marginBottom: 16 }}>
@@ -501,7 +617,23 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
 
       {/* 2 — attachments, wording, signature */}
       <div style={{ ...cardStyle(), padding: "20px 22px", marginBottom: 16 }}>
-        <h3 style={{ margin: "0 0 12px", fontSize: 15.5, color: T.ink }}>2 &nbsp;Attachments, call details and wording</h3>
+        <h3 style={{ margin: "0 0 12px", fontSize: 15.5, color: T.ink }}>2 &nbsp;Greeting, attachments and call details</h3>
+
+        {/* The opening is written here, not in Outlook: editing pasted HTML
+            there is what knocks the formatting out of shape. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+              <label htmlFor="av-text-salutation" style={metaLabel}>Salutation</label>
+              {has(d.text, "salutation") && <button onClick={() => resetText("salutation")} style={linkBtn}>Reset to default</button>}
+            </div>
+            <input id="av-text-salutation" style={metaField} value={txt("salutation")} placeholder="e.g. Good afternoon Sarah,"
+              onChange={e => setText("salutation", e.target.value)} />
+            <div style={{ fontSize: 12, color: T.gray500, marginTop: 4 }}>Add the manager's name, e.g. "Good afternoon Sarah,". Clear it to start straight with the greeting.</div>
+          </div>
+          {textBlock("greeting", "Greeting", 3,
+            has(d.text, "greeting") ? undefined : "Uses the visit's city so it reads naturally when the location is just \"Rotech\".")}
+        </div>
 
         <div style={metaLabel}>Attached to this email</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: "6px 16px", marginBottom: 6 }}>
@@ -513,7 +645,7 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
           ))}
         </div>
         <div style={{ fontSize: 12, color: T.gray500, marginBottom: 16 }}>
-          The intro and Binders paragraphs mention only what's ticked. Attach the files to the Outlook message yourself.
+          The opening paragraphs and the Binders paragraph mention only what's ticked. Attach the files to the Outlook message yourself.
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
@@ -544,21 +676,18 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
         <div style={{ fontSize: 12, color: T.gray500, marginTop: 4 }}>Cell and email are remembered on this device for both emails.</div>
 
         <details style={{ marginTop: 16 }}>
-          <summary style={{ cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: T.blue600 }}>Edit the email's wording</summary>
+          <summary style={{ cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: T.blue600 }}>Edit the rest of the email's wording</summary>
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12 }}>
             {[
-              ["greeting", "Greeting", true],
-              ["reports", "Attached reports paragraph", d.attach.reports],
+              ["reports", "Survey Prep Report paragraph", d.attach.reports],
+              ["binderGuide", "OP 840 Location Binder Guide paragraph", d.attach.binderGuide],
               ["warehouseGuide", "Warehouse Organization Guide paragraph", d.attach.warehouseGuide],
               ["priorityIntro", "Priorities lead-in", blocks.length > 0],
+              ["checklistNote", "Follow-Up Checklist note", !!checklistUrl],
               ["encouragement", "Encouragement", true],
               ["followupNote", "Follow-up call note", !!clean(txt("followup"))],
               ["closing", "Closing", true],
-            ].filter(([, , shown]) => shown).map(([k, label]) => (
-              <TextBlock key={k} id={`av-text-${k}`} label={label} value={txt(k)} rows={k === "priorityIntro" ? 2 : 3}
-                overridden={has(d.text, k)} onChange={v => setText(k, v)} onReset={() => resetText(k)}
-                hint={k === "greeting" && !has(d.text, k) ? "Uses the visit's city so it reads naturally when the location is just \"Rotech\"." : undefined} />
-            ))}
+            ].filter(([, , shown]) => shown).map(([k, label]) => textBlock(k, label, k === "priorityIntro" || k === "checklistNote" ? 2 : 3))}
             <div style={{ fontSize: 12, color: T.gray500 }}>Leave a blank line to start a new paragraph.</div>
           </div>
         </details>
@@ -566,6 +695,7 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
 
       {/* 3 — hand off to Outlook */}
       <EmailOutputCard step="3" html={html} title="After visit email preview">
+        <ChecklistNotice checklist={checklist} onOpenChecklist={onOpenChecklist} compact />
         {listedCount === 0 && (
           <div style={{ background: T.warningBg, color: T.warning, borderRadius: T.radius, padding: "9px 13px", fontSize: 13, marginBottom: 12 }}>
             No items are ticked, so the priorities block is left out of the email.

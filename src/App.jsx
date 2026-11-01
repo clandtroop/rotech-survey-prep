@@ -895,9 +895,24 @@ async function ensureChecklistDoc(visit, visitId) {
     await updateDoc(ref, { categories: merged, updatedAt: Date.now() });
   }
 
+  return checklistUrlFor(visitId);
+}
+
+// The shareable link for a visit's follow-up checklist. Deterministic, so a
+// checklist generated in an earlier session can be linked again (the After
+// Visit Email does) without regenerating it.
+function checklistUrlFor(visitId) {
   const url = new URL(window.location.href);
   url.search = `?checklist=${encodeURIComponent(visitId)}`;
+  url.hash = "";
   return url.toString();
+}
+
+// What a checklist doc's items have to match for it to be current: the same
+// findings, in the same groups. Comments are left out — rewording one is not
+// worth telling the specialist to regenerate.
+function checklistSignature(items) {
+  return (items || []).map(i => `${i.category}|${i.subheader}|${i.text}`).join("\n");
 }
 
 // --- Direct OOXML cell patching -------------------------------------------
@@ -4260,7 +4275,7 @@ function SurveyPrepApp() {
     setJc427Slots([]); setJc427Answers({}); setJc427Dates({}); setJc427Comments({});
     setTabComments({ pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
-    setCurrentVisitId(null); setVisitFinalized(false);
+    setCurrentVisitId(null); setVisitFinalized(false); setChecklistLink("");
     setTabPatientInfo({ pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments("");
     setAfterVisitEmail(null);
@@ -4362,15 +4377,44 @@ function SurveyPrepApp() {
     }
   }
 
+  function checklistVisitData() {
+    return { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo, personnelSlots, personnelItems, personnelAnswers, personnelComments, jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments };
+  }
+
   function generateChecklistLink() {
     if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return; }
-    const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo, personnelSlots, personnelItems, personnelAnswers, personnelComments, jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments };
     setChecklistLinkLoading(true);
-    ensureChecklistDoc(visit, currentVisitId)
-      .then(url => setChecklistLink(url))
+    ensureChecklistDoc(checklistVisitData(), currentVisitId)
+      .then(url => { setChecklistLink(url); setChecklistRev(r => r + 1); })
       .catch(() => alert("Couldn't create the checklist. Check your internet connection and try again."))
       .finally(() => setChecklistLinkLoading(false));
   }
+
+  // Does this visit's follow-up checklist exist, and does it still list the
+  // visit's current findings? Asked whenever the Emails tab opens (and after a
+  // generate), so the After Visit Email can include the link or say that it
+  // has to be generated first. The checklist doc is world-readable by design
+  // (managers open it without signing in), so this read needs no special rule.
+  const [checklistCheck, setChecklistCheck] = useState({ id: null, status: "idle" });
+  const [checklistRev, setChecklistRev] = useState(0);
+  useEffect(() => {
+    if (view !== "followup" || !currentVisitId) return;
+    let cancelled = false;
+    const id = currentVisitId;
+    setChecklistCheck({ id, status: "checking" });
+    getDoc(doc(db, CHECKLISTS_COLLECTION, id))
+      .then(snap => {
+        if (cancelled) return;
+        if (!snap.exists()) { setChecklistCheck({ id, status: "missing" }); return; }
+        const current = checklistSignature(buildChecklistItems(checklistVisitData()));
+        setChecklistCheck({ id, status: checklistSignature(snap.data().categories) === current ? "exists" : "stale" });
+      })
+      .catch(() => { if (!cancelled) setChecklistCheck({ id, status: "error" }); });
+    return () => { cancelled = true; };
+    // Re-checked on entering the tab, on a different visit, and after a
+    // generate — not on every answer change, which can't happen on this tab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, currentVisitId, checklistRev]);
 
   function loadVisit(visit) {
     // Measure on load too: a visit that is already too big to save can then be
@@ -4864,10 +4908,25 @@ function SurveyPrepApp() {
       ? new Date(meta.followUpDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
         + (meta.followUpTime ? ` · ${formatFollowUpTime(meta.followUpTime)}` : "")
       : "";
+    // Same totals as the Survey Prep Report's summary tiles.
+    const summary = buildSummaryData();
+    const totals = {
+      compliant: summary.reduce((a, s) => a + s.yes, 0),
+      issues:    summary.reduce((a, s) => a + s.no, 0),
+    };
+    const checkStatus = !currentVisitId ? "unsaved"
+      : checklistCheck.id === currentVisitId && checklistCheck.status !== "idle" ? checklistCheck.status : "checking";
     return {
       visit: { meta, findings, followUpDisplay, hasVisit: !!(meta.location || meta.lawson || currentVisitId || findings.length) },
       draft: afterVisitEmail,
       setDraft: updateAfterVisitEmail,
+      totals,
+      checklist: {
+        status: checkStatus,
+        url: currentVisitId ? checklistUrlFor(currentVisitId) : "",
+        busy: checklistLinkLoading,
+        onGenerate: generateChecklistLink,
+      },
       onOpenChecklist: goChecklist,
       onOpenDashboard: () => { setView("dashboard"); window.scrollTo({ top: 0 }); },
     };

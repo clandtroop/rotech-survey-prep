@@ -665,9 +665,37 @@ async function deleteVisitFromFirestore(id) {
   await deleteDoc(doc(db, IN_PROGRESS_VISITS_COLLECTION, id));
 }
 
+// Whether an OP 541 / OP 541T sheet is a vehicle checklist. Both parsers label
+// a vehicle sheet "Unit # <n>" when the file carries a unit number and leave
+// its "Vehicle…" sheet name otherwise. This is also what decides whether the
+// sheet shows the PST/Driver Name and Vehicle # inputs.
+function isOp541VehicleSheet(sheetLabel) {
+  const label = String(sheetLabel || "");
+  return label.startsWith("Vehicle") || label.startsWith("Unit");
+}
+
+// Places one OP 541 / OP 541T section on the follow-up checklist. Vehicle
+// sheets are grouped per vehicle under "Vehicles". Every other sheet (the
+// Facility sheet's OVERALL FACILITY, WAREHOUSE SPACE, STORAGE, …) goes under
+// "Facility", one group per section header.
+function op541ChecklistPlacement(sec, vInfo, suffix) {
+  const vehicleNum = String(vInfo.vehicleNum || "").trim();
+  const pstName = String(vInfo.pstName || "").trim();
+  if (vehicleNum || isOp541VehicleSheet(sec.sheetLabel)) {
+    const unit = vehicleNum ? `Unit # ${vehicleNum}` : sec.sheetLabel;
+    return { category: "Vehicles", subheader: `${unit}${pstName ? ` — ${pstName}` : ""}${suffix}` };
+  }
+  return { category: "Facility", subheader: `${sec.label || sec.sheetLabel}${suffix}` };
+}
+
 // Builds the flat list of checkable follow-up items from a saved visit's failed
 // findings. Each item carries a category and subheader so ChecklistView can
-// group them under labelled sections (binder name, unit #, PST name, etc.).
+// group them under labelled sections (binder name, unit #, PST name, etc.),
+// and a key naming the finding it came from, which is how a re-link carries
+// checkmarks over (see mergeChecklistDone).
+//
+// Items must keep being pushed in this order: checklists written before items
+// had keys are matched by their positional id (i0, i1, …).
 function buildChecklistItems(visit) {
   const items = [];
   let n = 0;
@@ -684,41 +712,25 @@ function buildChecklistItems(visit) {
     sec.items.forEach((item, ii) => {
       const key = `${si}-${ii}`;
       if (states[key] === "no") {
-        items.push({ id: `i${n++}`, category, subheader, text: item.text, comment: comments[key] || "", done: false });
+        items.push({ id: `i${n++}`, key: `${sec.id}:${ii}`, category, subheader, text: item.text, comment: comments[key] || "", done: false });
       }
     });
   });
 
   op541Sections.forEach(sec => {
-    const vInfo = op541VehicleInfo[sec.sheetLabel] || {};
-    let category, subheader;
-    if (vInfo.vehicleNum) {
-      category = "Vehicles";
-      subheader = `Unit # ${vInfo.vehicleNum}${vInfo.pstName ? ` — ${vInfo.pstName}` : ""}`;
-    } else {
-      category = "PST Visits";
-      subheader = vInfo.pstName ? `${vInfo.pstName} — OP 541` : `OP 541 — ${sec.sheetLabel}`;
-    }
+    const { category, subheader } = op541ChecklistPlacement(sec, op541VehicleInfo[sec.sheetLabel] || {}, "");
     sec.items.forEach(item => {
       if (op541States[item.key] === "no") {
-        items.push({ id: `i${n++}`, category, subheader, text: item.text, comment: op541Comments[item.key] || "", done: false });
+        items.push({ id: `i${n++}`, key: `op541:${item.key}`, category, subheader, text: item.text, comment: op541Comments[item.key] || "", done: false });
       }
     });
   });
 
   op541tSections.forEach(sec => {
-    const vInfo = op541VehicleInfo[sec.sheetLabel] || {};
-    let category, subheader;
-    if (vInfo.vehicleNum) {
-      category = "Vehicles";
-      subheader = `Unit # ${vInfo.vehicleNum}${vInfo.pstName ? ` — ${vInfo.pstName}` : ""} (OP 541T)`;
-    } else {
-      category = "PST Visits";
-      subheader = vInfo.pstName ? `${vInfo.pstName} — OP 541T` : `OP 541T — ${sec.sheetLabel}`;
-    }
+    const { category, subheader } = op541ChecklistPlacement(sec, op541VehicleInfo[sec.sheetLabel] || {}, " (OP 541T)");
     sec.items.forEach(item => {
       if (op541tStates[item.key] === "no") {
-        items.push({ id: `i${n++}`, category, subheader, text: item.text, comment: op541tComments[item.key] || "", done: false });
+        items.push({ id: `i${n++}`, key: `op541t:${item.key}`, category, subheader, text: item.text, comment: op541tComments[item.key] || "", done: false });
       }
     });
   });
@@ -732,7 +744,7 @@ function buildChecklistItems(visit) {
     personnelSlots.forEach(slot => {
       const key = `${item.key}|${slot.sheetName}|${slot.col}`;
       if (personnelAnswers[key] === "no") {
-        items.push({ id: `i${n++}`, category: "Personnel", subheader: slot.name, text: item.text, comment: personnelComments[item.key] || "", done: false });
+        items.push({ id: `i${n++}`, key: `personnel:${key}`, category: "Personnel", subheader: slot.name, text: item.text, comment: personnelComments[item.key] || "", done: false });
       }
     });
   });
@@ -747,13 +759,13 @@ function buildChecklistItems(visit) {
       const subheader = slot.name || `Employee (col ${slot.col})`;
       if (item.answerType === "yn") {
         if (jc427Answers[key] === "no") {
-          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: item.text, comment: jc427Comments[item.id] || "", done: false });
+          items.push({ id: `i${n++}`, key: `jc427:${key}`, category: "Personnel Records (JC 427)", subheader, text: item.text, comment: jc427Comments[item.id] || "", done: false });
         }
       } else {
         const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
         if (status === "red" || status === "yellow") {
           const label = status === "red" ? "EXPIRED" : "Expires within 6 months";
-          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: `${item.text} — ${label}`, comment: jc427Comments[item.id] || "", done: false });
+          items.push({ id: `i${n++}`, key: `jc427:${key}`, category: "Personnel Records (JC 427)", subheader, text: `${item.text} — ${label}`, comment: jc427Comments[item.id] || "", done: false });
         }
       }
     });
@@ -762,8 +774,20 @@ function buildChecklistItems(visit) {
   return items;
 }
 
-// Creates the Firestore checklist doc for a visit if it doesn't already exist,
-// then returns the shareable checklist URL (?checklist=<visitId>).
+// Carries checkmarks from a checklist's current items onto a freshly built
+// list. Items are matched by key (the finding they came from), not by
+// position, so a finding added or cleared since the last link doesn't shift
+// every later checkmark onto the wrong item, and moving an item to another
+// category or subheader keeps its checkmark. A checklist written before items
+// had keys is matched by the positional id it was written with, as it always
+// was; it gets keys from this write on.
+function mergeChecklistDone(prevItems, newItems) {
+  const byKey = prevItems.some(it => it.key);
+  const matchOn = it => (byKey ? it.key : it.id);
+  const prevDone = new Map(prevItems.map(it => [matchOn(it), !!it.done]));
+  return newItems.map(it => ({ ...it, done: prevDone.get(matchOn(it)) || false }));
+}
+
 // Creates or refreshes the Firestore checklist doc for a visit, then returns
 // the shareable checklist URL (?checklist=<visitId>). Regenerating the link
 // after updating findings always syncs the latest items, preserving any
@@ -786,10 +810,7 @@ async function ensureChecklistDoc(visit, visitId) {
       createdAt: Date.now(),
     });
   } else {
-    // Merge: preserve done state for items that still exist by id
-    const prevById = {};
-    (existing.data().categories || []).forEach(it => { prevById[it.id] = it; });
-    const merged = newItems.map(it => ({ ...it, done: prevById[it.id]?.done || false }));
+    const merged = mergeChecklistDone(existing.data().categories || [], newItems);
     await updateDoc(ref, { categories: merged, updatedAt: Date.now() });
   }
 
@@ -2138,7 +2159,7 @@ function ChecklistQrCode({ value }) {
 // Standalone follow-up checklist page, opened via ?checklist=<visitId>. Used by
 // both the location manager (checking items off) and the accreditation
 // specialist (watching live progress) — no auth, the visit ID is the secret.
-const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Vehicles", "PST Visits", "Personnel", "Personnel Records (JC 427)", "Binders"];
+const CHECKLIST_CATEGORY_ORDER = ["Warehouse", "Facility", "Vehicles", "PST Visits", "Personnel", "Personnel Records (JC 427)", "Binders"];
 
 // Branded shell shared by all three ChecklistView states (loading / not-found /
 // ready) so the unauthenticated page carries the same header chrome as the
@@ -2207,6 +2228,10 @@ function ChecklistView({ visitId }) {
 
   const total = doc_.categories.length;
   const done = doc_.categories.filter(it => it.done).length;
+  // Any category missing from CHECKLIST_CATEGORY_ORDER still shows, after the
+  // known ones, so an item can never count toward the total yet be unlistable.
+  const categoryOrder = [...CHECKLIST_CATEGORY_ORDER];
+  doc_.categories.forEach(it => { if (!categoryOrder.includes(it.category)) categoryOrder.push(it.category); });
 
   return (
     <ChecklistPageShell>
@@ -2222,7 +2247,7 @@ function ChecklistView({ visitId }) {
             {total === 0 ? "No outstanding items — nice work!" : `${done} of ${total} items complete`}
           </div>
 
-          {total === 0 ? null : CHECKLIST_CATEGORY_ORDER.map(cat => {
+          {total === 0 ? null : categoryOrder.map(cat => {
             const catItems = doc_.categories.filter(it => it.category === cat);
             if (catItems.length === 0) return null;
             // Group items by subheader, preserving insertion order
@@ -5555,7 +5580,7 @@ function SurveyPrepApp() {
                   <div style={{ padding: "16px 24px" }}>
                     {op541Sections.map((section, si) => {
                       const showSheetHeader = si === 0 || op541Sections[si - 1].sheetLabel !== section.sheetLabel;
-                      const isVehicleSheet = section.sheetLabel.startsWith("Vehicle") || section.sheetLabel.startsWith("Unit");
+                      const isVehicleSheet = isOp541VehicleSheet(section.sheetLabel);
                       const vInfo = op541VehicleInfo[section.sheetLabel] || { pstName: "", vehicleNum: "" };
                       const setVInfo = (field, val) => setOp541VehicleInfo(prev => ({
                         ...prev,
@@ -5719,7 +5744,7 @@ function SurveyPrepApp() {
                   <div style={{ padding: "16px 24px" }}>
                     {op541tSections.map((section, si) => {
                       const showSheetHeader = si === 0 || op541tSections[si - 1].sheetLabel !== section.sheetLabel;
-                      const isVehicleSheet = section.sheetLabel.startsWith("Vehicle") || section.sheetLabel.startsWith("Unit");
+                      const isVehicleSheet = isOp541VehicleSheet(section.sheetLabel);
                       const vInfo = op541VehicleInfo[section.sheetLabel] || { pstName: "", vehicleNum: "" };
                       const setVInfo = (field, val) => setOp541VehicleInfo(prev => ({
                         ...prev,

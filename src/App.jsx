@@ -13,7 +13,8 @@ import TrendDashboard from "./TrendDashboard";
 import ReadinessDashboard from "./ReadinessDashboard";
 import TeamPlanner from "./TeamPlanner";
 import SiteCircuit from "./SiteCircuit";
-import FollowUpEmail from "./FollowUpEmail";
+import Emails from "./Emails";
+import { BINDERS as AFTER_VISIT_BINDERS } from "./AfterVisitEmail";
 
 // What the assessment module is called in the nav, on its dashboard card, and
 // in any CTA pointing at it. Kept in one place so renaming it is a one-line
@@ -586,6 +587,17 @@ function mergeVisitForWrite(remote, local) {
     merged[key] = l.length ? l : r;
   }
 
+  // The After Visit Email draft is one composition, edited as a whole —
+  // splicing two devices' picks and rewordings together would produce an email
+  // nobody wrote. Keep whichever copy was edited last, and never let a device
+  // that has not touched it (null) erase one that has.
+  const rEmail = remote.afterVisitEmail, lEmail = local.afterVisitEmail;
+  if (isPlainObject(rEmail) && isPlainObject(lEmail)) {
+    merged.afterVisitEmail = String(rEmail.updatedAt || "") > String(lEmail.updatedAt || "") ? rEmail : lEmail;
+  } else if (isPlainObject(rEmail)) {
+    merged.afterVisitEmail = rEmail;
+  }
+
   return merged;
 }
 
@@ -760,6 +772,96 @@ function buildChecklistItems(visit) {
   });
 
   return items;
+}
+
+// Every "Issue" finding on a visit, shaped for the After Visit Email's picker
+// (AfterVisitEmail.jsx). Ids are built from the same keys the answers are
+// stored under, so a pick saved on the visit still points at the same finding
+// after a reload or on another device.
+//
+// Grouping is the specialist's: OP 541 / 541T findings under their section
+// header (OVERALL FACILITY, WAREHOUSE SPACE, …), vehicle sheets by unit, the
+// patient-visit forms by form, personnel by file type, and every checklist
+// binder under one "Binders" category (which the picker always shows last).
+// Order of arrival here is the order the categories appear in.
+function buildAfterVisitFindings(visit) {
+  const out = [];
+  const t = v => String(v ?? "").trim();
+  const { states = {}, comments = {}, op541Sections = [], op541States = {}, op541Comments = {},
+          op541tSections = [], op541tStates = {}, op541tComments = {},
+          op541VehicleInfo = {},
+          personnelSlots = [], personnelItems = [], personnelAnswers = {}, personnelComments = {},
+          jc427Slots = [], jc427Items = [], jc427Answers = {}, jc427Dates = {}, jc427Comments = {} } = visit;
+
+  const selfAudit = (sections, stateMap, commentMap, idPrefix, form) => {
+    sections.forEach(sec => {
+      const vInfo = op541VehicleInfo[sec.sheetLabel] || {};
+      // Same vehicle test the OP 541 tab uses to show the PST/Unit # fields.
+      const isVehicle = !!vInfo.vehicleNum || /^(Vehicle|Unit)/.test(sec.sheetLabel);
+      let category;
+      if (isVehicle) {
+        const unit = vInfo.vehicleNum ? `Unit # ${vInfo.vehicleNum}` : sec.sheetLabel;
+        category = `${/^vehicle/i.test(unit) ? "" : "Vehicle "}${unit}${vInfo.pstName ? ` (${vInfo.pstName})` : ""}`;
+      } else {
+        category = t(sec.label) || sec.sheetLabel;
+      }
+      const source = `${form} · ${sec.sheetLabel}${isVehicle && sec.label ? ` / ${sec.label}` : ""}`;
+      sec.items.forEach(item => {
+        if (stateMap[item.key] !== "no") return;
+        out.push({
+          id: `${idPrefix}:${item.key}`, category, text: item.text, comment: t(commentMap[item.key]),
+          source: item.policy ? `${source} · ${item.policy}` : source,
+        });
+      });
+    });
+  };
+  selfAudit(op541Sections, op541States, op541Comments, "op541", "OP 541");
+  selfAudit(op541tSections, op541tStates, op541tComments, "op541t", "OP 541T");
+
+  SECTIONS.forEach((sec, si) => {
+    const isBinder = !PATIENT_FORM_IDS.includes(sec.id);
+    sec.items.forEach((item, ii) => {
+      const key = `${si}-${ii}`;
+      if (states[key] !== "no") return;
+      out.push({
+        id: `sec:${key}`, category: isBinder ? AFTER_VISIT_BINDERS : sec.label,
+        text: item.text, comment: t(comments[key]), source: isBinder ? sec.label : sec.ref,
+      });
+    });
+  });
+
+  personnelItems.forEach(item => {
+    if (item.answerType !== "yn") return;
+    personnelSlots.forEach(slot => {
+      const key = `${item.key}|${slot.sheetName}|${slot.col}`;
+      if (personnelAnswers[key] !== "no") return;
+      out.push({
+        id: `pers:${key}`, category: "Personnel", prefix: t(slot.name) || `Employee (col ${slot.col})`,
+        text: item.text, comment: t(personnelComments[item.key]), source: "Personnel / Medical File",
+      });
+    });
+  });
+
+  // Same JC 427 rule as the follow-up checklist: "No" answers, plus dates that
+  // are expired or expire within six months.
+  jc427Items.forEach(item => {
+    jc427Slots.forEach(slot => {
+      const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+      const base = {
+        id: `jc427:${key}`, category: "Personnel Records (JC 427)", prefix: t(slot.name) || `Employee (col ${slot.col})`,
+        comment: t(jc427Comments[item.id]), source: "JC 427 Personnel Records Review",
+      };
+      if (item.answerType === "yn") {
+        if (jc427Answers[key] === "no") out.push({ ...base, text: item.text });
+      } else {
+        const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+        if (status === "red" || status === "yellow")
+          out.push({ ...base, text: `${item.text} — ${status === "red" ? "EXPIRED" : "Expires within 6 months"}` });
+      }
+    });
+  });
+
+  return out;
 }
 
 // Creates the Firestore checklist doc for a visit if it doesn't already exist,
@@ -3497,6 +3599,12 @@ function SurveyPrepApp() {
   const setTabPatient = (id, field, val) => setTabPatientInfo(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }));
   // Additional comments shown at bottom of report
   const [additionalComments, setAdditionalComments] = useState(() => draft?.additionalComments ?? "");
+  // After Visit Email picks, rewordings and paragraph edits (see
+  // AfterVisitEmail.jsx). null until the specialist first touches the screen.
+  // Stamped on every edit so mergeVisitForWrite can keep the newest copy.
+  const [afterVisitEmail, setAfterVisitEmail] = useState(() => draft?.afterVisitEmail ?? null);
+  const updateAfterVisitEmail = useCallback(
+    fn => setAfterVisitEmail(prev => ({ ...fn(prev), updatedAt: new Date().toISOString() })), []);
 
   const setState = useCallback((key, val) => {
     setForm(prev => ({ ...prev, states: { ...prev.states, [key]: prev.states[key] === val ? null : val } }));
@@ -3521,7 +3629,7 @@ function SurveyPrepApp() {
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
-      tabComments, tabPatientInfo, additionalComments, currentVisitId,
+      tabComments, tabPatientInfo, additionalComments, afterVisitEmail, currentVisitId,
     });
     setSavedAt(new Date().toISOString());
   }, [meta, states, comments,
@@ -3529,7 +3637,7 @@ function SurveyPrepApp() {
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
-      tabComments, tabPatientInfo, additionalComments, currentVisitId]);
+      tabComments, tabPatientInfo, additionalComments, afterVisitEmail, currentVisitId]);
 
   function getSectionStats(si) {
     let yes = 0, no = 0, na = 0, pending = 0;
@@ -4155,6 +4263,7 @@ function SurveyPrepApp() {
     setCurrentVisitId(null); setVisitFinalized(false);
     setTabPatientInfo({ pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments("");
+    setAfterVisitEmail(null);
   }
 
   // The visit document as this device currently sees it. Shared by the explicit
@@ -4170,7 +4279,7 @@ function SurveyPrepApp() {
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
-      tabComments, tabPatientInfo, additionalComments,
+      tabComments, tabPatientInfo, additionalComments, afterVisitEmail,
     };
   }
 
@@ -4295,6 +4404,7 @@ function SurveyPrepApp() {
     setTabComments(visit.tabComments ?? { pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
     setTabPatientInfo(visit.tabPatientInfo ?? { pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments(visit.additionalComments ?? "");
+    setAfterVisitEmail(visit.afterVisitEmail ?? null);
     // jc427BufferBytes is left alone — it's the bundled template's bytes,
     // not per-visit data, and stays valid across a visit load.
     setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null); setOp541tBufferBytes(null);
@@ -4702,9 +4812,9 @@ function SurveyPrepApp() {
     setView("circuit");
     window.scrollTo({ top: 0 });
   }
-  // The follow-up email screen takes a filled-in tracker file as its whole
-  // input, so like the planner and Site Circuit it stands apart from the
-  // visit in progress and never touches checklist state.
+  // The Emails tab: the After Visit email (built from the open visit) and the
+  // Follow-Up Call email (built from an uploaded tracker). Neither touches
+  // checklist state; the After Visit picks are their own visit field.
   function goFollowUp() {
     setView("followup");
     window.scrollTo({ top: 0 });
@@ -4742,6 +4852,27 @@ function SurveyPrepApp() {
     </div>
   ) : null;
 
+  // Inputs for the After Visit Email, built only while the Emails tab is shown.
+  function afterVisitEmailProps() {
+    const findings = buildAfterVisitFindings({
+      states, comments, op541Sections, op541States, op541Comments,
+      op541tSections, op541tStates, op541tComments, op541VehicleInfo,
+      personnelSlots, personnelItems, personnelAnswers, personnelComments,
+      jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments,
+    });
+    const followUpDisplay = meta.followUpDate
+      ? new Date(meta.followUpDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+        + (meta.followUpTime ? ` · ${formatFollowUpTime(meta.followUpTime)}` : "")
+      : "";
+    return {
+      visit: { meta, findings, followUpDisplay, hasVisit: !!(meta.location || meta.lawson || currentVisitId || findings.length) },
+      draft: afterVisitEmail,
+      setDraft: updateAfterVisitEmail,
+      onOpenChecklist: goChecklist,
+      onOpenDashboard: () => { setView("dashboard"); window.scrollTo({ top: 0 }); },
+    };
+  }
+
   const navItems = [
     { key: "dashboard", label: "Dashboard",    icon: "home",            active: view === "dashboard",                     onClick: () => { setView("dashboard"); window.scrollTo({ top: 0 }); } },
     { key: "form",      label: MODULE_LABEL,   icon: "clipboard-list",  active: view === "form" && !REFERENCE_TABS.includes(activeTab), onClick: goChecklist },
@@ -4749,7 +4880,7 @@ function SurveyPrepApp() {
     { key: "trends",    label: "Issue Trends", icon: "trending-up",     active: view === "form" && isTrendsTab,            onClick: () => goTab(TAB.trends) },
     { key: "planner",   label: "Team Planner", icon: "calendar",        active: view === "planner",                        onClick: goPlanner },
     { key: "circuit",   label: "Site Circuit", icon: "mail",            active: view === "circuit",                        onClick: goCircuit },
-    { key: "followup",  label: "Follow-Up Email", icon: "file-spreadsheet", active: view === "followup",                     onClick: goFollowUp },
+    { key: "followup",  label: "Emails",       icon: "send",            active: view === "followup",                     onClick: goFollowUp },
   ];
 
   const headerBtn = {
@@ -5102,8 +5233,9 @@ function SurveyPrepApp() {
       {/* SITE CIRCUIT — reads the planner's site visits, owns no visit data */}
       {view === "circuit" && <SiteCircuit onOpenPlanner={goPlanner} />}
 
-      {/* FOLLOW-UP EMAIL — reads an uploaded tracker, writes nothing */}
-      {view === "followup" && <FollowUpEmail />}
+      {/* EMAILS — After Visit (from the open visit) and Follow-Up Call (from an
+          uploaded tracker). Composed for Outlook; nothing is sent. */}
+      {view === "followup" && <Emails afterVisit={afterVisitEmailProps()} />}
 
       {/* FORM VIEW */}
       {view === "form" && (

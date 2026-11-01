@@ -1,6 +1,7 @@
-import { useState, useRef, useMemo, useEffect } from "react";
-import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline } from "./theme";
+import { useState, useRef, useMemo } from "react";
+import { T, cardStyle, Icon, metaLabel, metaField } from "./theme";
 import { importChunk } from "./chunkRecovery";
+import { clean, esc, infoGridHtml, signatureHtml, EmailOutputCard } from "./emailKit";
 
 // ─── FOLLOW-UP CALL EMAIL ────────────────────────────────────────────────────
 // Turns a filled-in Virtual Follow-Up Tracker into the summary email the
@@ -52,8 +53,6 @@ const SUFFIX_FIXES = {
   "DOCUMENTATIO": "Documentation",    DOCUMEN: "Documentation",
   EMERGEN: "Emergency",               STORAGE: "Storage",
 };
-
-const clean = s => String(s ?? "").replace(/\s+/g, " ").trim();
 
 // ─── .xlsx reading ───────────────────────────────────────────────────────────
 // JSZip is already a dependency (the tracker export uses it) and is imported
@@ -195,36 +194,17 @@ function parseTracker(sheets) {
 // own stylesheet cannot leak into a message that will live in Outlook. Styles
 // are written inline for the same reason.
 
-const esc = s => String(s ?? "")
-  .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-function buildEmailHtml(p, form) {
+function buildEmailHtml(p, form, sig) {
   const loc  = p.meta.Location || "your location";
   const done = p.verified + p.reported;
   const pct  = p.total ? Math.round((done / p.total) * 100) : 0;
   const allClear = p.outstanding === 0;
 
-  const infoCells = [
+  const infoGrid = infoGridHtml([
     ["Location", p.meta.Location], ["City / State", p.meta["City / State"]],
     ["Accreditation Specialist", p.meta.Specialist], ["Original Visit Date", p.meta["Visit Date"]],
     ["Follow-Up Call Date", form.callDate || p.meta["Export Date"]],
-  ].filter(([, v]) => clean(v));
-
-  // Two fields to a row. An odd count would otherwise leave a dead half-row,
-  // so a lone last field spans the width instead.
-  const infoCell = ([label, value], { wide, rule }) => `
-    <td ${wide ? 'colspan="2" width="100%"' : 'width="50%"'} valign="top" style="padding:14px 28px;background:#dde8f3;border-bottom:1px solid #cfdcea;${
-      rule ? "border-right:1px solid #cfdcea;" : ""}">
-      <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:#6f8199;margin-bottom:2px;">${esc(label)}</div>
-      <div style="font-size:15px;font-weight:700;color:#0d2947;">${esc(value)}</div>
-    </td>`;
-  const infoRows = [];
-  for (let i = 0; i < infoCells.length; i += 2) {
-    const lone = i + 1 >= infoCells.length;
-    infoRows.push(`<tr>${infoCell(infoCells[i], { wide: lone, rule: !lone })}${
-      lone ? "" : infoCell(infoCells[i + 1], { wide: false, rule: false })}</tr>`);
-  }
+  ]);
 
   // Status colour never travels alone — each tile carries a mark and a written
   // label, because corrected/pending/outstanding is a green/amber/red set and
@@ -294,7 +274,7 @@ function buildEmailHtml(p, form) {
     <div style="font-size:26px;font-weight:700;">Follow-Up Call Summary</div>
   </div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${infoRows.join("")}</table>
+  ${infoGrid}
 
   <div style="background:#fff;border:1px solid #dde3ea;border-top:none;padding:24px 28px 8px;">
     <p style="font-size:14.5px;margin:0 0 16px;">Thank you for taking the time to walk through ${esc(loc)} with me today — I appreciate you and your team making the call a priority.</p>
@@ -321,13 +301,7 @@ function buildEmailHtml(p, form) {
     <p style="font-size:14.5px;margin:0 0 16px;">${esc(closing)}</p>
   </div>
 
-  <div style="background:#292929;border-radius:0 0 8px 8px;padding:18px 28px 20px;">
-    <div style="font-size:14.5px;font-weight:700;"><span style="color:#d3e0ff;">${esc(p.meta.Specialist || "")}</span><span style="color:#7d8699;font-weight:400;padding:0 6px;">|</span><span style="color:#7dadff;">Accreditation Specialist</span></div>
-    <div style="font-size:13.5px;font-weight:700;color:#9ec2ff;margin-top:2px;">Rotech Healthcare</div>
-    ${clean(form.phone) ? `<div style="font-size:13.5px;font-weight:700;color:#9ec2ff;margin-top:2px;">Cell: ${esc(form.phone)}</div>` : ""}
-    ${clean(form.email) ? `<div style="font-size:13.5px;font-weight:700;color:#9ec2ff;margin-top:2px;">Email: ${esc(form.email)}</div>` : ""}
-    <div style="font-size:13.5px;font-weight:700;font-style:italic;margin-top:14px;"><span style="color:#e7a7ff;">Accreditation = </span><span style="color:#ffcc00;">$$$</span><span style="color:#5ec18b;"> For Services Rendered</span></div>
-  </div>
+  ${signatureHtml({ name: p.meta.Specialist, phone: sig.phone, email: sig.email })}
 
   <div style="text-align:center;color:#6b7686;font-size:11.5px;margin-top:22px;">Rotech Healthcare &middot; Accreditation Survey Prep</div>
 </div>
@@ -336,22 +310,21 @@ function buildEmailHtml(p, form) {
 
 // ─── screen ──────────────────────────────────────────────────────────────────
 
-export default function FollowUpEmail() {
+// signature / setSignature are the cell and email shared with the After Visit
+// email and remembered on this device (see Emails.jsx).
+export default function FollowUpEmail({ signature, setSignature }) {
   const [parsed, setParsed] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
-  const [copied, setCopied] = useState("");
-  const [form, setForm] = useState({ callDate: "", nextStep: "", phone: "", email: "", checklist: "" });
+  const [form, setForm] = useState({ callDate: "", nextStep: "", checklist: "" });
   const fileRef = useRef(null);
-  const frameRef = useRef(null);
 
-  const html = useMemo(() => (parsed ? buildEmailHtml(parsed, form) : ""), [parsed, form]);
-  useEffect(() => { if (copied) { const t = setTimeout(() => setCopied(""), 4000); return () => clearTimeout(t); } }, [copied]);
+  const html = useMemo(() => (parsed ? buildEmailHtml(parsed, form, signature) : ""), [parsed, form, signature]);
 
   async function handleFile(file) {
     if (!file) return;
-    setBusy(true); setError(""); setCopied("");
+    setBusy(true); setError("");
     try {
       const next = parseTracker(await readWorkbook(file));
       setParsed(next);
@@ -364,44 +337,18 @@ export default function FollowUpEmail() {
     }
   }
 
-  // Selection + execCommand rather than writing HTML to the clipboard directly:
-  // copying a rendered selection is what produces the inline-styled markup
-  // Outlook pastes faithfully. ClipboardItem is the fallback for browsers that
-  // have dropped execCommand.
-  async function copyEmail() {
-    const doc = frameRef.current?.contentDocument;
-    const node = doc?.getElementById("report");
-    if (!node) return;
-    try {
-      const range = doc.createRange();
-      range.selectNodeContents(node);
-      const sel = frameRef.current.contentWindow.getSelection();
-      sel.removeAllRanges(); sel.addRange(range);
-      const ok = doc.execCommand("copy");
-      sel.removeAllRanges();
-      if (ok) { setCopied("Copied — now paste into Outlook"); return; }
-    } catch { /* fall through */ }
-    try {
-      await navigator.clipboard.write([new ClipboardItem({
-        "text/html":  new Blob([node.outerHTML], { type: "text/html" }),
-        "text/plain": new Blob([node.innerText || ""], { type: "text/plain" }),
-      })]);
-      setCopied("Copied — now paste into Outlook");
-    } catch {
-      setCopied("Couldn't copy — use Open in new tab, then Ctrl+A and Ctrl+C");
-    }
-  }
-
-  function openInTab() {
-    const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); }
-  }
-
   const field = (key, label, placeholder) => (
     <div>
       <label style={metaLabel} htmlFor={`fu-${key}`}>{label}</label>
       <input id={`fu-${key}`} style={metaField} placeholder={placeholder} value={form[key]}
         onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
+    </div>
+  );
+  const sigField = (key, label, placeholder) => (
+    <div>
+      <label style={metaLabel} htmlFor={`fu-sig-${key}`}>{label}</label>
+      <input id={`fu-sig-${key}`} style={metaField} placeholder={placeholder} value={signature[key]}
+        onChange={e => setSignature({ ...signature, [key]: e.target.value })} />
     </div>
   );
 
@@ -496,8 +443,8 @@ export default function FollowUpEmail() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
               {field("callDate", "Follow-up call date", "e.g. September 8, 2026")}
               {field("nextStep", "Next checkpoint (blank to hide)", "e.g. Friday, September 26 · 2:00 PM PT")}
-              {field("phone", "Your cell", "(000) 000-0000")}
-              {field("email", "Your email", "you@rotech.com")}
+              {sigField("phone", "Your cell", "(000) 000-0000")}
+              {sigField("email", "Your email", "you@rotech.com")}
             </div>
             <div style={{ marginTop: 12 }}>{field("checklist", "Follow-up checklist link (optional)", "https://…")}</div>
             {parsed.meta["Export Date"] && (
@@ -508,20 +455,7 @@ export default function FollowUpEmail() {
           </div>
 
           {/* 3 — hand off to Outlook */}
-          <div style={{ ...cardStyle(), padding: "20px 22px" }}>
-            <h3 style={{ margin: "0 0 12px", fontSize: 15.5, color: T.ink }}>3 &nbsp;Copy it into Outlook</h3>
-            <div style={{ display: "flex", gap: 9, flexWrap: "wrap", alignItems: "center" }}>
-              <button onClick={copyEmail} style={btnPrimary}>Copy email</button>
-              <button onClick={openInTab} style={btnOutline}>Open in new tab</button>
-              {copied && <span style={{ fontSize: 13, fontWeight: 600, color: T.success }}>{copied}</span>}
-            </div>
-            <p style={{ margin: "9px 0 14px", fontSize: 12.5, color: T.gray600 }}>
-              Click <b>Copy email</b>, then open a new message in Outlook and press Ctrl+V. If the formatting doesn't come through,
-              use <b>Open in new tab</b>, press Ctrl+A then Ctrl+C, and paste that instead.
-            </p>
-            <iframe ref={frameRef} title="Follow-up email preview" srcDoc={html}
-              style={{ width: "100%", height: 620, border: `1px solid ${T.gray200}`, borderRadius: T.radius, background: T.white }} />
-          </div>
+          <EmailOutputCard step="3" html={html} title="Follow-up email preview" />
         </>
       )}
     </div>

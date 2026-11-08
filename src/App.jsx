@@ -15,6 +15,11 @@ import TeamPlanner from "./TeamPlanner";
 import SiteCircuit from "./SiteCircuit";
 import Emails from "./Emails";
 import { BINDERS as AFTER_VISIT_BINDERS } from "./AfterVisitEmail";
+import JC427Report, { downloadJC427ReportHtml } from "./JC427Report";
+import {
+  JC427_CATEGORY_ORDER, getJC427ExpirationStatus, jc427FindingSuffix, excelSerialFromUsDate,
+  jc427Key, jc427SlotId, jc427Comment, migrateJC427Comments, employeeLabel,
+} from "./jc427";
 
 // What the assessment module is called in the nav, on its dashboard card, and
 // in any CTA pointing at it. Kept in one place so renaming it is a one-line
@@ -751,21 +756,22 @@ function buildChecklistItems(visit) {
 
   // JC 427: "No" answers, plus expired (red) or expiring-soon (yellow)
   // competency/date items — unlike OP 541T's FDA dates, JC 427 has a real
-  // 3-year/6-month-warning ruleset (ported from the Semi Annual app), so
-  // there's a clean signal to surface here.
+  // ruleset (the template's own: see ./jc427.js), so there's a clean signal to
+  // surface here. Each finding carries that employee's own comment.
+  const jc427Notes = migrateJC427Comments(jc427Comments, jc427Slots, jc427Items, jc427Answers, jc427Dates);
   jc427Items.forEach(item => {
     jc427Slots.forEach(slot => {
-      const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+      const key = jc427Key(item.id, slot);
       const subheader = slot.name || `Employee (col ${slot.col})`;
+      const comment = jc427Comment(jc427Notes, item.id, slot);
       if (item.answerType === "yn") {
         if (jc427Answers[key] === "no") {
-          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: item.text, comment: jc427Comments[item.id] || "", done: false });
+          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: item.text, comment, done: false });
         }
       } else {
-        const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+        const status = getJC427ExpirationStatus(jc427Dates[key], item.id);
         if (status === "red" || status === "yellow") {
-          const label = status === "red" ? "EXPIRED" : "Expires within 6 months";
-          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: `${item.text} — ${label}`, comment: jc427Comments[item.id] || "", done: false });
+          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: `${item.text} — ${jc427FindingSuffix(status)}`, comment, done: false });
         }
       }
     });
@@ -843,20 +849,21 @@ function buildAfterVisitFindings(visit) {
   });
 
   // Same JC 427 rule as the follow-up checklist: "No" answers, plus dates that
-  // are expired or expire within six months.
+  // are expired or inside their expiring-soon window.
+  const jc427Notes = migrateJC427Comments(jc427Comments, jc427Slots, jc427Items, jc427Answers, jc427Dates);
   jc427Items.forEach(item => {
     jc427Slots.forEach(slot => {
-      const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+      const key = jc427Key(item.id, slot);
       const base = {
         id: `jc427:${key}`, category: "Personnel Records (JC 427)", prefix: t(slot.name) || `Employee (col ${slot.col})`,
-        comment: t(jc427Comments[item.id]), source: "JC 427 Personnel Records Review",
+        comment: jc427Comment(jc427Notes, item.id, slot), source: "JC 427 Personnel Records Review",
       };
       if (item.answerType === "yn") {
         if (jc427Answers[key] === "no") out.push({ ...base, text: item.text });
       } else {
-        const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+        const status = getJC427ExpirationStatus(jc427Dates[key], item.id);
         if (status === "red" || status === "yellow")
-          out.push({ ...base, text: `${item.text} — ${status === "red" ? "EXPIRED" : "Expires within 6 months"}` });
+          out.push({ ...base, text: `${item.text} — ${jc427FindingSuffix(status)}` });
       }
     });
   });
@@ -1005,50 +1012,20 @@ function setInlineStringValue(doc, cellEl, value) {
   cellEl.appendChild(isEl);
 }
 
-// Appends a new solid-fill entry to an existing styles.xml <fills> table,
-// returning its fillId. Always appends rather than searching for a matching
-// existing fill — simpler, and styles.xml only grows by at most 2 entries
-// per export (one red, one yellow), reused via the cache in
-// ensureHighlightCellXf below rather than re-added per cell.
-function ensureFill(stylesDoc, hex6) {
-  const ns = stylesDoc.documentElement.namespaceURI;
-  const fillsEl = stylesDoc.getElementsByTagName("fills")[0];
-  const newIndex = fillsEl.getElementsByTagName("fill").length;
-  const fillEl = stylesDoc.createElementNS(ns, "fill");
-  const patternEl = stylesDoc.createElementNS(ns, "patternFill");
-  patternEl.setAttribute("patternType", "solid");
-  const fgEl = stylesDoc.createElementNS(ns, "fgColor");
-  fgEl.setAttribute("rgb", "00" + hex6);
-  const bgEl = stylesDoc.createElementNS(ns, "bgColor");
-  bgEl.setAttribute("rgb", "00" + hex6);
-  patternEl.appendChild(fgEl);
-  patternEl.appendChild(bgEl);
-  fillEl.appendChild(patternEl);
-  fillsEl.appendChild(fillEl);
-  fillsEl.setAttribute("count", String(newIndex + 1));
-  return newIndex;
-}
-
-// Clones the cell's CURRENT cellXf (preserving its number format, font,
-// border, and alignment — everything the template's own designer already
-// set for that cell) and appends a new cellXf with only the fill swapped to
-// the given fillId. Memoized per (baseStyleIndex, fillId) pair via `cache` so
-// re-highlighting many cells with the same starting style + color reuses one
-// new cellXf instead of bloating styles.xml with a near-duplicate per cell.
-function ensureHighlightCellXf(stylesDoc, baseStyleIndex, fillId, cache) {
-  const key = `${baseStyleIndex}|${fillId}`;
-  if (cache.has(key)) return cache.get(key);
-  const cellXfsEl = stylesDoc.getElementsByTagName("cellXfs")[0];
-  const xfs = cellXfsEl.getElementsByTagName("xf");
-  const baseXf = xfs[baseStyleIndex] || xfs[0];
-  const newXf = baseXf.cloneNode(true);
-  newXf.setAttribute("fillId", String(fillId));
-  newXf.setAttribute("applyFill", "1");
-  const newIndex = xfs.length;
-  cellXfsEl.appendChild(newXf);
-  cellXfsEl.setAttribute("count", String(newIndex + 1));
-  cache.set(key, newIndex);
-  return newIndex;
+// Overwrites a cell's value with a plain number — used for JC 427 dates,
+// written as Excel date serials. Like setInlineStringValue it keeps the
+// cell's style index (`s`), which in the template already carries a date
+// number format, so the serial displays as a date. Dropping `t` is what makes
+// Excel read the value as a number: a date stored as text compares greater
+// than every number, so each of the template's "older than TODAY()-1095"
+// color rules quietly failed and every date showed green.
+function setNumericCellValue(doc, cellEl, num) {
+  const ns = doc.documentElement.namespaceURI;
+  cellEl.removeAttribute("t");
+  while (cellEl.firstChild) cellEl.removeChild(cellEl.firstChild);
+  const vEl = doc.createElementNS(ns, "v");
+  vEl.appendChild(doc.createTextNode(String(num)));
+  cellEl.appendChild(vEl);
 }
 
 // Resolves sheet names (e.g. "Binder_1") to their internal zip paths
@@ -1433,28 +1410,19 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     }
   });
 
-  // JC 427 competency dates can carry a baked-in highlight color (see
-  // buildJC427Writes) — load+mutate styles.xml lazily, only if at least one
-  // write actually needs it, since this is the only write path that ever
-  // touches cell styling.
-  const needsStyles = jc427Writes.some(w => w.style);
-  let stylesDoc = null;
-  const highlightFillIds = {};
-  const highlightXfCache = new Map();
-  if (needsStyles) {
-    const stylesXmlStr = await zip.file("xl/styles.xml").async("string");
-    stylesDoc = parser.parseFromString(stylesXmlStr, "application/xml");
-    assertParsedOk(stylesDoc, "xl/styles.xml");
-    highlightFillIds.red = ensureFill(stylesDoc, "FFEBEE");
-    highlightFillIds.yellow = ensureFill(stylesDoc, "FFF9C4");
-  }
-
   // Cell notes (native Excel red-corner comments) collected per sheet here,
   // then attached once at the end via addLegacyCommentsToSheet — that call
   // mutates each sheet's `doc` further (adding a <legacyDrawing> element), so
   // it has to happen before docs are serialized into the zip below.
   const notesBySheet = {};
+  const dateColsByPath = {};
 
+  // JC 427 writes carry either a text `value` or a numeric `serial` (a date),
+  // and optionally a `note`. A write may be note-only: an employee can have a
+  // comment on an item they haven't answered. Colors are deliberately NOT
+  // written here — the template's own conditional formatting colors each date
+  // live (relative to the day the file is opened) once the date is a real
+  // number, which a fill baked in at export time could only contradict.
   jc427Writes.forEach(w => {
     const path = sheetPaths[w.sheetName];
     const doc = path && docs[path];
@@ -1465,17 +1433,70 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     const colNum = w.col + 1;
     const address = numToColLetters(colNum) + rowNum;
     const cellEl = getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, rowNum), address, colNum);
-    if (w.style && stylesDoc) {
-      const baseStyleIndex = parseInt(cellEl.getAttribute("s"), 10) || 0;
-      const newXfIndex = ensureHighlightCellXf(stylesDoc, baseStyleIndex, highlightFillIds[w.style], highlightXfCache);
-      cellEl.setAttribute("s", String(newXfIndex));
+    if (w.serial != null) {
+      setNumericCellValue(doc, cellEl, w.serial);
+      (dateColsByPath[path] ??= new Set()).add(colNum);
+      cellsWritten++;
+    } else if (w.value) {
+      setInlineStringValue(doc, cellEl, w.value);
+      cellsWritten++;
     }
-    setInlineStringValue(doc, cellEl, w.value);
-    cellsWritten++;
     if (w.note) {
       (notesBySheet[w.sheetName] ??= []).push({ address, text: w.note });
     }
   });
+
+  // The JC 427 template sizes employee columns C–E at 11.57 but F–L at 10.14,
+  // too narrow for a 12pt mm/dd/yyyy date — as a real date (not text) it
+  // shows as ##### there. Widen any column that got a date to the template's
+  // own C–E width. The sheets print fit-to-width, so this only nudges the
+  // print scale; the page count doesn't change.
+  const MIN_DATE_COL_WIDTH = 11.5703125;
+  for (const [path, cols] of Object.entries(dateColsByPath)) {
+    const colEls = docs[path].getElementsByTagName("col");
+    for (let i = 0; i < colEls.length; i++) {
+      const el = colEls[i];
+      const min = parseInt(el.getAttribute("min"), 10), max = parseInt(el.getAttribute("max"), 10);
+      const width = parseFloat(el.getAttribute("width"));
+      const hitsDateCol = [...cols].some(c => c >= min && c <= max);
+      if (hitsDateCol && !(width >= MIN_DATE_COL_WIDTH)) {
+        el.setAttribute("width", String(MIN_DATE_COL_WIDTH));
+        el.setAttribute("customWidth", "1");
+        el.removeAttribute("bestFit");
+      }
+    }
+  }
+
+  // The template's "Total" column is =COUNTIF(C10:L10,"N") with a cached 0.
+  // Excel trusts cached results from a file saved by the same calc engine, so
+  // without this the totals (and the Comments highlight keyed off them) stay 0
+  // however many N's were just written. fullCalcOnLoad makes Excel recompute
+  // every formula when the file opens. Excel honors that flag; LibreOffice
+  // and some viewers don't, and keep showing the cached 0 — so the stale
+  // cached results are also dropped from every formula cell on the sheets we
+  // wrote, which leaves those apps nothing to show but a freshly computed one.
+  if (jc427Writes.length > 0) {
+    const jc427Paths = new Set(jc427Writes.map(w => sheetPaths[w.sheetName]).filter(Boolean));
+    jc427Paths.forEach(path => {
+      const doc = docs[path];
+      if (!doc) return;
+      const formulas = doc.getElementsByTagName("f");
+      for (let i = 0; i < formulas.length; i++) {
+        const cellEl = formulas[i].parentNode;
+        const cached = cellEl.getElementsByTagName("v");
+        for (let j = cached.length - 1; j >= 0; j--) cellEl.removeChild(cached[j]);
+      }
+    });
+
+    const wbPath = "xl/workbook.xml";
+    const wbDoc = parser.parseFromString(await zip.file(wbPath).async("string"), "application/xml");
+    assertParsedOk(wbDoc, wbPath);
+    const calcPr = wbDoc.getElementsByTagName("calcPr")[0];
+    if (calcPr) {
+      calcPr.setAttribute("fullCalcOnLoad", "1");
+      zip.file(wbPath, serializer.serializeToString(wbDoc));
+    }
+  }
 
   for (const [sheetName, notes] of Object.entries(notesBySheet)) {
     const path = sheetPaths[sheetName];
@@ -1489,10 +1510,6 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     const xml = serialized.startsWith("<?xml") ? serialized : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${serialized}`;
     zip.file(path, xml);
   });
-
-  if (stylesDoc) {
-    zip.file("xl/styles.xml", serializer.serializeToString(stylesDoc));
-  }
 
   let sheetsWritten = Object.keys(docs).length;
   if (personnelResponseRows.length > 0) {
@@ -1623,20 +1640,21 @@ async function writeTrendData(visitId, meta, locations, sections, states, commen
     });
 
     // JC 427 — "No" answers, plus expired/expiring-soon competency dates
-    // (real 3-year/6-month ruleset, unlike OP 541T's FDA dates).
+    // (the template's own ruleset, unlike OP 541T's FDA dates).
+    const jc427Notes = migrateJC427Comments(jc427Comments, jc427Slots, jc427Items, jc427Answers, jc427Dates);
     jc427Items.forEach(item => {
       jc427Slots.forEach(slot => {
-        const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+        const key = jc427Key(item.id, slot);
         const who = slot.name || `Employee (col ${slot.col})`;
+        const comment = jc427Comment(jc427Notes, item.id, slot);
         if (item.answerType === "yn") {
           if (jc427Answers[key] === "no") {
-            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: item.text, comment: jc427Comments[item.id] || "", visitType: "jc427" });
+            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: item.text, comment, visitType: "jc427" });
           }
         } else {
-          const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+          const status = getJC427ExpirationStatus(jc427Dates[key], item.id);
           if (status === "red" || status === "yellow") {
-            const label = status === "red" ? "EXPIRED" : "Expires within 6 months";
-            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: `${item.text} — ${label}`, comment: jc427Comments[item.id] || "", visitType: "jc427" });
+            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: `${item.text} — ${jc427FindingSuffix(status)}`, comment, visitType: "jc427" });
           }
         }
       });
@@ -1779,8 +1797,6 @@ const JC427_ALL_ITEMS = [
   ...JC427_CLINICAL_COMPETENCIES.items.map(it => ({ ...it, category: JC427_CLINICAL_COMPETENCIES.category, sheetBanner: JC427_CLINICAL_COMPETENCIES.sheetBanner, answerType: "date" })),
 ];
 
-const JC427_CATEGORY_ORDER = ["Onboarding Documents", "Training", "Performance Review", "Medical Record", "Non-Clinical Competency Assessments", "Clinical Competency Assessments"];
-
 // Reference-only instructions, shown in a modal — ported verbatim.
 const JC427_INSTRUCTIONS = [
   { title: "Welcome to Rotech (Okay to Hire) Email (applicable to employees hired after 2017)", body: "Must have a copy of \"Okay to hire\" email. Check LCM and AM email.\n\nIf email cannot be located:\n- Check ICIMS\n- Search by Requisition the employee was hired under\n- Email (may have to go to \"More\")\n- Shares (these are emails that have been sent to hiring managers)\n- Look for \"Cleared for hire\" or \"Welcome\" email - print email for employee file\n\nIf email cannot be located in ICIMS, answer \"N\"." },
@@ -1804,24 +1820,9 @@ const JC427_INSTRUCTIONS = [
   { title: "File Requirements", body: "ALL employees MUST have a Personnel file and a SEPARATE Medical File.\nEmployees transfilling or curbside filling liquid oxygen MUST have a SEPARATE FDA File." },
 ];
 
-// Competency/date items are valid for 3 years from the entered date, with a
-// 6-month "expiring soon" warning window — ported from the Semi Annual app's
-// getExpirationStatus. Returns null (no date entered), "red" (expired),
-// "yellow" (expiring within 6 months), or "green" (current).
-function getJC427ExpirationStatus(dateStr) {
-  if (!dateStr) return null;
-  const entered = new Date(`${dateStr}T00:00:00`);
-  if (isNaN(entered.getTime())) return null;
-  const expiration = new Date(entered);
-  expiration.setFullYear(expiration.getFullYear() + 3);
-  const warningStart = new Date(expiration);
-  warningStart.setMonth(warningStart.getMonth() - 6);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (today > expiration) return "red";
-  if (today >= warningStart) return "yellow";
-  return "green";
-}
+// Date rules (getJC427ExpirationStatus and friends) live in ./jc427.js — they
+// mirror the template's own conditional formatting: 3 years with a 12-month
+// warning band, except N95 fit testing, which is annual.
 
 // Parses the real JC 427 "PERSONNEL RECORDS REVIEW" sheet by locating known
 // label/category text rather than hardcoded row numbers — row positions
@@ -1851,6 +1852,23 @@ function parseJC427Sheet(rows, sheetName) {
   }
   if (employeeNameRow === -1 || totalCol === -1) {
     return { ok: false, slots: [], items: [] };
+  }
+
+  // Visit header cells above the employee block: "Location #:" and
+  // "City/State:" labels sit in A (merged A:B) with the value cell starting at
+  // C (merged C:L); "Date:" and "Reviewer:" labels sit in a later column with
+  // the value immediately to their right.
+  const headerCells = {};
+  for (let r = 0; r < employeeNameRow; r++) {
+    const row = rows[r] || [];
+    const a = norm(row[0]);
+    if (a.startsWith("location") && !headerCells.location) headerCells.location = { rowIdx: r, col: 2 };
+    if (a.startsWith("city") && !headerCells.city) headerCells.city = { rowIdx: r, col: 2 };
+    for (let c = 1; c < row.length; c++) {
+      const v = norm(row[c]);
+      if (v === "date:" && !headerCells.date) headerCells.date = { rowIdx: r, col: c + 1 };
+      if (v === "reviewer:" && !headerCells.reviewer) headerCells.reviewer = { rowIdx: r, col: c + 1 };
+    }
   }
 
   // Column A is the item label, column B is a blank bordered spacer (no
@@ -1891,54 +1909,76 @@ function parseJC427Sheet(rows, sheetName) {
     });
   });
 
-  return { ok: true, slots, items, employeeNameRow, jobTitleRow, hireDateRow, commentsCol, employeeCols };
+  return { ok: true, slots, items, employeeNameRow, jobTitleRow, hireDateRow, commentsCol, employeeCols, headerCells };
 }
 
 // Builds the flat list of cell writes for JC 427 — mirrors buildVehicleWrites/
-// the old personnel write-back: Name/Job Title/Hire Date per slot's column,
-// each item's answer (Y/N/N/A, or a date string) per (item, employee), and
-// each item's comment (shared across employees, one Comments column per row).
-// Competency/date answers additionally carry a `style` ("red"/"yellow"/null)
-// baked in from getJC427ExpirationStatus at export time — a snapshot of what
-// the specialist saw color-coded in the app during this visit, not a live
-// formula (dates are stored as plain text, and this app has been burned by
-// conditional-formatting complexity before). Any answer cell whose item has
-// a comment also carries a `note` — the same shared comment text as a native
-// Excel cell note (red-corner hover), in addition to the plain-text Comments
-// column write below.
-function buildJC427Writes(slots, items, answers, dates, comments, meta) {
+// the old personnel write-back:
+//   • the visit header (Location #, City/State, Date, Reviewer) on every page
+//     that has employees, plus the first page;
+//   • Name / Job Title / Hire Date in each employee's column;
+//   • each (item, employee) answer: Y / N / NA as text (NA, not N/A, because
+//     that is the value in the template's own dropdown), or a date as a real
+//     Excel date serial so the template's conditional formatting colors it;
+//   • each employee's OWN comment as a native cell note (red-corner hover) on
+//     that employee's cell only;
+//   • the row's Comments column: the template's existing guidance text for
+//     that row (e.g. "Requires certificate only"), then one "Name: comment"
+//     line per employee on that page who left one.
+function buildJC427Writes(slots, items, answers, dates, comments, meta, visitMeta = {}) {
   const writes = [];
   const sheetNames = [...new Set(slots.map(s => s.sheetName))];
+  const nameOf = slot => employeeLabel(slot, slots.indexOf(slot));
+
+  const header = meta.headerCells || {};
+  const lawson = visitMeta.lawson && visitMeta.lawson !== "other" ? visitMeta.lawson : "";
+  const headerValues = {
+    location: [lawson, visitMeta.location].filter(Boolean).join(" — "),
+    city: visitMeta.city || "",
+    date: visitMeta.date || "",
+    reviewer: visitMeta.specialist || "",
+  };
+  const headerSheets = [...new Set([...(meta.sheetNames || []).slice(0, 1), ...sheetNames])];
+  headerSheets.forEach(sheetName => {
+    Object.entries(headerValues).forEach(([field, value]) => {
+      const cell = header[field];
+      if (cell && value) writes.push({ sheetName, rowIdx: cell.rowIdx, col: cell.col, value });
+    });
+  });
 
   slots.forEach(slot => {
     if (slot.name) writes.push({ sheetName: slot.sheetName, rowIdx: meta.employeeNameRow, col: slot.col, value: slot.name });
     if (slot.jobTitle && meta.jobTitleRow != null) writes.push({ sheetName: slot.sheetName, rowIdx: meta.jobTitleRow, col: slot.col, value: slot.jobTitle });
-    if (slot.hireDate && meta.hireDateRow != null) writes.push({ sheetName: slot.sheetName, rowIdx: meta.hireDateRow, col: slot.col, value: slot.hireDate });
+    if (slot.hireDate && meta.hireDateRow != null) {
+      const serial = excelSerialFromUsDate(slot.hireDate);
+      writes.push({ sheetName: slot.sheetName, rowIdx: meta.hireDateRow, col: slot.col, value: slot.hireDate, serial });
+    }
   });
 
   items.forEach(item => {
-    const commentVal = (comments[item.id] || "").trim();
     slots.forEach(slot => {
-      const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+      const key = jc427Key(item.id, slot);
+      const note = jc427Comment(comments, item.id, slot) || null;
+      let value = "", serial = null;
       if (item.answerType === "yn") {
         const val = answers[key];
-        const text = val === "yes" ? "Y" : val === "no" ? "N" : val === "na" ? "N/A" : "";
-        if (text) writes.push({ sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: text, note: commentVal || null });
+        value = val === "yes" ? "Y" : val === "no" ? "N" : val === "na" ? "NA" : "";
       } else {
-        const val = (dates[key] || "").trim();
-        if (val) {
-          const status = getJC427ExpirationStatus(usDateToIso(val));
-          writes.push({
-            sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: val,
-            style: (status === "red" || status === "yellow") ? status : null,
-            note: commentVal || null,
-          });
-        }
+        value = String(dates[key] || "").trim();
+        serial = excelSerialFromUsDate(value);
       }
+      if (value || note) writes.push({ sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value, serial, note });
     });
-    if (commentVal && meta.commentsCol != null) {
+
+    if (meta.commentsCol != null) {
       sheetNames.forEach(sheetName => {
-        writes.push({ sheetName, rowIdx: item.rowIdx, col: meta.commentsCol, value: commentVal });
+        const lines = slots
+          .filter(s => s.sheetName === sheetName)
+          .map(s => { const c = jc427Comment(comments, item.id, s); return c ? `${nameOf(s)}: ${c}` : null; })
+          .filter(Boolean);
+        if (lines.length === 0) return;
+        const guidance = String(item.comment || "").trim();
+        writes.push({ sheetName, rowIdx: item.rowIdx, col: meta.commentsCol, value: [guidance, ...lines].filter(Boolean).join("\n") });
       });
     }
   });
@@ -3027,15 +3067,16 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
 }
 
 // Card-per-employee layout for JC 427, ported from the Semi Annual app's
-// JC427Form.jsx (see the constants above it). Date items get the same
-// 3-year/6-month-warning red/yellow/green coloring that app uses; per-item
-// comments are shared across employees (one Comments column per row in the
-// real file, same convention as OP 541T's Personnel Records).
+// JC427Form.jsx (see the constants above it). Date items get the template's
+// own red/yellow/green rules (see ./jc427.js). Comments are per employee:
+// each card's comment box belongs to that employee alone, and on export it
+// becomes a note on that employee's cell plus a "Name: comment" line in the
+// row's Comments column.
 const JC427_STATUS_BG     = { red: T.errorBg, yellow: "#fff9c4", green: T.successBg };
 const JC427_STATUS_BORDER = { red: T.errorBorder, yellow: "#fff59d", green: T.successBorder };
 
-function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments, onAddEmployee, onRemoveEmployee, onUpdateSlot, canAddEmployee }) {
-  const slotId = s => `${s.sheetName}|${s.col}`;
+function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments, onAddEmployee, onRemoveEmployee, onUpdateSlot, canAddEmployee, onViewReport }) {
+  const slotId = jc427SlotId;
   const groups = JC427_CATEGORY_ORDER
     .map(cat => ({ cat, items: items.filter(it => it.category === cat) }))
     .filter(g => g.items.length > 0);
@@ -3089,7 +3130,7 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
                 {catItems.map(item => {
                   const key = `${item.id}|${sid}`;
                   const dateVal = dates[key] || "";
-                  const status = item.answerType === "date" ? getJC427ExpirationStatus(usDateToIso(dateVal)) : null;
+                  const status = item.answerType === "date" ? getJC427ExpirationStatus(dateVal, item.id) : null;
                   return (
                     <div key={item.id} style={{ padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -3124,10 +3165,11 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
                         )}
                       </div>
                       <textarea
-                        value={comments[item.id] ?? ""}
-                        onChange={e => setComments(p => ({ ...p, [item.id]: e.target.value }))}
+                        value={comments[key] ?? ""}
+                        onChange={e => setComments(p => ({ ...p, [key]: e.target.value }))}
                         rows={1}
-                        placeholder="Comments (added as a note on each employee's cell for this item)…"
+                        aria-label={`Comment for ${s.name || `Employee ${idx + 1}`}: ${item.text}`}
+                        placeholder={`Comment for ${s.name || `Employee ${idx + 1}`} only…`}
                         style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: `1px solid ${T.gray200}`, borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: T.ink }}
                       />
                     </div>
@@ -3145,6 +3187,17 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
         style={{ width: "100%", padding: "10px", border: `2px dashed ${canAddEmployee ? BRAND : "#c0c0c0"}`, borderRadius: 6, background: "none", color: canAddEmployee ? BRAND : "#c0c0c0", fontWeight: 700, cursor: canAddEmployee ? "pointer" : "not-allowed" }}>
         + Add Employee
       </button>
+
+      {slots.length > 0 && (
+        <div style={{ marginTop: 20, padding: "16px 18px", background: T.blue50, border: `1px solid ${T.blueBorder}`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 13, color: T.gray700, flex: "1 1 260px" }}>
+            <strong style={{ color: T.ink }}>Finished reviewing?</strong> Open the visual report for this review: findings by employee, upcoming expirations and a color-coded grid, ready to print or download.
+          </div>
+          <button onClick={onViewReport} style={{ ...btnPrimary, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon name="file-text" size={15} />Complete Review &amp; View Report
+          </button>
+        </div>
+      )}
 
       {showInstructions && (
         <div onClick={() => setShowInstructions(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300, padding: 16 }}>
@@ -3406,6 +3459,9 @@ function SurveyPrepApp() {
     };
   }, [showMoreActions]);
   const [reportLines, setReportLines] = useState([]);
+  // Rendered JC 427 visual report — its outerHTML is what "Download HTML
+  // report" saves (see downloadJC427ReportHtml).
+  const jc427ReportRef = useRef(null);
   const [hasDraft, setHasDraft] = useState(!!draft);
   const [savedAt, setSavedAt] = useState(draft?.savedAt ?? null);
   const [savedVisits, setSavedVisits] = useState(loadVisits);
@@ -3556,7 +3612,10 @@ function SurveyPrepApp() {
   const [jc427Items, setJc427Items] = useState(() => draft?.jc427Items ?? []);
   const [jc427Answers, setJc427Answers] = useState(() => draft?.jc427Answers ?? {});
   const [jc427Dates, setJc427Dates] = useState(() => draft?.jc427Dates ?? {});
-  const [jc427Comments, setJc427Comments] = useState(() => draft?.jc427Comments ?? {});
+  // Per-employee (item|sheet|col). Drafts from before that change held one
+  // comment per item shared by everyone; migrateJC427Comments moves those.
+  const [jc427Comments, setJc427Comments] = useState(() => migrateJC427Comments(
+    draft?.jc427Comments ?? {}, draft?.jc427Slots ?? [], draft?.jc427Items ?? [], draft?.jc427Answers ?? {}, draft?.jc427Dates ?? {}));
   // Sheet names (in order) that actually carry Personnel Records slots in
   // the template — the real file has a main sheet plus "Additional Page"
   // overflow sheets (2/3/4), each offering 10 more employee columns, same
@@ -3595,9 +3654,12 @@ function SurveyPrepApp() {
         }
         setJc427Items(prev => prev.length > 0 ? prev : firstParsed.items);
         setJc427SheetNames(prev => prev.length > 0 ? prev : foundSheetNames);
-        setJc427Meta(prev => prev || {
+        // headerCells is filled in even on a restored draft: it was added
+        // after drafts started persisting jc427Meta, and the template it
+        // describes is the same static file either way.
+        setJc427Meta(prev => prev ? { ...prev, headerCells: prev.headerCells || firstParsed.headerCells } : {
           employeeNameRow: firstParsed.employeeNameRow, jobTitleRow: firstParsed.jobTitleRow, hireDateRow: firstParsed.hireDateRow,
-          commentsCol: firstParsed.commentsCol, employeeCols: firstParsed.employeeCols,
+          commentsCol: firstParsed.commentsCol, employeeCols: firstParsed.employeeCols, headerCells: firstParsed.headerCells,
         });
         setJc427TemplateStatus("ready");
       })
@@ -3685,11 +3747,11 @@ function SurveyPrepApp() {
     let no = 0, expired = 0, expiring = 0;
     jc427Items.forEach(item => {
       jc427Slots.forEach(slot => {
-        const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+        const key = jc427Key(item.id, slot);
         if (item.answerType === "yn") {
           if (jc427Answers[key] === "no") no++;
         } else {
-          const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+          const status = getJC427ExpirationStatus(jc427Dates[key], item.id);
           if (status === "red") expired++;
           else if (status === "yellow") expiring++;
         }
@@ -4192,6 +4254,11 @@ function SurveyPrepApp() {
       Object.keys(next).forEach(k => { if (k.endsWith(`|${sid}`)) delete next[k]; });
       return next;
     });
+    setJc427Comments(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => { if (k.endsWith(`|${sid}`)) delete next[k]; });
+      return next;
+    });
   }
 
   function updateJC427Slot(sheetName, col, field, value) {
@@ -4210,7 +4277,7 @@ function SurveyPrepApp() {
     try {
       const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(
         jc427BufferBytes, [], {}, {}, [], [],
-        buildJC427Writes(jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427Meta)
+        buildJC427Writes(jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, { ...jc427Meta, sheetNames: jc427SheetNames }, meta)
       );
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
@@ -4417,7 +4484,7 @@ function SurveyPrepApp() {
     setJc427Slots(visit.jc427Slots ?? []);
     setJc427Answers(visit.jc427Answers ?? {});
     setJc427Dates(visit.jc427Dates ?? {});
-    setJc427Comments(visit.jc427Comments ?? {});
+    setJc427Comments(migrateJC427Comments(visit.jc427Comments ?? {}, visit.jc427Slots ?? [], visit.jc427Items ?? jc427Items, visit.jc427Answers ?? {}, visit.jc427Dates ?? {}));
     setTabComments(visit.tabComments ?? { pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
     setTabPatientInfo(visit.tabPatientInfo ?? { pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments(visit.additionalComments ?? "");
@@ -4797,6 +4864,30 @@ function SurveyPrepApp() {
     setView("form");
     window.scrollTo({ top: 0 });
   }
+  // JC 427 visual report — its own view rather than part of the Visit
+  // Overview, so printing it prints only this report.
+  function goJC427Report() {
+    setView("jc427report");
+    window.scrollTo({ top: 0 });
+  }
+  function printJC427Report() {
+    // Same filename trick as exportPDF: browsers suggest document.title as
+    // the "Save as PDF" name.
+    const loc = meta.location || "Unknown Location";
+    const dateStr = (meta.date || "").replace(/\//g, "-");
+    const prevTitle = document.title;
+    document.title = `${loc} - JC 427 Personnel Records Report${dateStr ? ` - ${dateStr}` : ""}`;
+    const restoreTitle = () => { document.title = prevTitle; window.removeEventListener("afterprint", restoreTitle); };
+    window.addEventListener("afterprint", restoreTitle);
+    window.print();
+    setTimeout(restoreTitle, 5000);
+  }
+  function downloadJC427Report() {
+    if (!downloadJC427ReportHtml(jc427ReportRef.current, meta)) {
+      alert("The report hasn't finished rendering yet — try again in a moment.");
+    }
+  }
+
   function goReport() {
     generateReport();
     setView("report");
@@ -6007,11 +6098,20 @@ function SurveyPrepApp() {
                 <div>
                   <div style={{ padding: "10px 24px", background: T.gray50, borderBottom: `1px solid ${T.gray200}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                     <span style={{ fontSize: 13, color: T.gray500 }}>{jc427Items.length} of {JC427_ALL_ITEMS.length} items recognized</span>
-                    <button
-                      onClick={exportUpdatedJC427}
-                      style={{ fontSize: 13, padding: "5px 12px", background: T.success, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
-                      ⬇ Export Updated JC 427
-                    </button>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        onClick={goJC427Report}
+                        disabled={jc427Slots.length === 0}
+                        title={jc427Slots.length === 0 ? "Add at least one employee first" : undefined}
+                        style={{ fontSize: 13, padding: "5px 12px", background: T.white, color: T.blue600, border: `1.5px solid ${T.blue600}`, borderRadius: 5, cursor: jc427Slots.length === 0 ? "not-allowed" : "pointer", fontWeight: 600, opacity: jc427Slots.length === 0 ? 0.5 : 1 }}>
+                        View Report
+                      </button>
+                      <button
+                        onClick={exportUpdatedJC427}
+                        style={{ fontSize: 13, padding: "5px 12px", background: T.success, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                        ⬇ Export Updated JC 427
+                      </button>
+                    </div>
                   </div>
                   <div style={{ padding: "16px 24px" }}>
                     {jc427Items.length === 0 ? (
@@ -6031,6 +6131,7 @@ function SurveyPrepApp() {
                         onAddEmployee={addJC427Employee}
                         onRemoveEmployee={removeJC427Employee}
                         onUpdateSlot={updateJC427Slot}
+                        onViewReport={goJC427Report}
                         canAddEmployee={!!jc427Meta && jc427Slots.length < jc427SheetNames.length * jc427Meta.employeeCols.length}
                       />
                     )}
@@ -6064,6 +6165,35 @@ function SurveyPrepApp() {
           {isRosterTab && <LocationRoster locations={locations} onReload={reloadLocations} />}
 
           {isReadinessTab && <ReadinessDashboard />}
+        </div>
+      )}
+
+      {/* JC 427 VISUAL REPORT — opened from the JC 427 tab ("Complete Review
+          & View Report"). Separate from the Visit Overview below, which
+          doesn't cover JC 427. */}
+      {view === "jc427report" && (
+        <div className="jc427-report-view" style={{ maxWidth: WIDTH_REPORT, margin: "0 auto", padding: "24px 16px 80px" }}>
+          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+            <button onClick={() => goTab(TAB.jc427)} style={{ ...btnOutline, display: "flex", alignItems: "center", gap: 6 }}>
+              ← Back to JC 427
+            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={exportUpdatedJC427} style={{ ...btnPrimary, background: T.success }}>
+                Export Excel
+              </button>
+              <button onClick={downloadJC427Report} style={{ ...btnOutline, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="download" size={14} />Download HTML Report
+              </button>
+              <button onClick={printJC427Report} style={{ ...btnPrimary, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="printer" size={14} />Print / Save as PDF
+              </button>
+            </div>
+          </div>
+          <JC427Report
+            rootRef={jc427ReportRef}
+            slots={jc427Slots} items={jc427Items} answers={jc427Answers} dates={jc427Dates} comments={jc427Comments}
+            meta={meta}
+          />
         </div>
       )}
 
@@ -6367,6 +6497,7 @@ function SurveyPrepApp() {
       <style>{`
         @media print {
           .no-print { display: none !important; }
+          .jc427-report-view { padding: 0 !important; }
           #report-print-area { display: block !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           textarea { border: 1px solid #ccc !important; }

@@ -18,7 +18,7 @@ import { BINDERS as AFTER_VISIT_BINDERS } from "./AfterVisitEmail";
 import JC427Report, { downloadJC427ReportHtml } from "./JC427Report";
 import {
   JC427_CATEGORY_ORDER, getJC427ExpirationStatus, jc427FindingSuffix, excelSerialFromUsDate,
-  jc427Key, jc427SlotId, jc427Comment, migrateJC427Comments, employeeLabel,
+  jc427Key, jc427SlotId, jc427Comment, migrateJC427Comments, employeeLabel, jc427DateInfo,
 } from "./jc427";
 
 // What the assessment module is called in the nav, on its dashboard card, and
@@ -3066,27 +3066,170 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
   );
 }
 
-// Card-per-employee layout for JC 427, ported from the Semi Annual app's
-// JC427Form.jsx (see the constants above it). Date items get the template's
-// own red/yellow/green rules (see ./jc427.js). Comments are per employee:
-// each card's comment box belongs to that employee alone, and on export it
-// becomes a note on that employee's cell plus a "Name: comment" line in the
-// row's Comments column.
+// JC 427 entry layout: one employee card open at a time. Inside it, the 15
+// required records are a compact two-column Y / N / N/A checklist, and each
+// competency category (20 non-clinical, 24 clinical — mostly blank for any
+// one employee) is its own collapsible list, collapsed until opened. The old
+// layout listed all 59 items with a comment box under each for every
+// employee, so ten employees meant roughly 600 rows of scrolling.
+//
+// Item content is ported from the Semi Annual app's JC427Form.jsx (see the
+// constants above it). Date items get the template's own red/yellow/green
+// rules (./jc427.js). Comments are per employee and stay behind each row's
+// note button until there is one; on export a comment becomes a note on that
+// employee's cell plus a "Name: comment" line in the row's Comments column.
 const JC427_STATUS_BG     = { red: T.errorBg, yellow: "#fff9c4", green: T.successBg };
-const JC427_STATUS_BORDER = { red: T.errorBorder, yellow: "#fff59d", green: T.successBorder };
+const JC427_STATUS_BORDER = { red: T.errorBorder, yellow: "#e8a317", green: T.successBorder };
+const JC427_STATUS_PILL   = {
+  red:    { fg: T.error,   bg: T.errorBg,   border: T.errorBorder,   word: "Expired" },
+  yellow: { fg: "#8a5300", bg: "#fff4cc",   border: "#e8a317",       word: "Expires" },
+  green:  { fg: T.success, bg: T.successBg, border: T.successBorder, word: "Valid to" },
+};
+const JC427_COMPETENCY_CATEGORIES = ["Non-Clinical Competency Assessments", "Clinical Competency Assessments"];
+
+function JC427Chevron({ open }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.gray600} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ flexShrink: 0, transform: `rotate(${open ? 90 : 0}deg)`, transition: "transform .15s" }}>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+function JC427Pill({ fg, bg, border, children }) {
+  return (
+    <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 9px", borderRadius: T.radiusPill, color: fg, background: bg, border: `1px solid ${border || bg}`, whiteSpace: "nowrap" }}>
+      {children}
+    </span>
+  );
+}
+
+// One answerable line: the item (with its guidance text), the answer control
+// (Y / N / N/A, or a date), and a note button. The employee's comment shows
+// under the row once it exists; the text box only opens on demand.
+// statusBelow puts a date's status under the label (the narrow two-column
+// checklist) instead of beside the date field (the full-width competency lists).
+function JC427Row({ item, who, answer, onAnswer, date, onDate, comment, onComment, noteOpen, onToggleNote, statusBelow }) {
+  const info = item.answerType === "date" ? jc427DateInfo(date, item.id) : null;
+  const pill = info ? JC427_STATUS_PILL[info.status] : null;
+  const statusText = info ? `${pill.word} ${info.expires}` : "";
+  const hasNote = !!String(comment || "").trim();
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 0", borderBottom: `1px solid ${T.gray100}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, color: T.ink, lineHeight: 1.3 }}>{item.text}</div>
+          {item.note && <div style={{ fontSize: 11.5, color: T.gray500, marginTop: 1 }}>{item.note}</div>}
+          {statusBelow && info && <div style={{ fontSize: 11.5, fontWeight: 700, color: pill.fg, marginTop: 1 }}>{statusText}</div>}
+        </div>
+        {item.answerType === "yn" ? (
+          <div role="group" aria-label={`${item.text}, ${who}`} style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+            {["yes", "no", "na"].map(v => {
+              const sc = STATUS_COLORS[v];
+              const active = answer === v;
+              return (
+                <button key={v} type="button" onClick={() => onAnswer(v)} aria-label={sc.aria} aria-pressed={active}
+                  style={{ minWidth: 44, height: 38, padding: "0 8px", fontSize: 12.5, fontWeight: 700, borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit",
+                    border: `1.5px solid ${active ? sc.border : T.gray200}`, background: active ? sc.bg : T.white, color: active ? sc.text : T.gray500 }}>
+                  {sc.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {!statusBelow && info && <JC427Pill fg={pill.fg} bg={pill.bg} border={pill.border}>{statusText}</JC427Pill>}
+            <input
+              type="date"
+              aria-label={`${item.text} date for ${who}`}
+              value={usDateToIso(date || "")}
+              onChange={e => onDate(isoToUsDate(e.target.value))}
+              style={{ height: 38, padding: "0 8px", fontSize: 13, borderRadius: T.radius, boxSizing: "border-box", color: T.ink, fontFamily: "inherit",
+                border: `1.5px solid ${info ? JC427_STATUS_BORDER[info.status] : T.gray300}`, background: info ? JC427_STATUS_BG[info.status] : T.white }}
+            />
+          </div>
+        )}
+        <button type="button" onClick={onToggleNote} aria-expanded={noteOpen} title={hasNote ? "Edit note" : "Add note"}
+          aria-label={`${hasNote ? "Edit" : "Add"} note for ${who}: ${item.text}`}
+          style={{ position: "relative", flexShrink: 0, width: 38, height: 38, display: "inline-flex", alignItems: "center", justifyContent: "center",
+            background: T.white, border: `1px solid ${T.gray200}`, borderRadius: T.radius, cursor: "pointer", color: hasNote ? T.blue600 : T.gray500 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+          </svg>
+          {hasNote && <span aria-hidden="true" style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: T.radiusPill, background: T.blue600 }} />}
+        </button>
+      </div>
+      {hasNote && !noteOpen && (
+        <div style={{ fontSize: 12.5, color: T.gray700, background: T.blue50, borderRadius: 6, padding: "5px 9px", whiteSpace: "pre-wrap" }}>{comment}</div>
+      )}
+      {noteOpen && (
+        <textarea
+          autoFocus
+          value={comment || ""}
+          onChange={e => onComment(e.target.value)}
+          rows={2}
+          aria-label={`Note for ${who}: ${item.text}`}
+          placeholder={`Note for ${who} only`}
+          style={{ width: "100%", boxSizing: "border-box", padding: "7px 9px", fontSize: 13, fontFamily: "inherit", border: `1.5px solid ${T.blue600}`, borderRadius: T.radius, resize: "vertical", color: T.ink }}
+        />
+      )}
+    </div>
+  );
+}
 
 function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments, onAddEmployee, onRemoveEmployee, onUpdateSlot, canAddEmployee, onViewReport }) {
-  const slotId = jc427SlotId;
-  const groups = JC427_CATEGORY_ORDER
+  const [showInstructions, setShowInstructions] = useState(false);
+  // The one open card. null = not chosen yet (open the first), "" = the
+  // specialist closed every card themselves (leave them closed).
+  const [openSid, setOpenSid] = useState(null);
+  const [openLists, setOpenLists] = useState({}); // `${sid}|${category}` -> true; competency lists start collapsed
+  const [noteKey, setNoteKey] = useState(null);
+  const slotCount = useRef(slots.length);
+
+  useEffect(() => {
+    const prev = slotCount.current;
+    slotCount.current = slots.length;
+    // A single new employee from "+ Add Employee": open their card.
+    if (slots.length === prev + 1) { setOpenSid(jc427SlotId(slots[slots.length - 1])); return; }
+    // First load, or the open employee was removed: fall back to the first card.
+    if (openSid === null || (openSid && !slots.some(s => jc427SlotId(s) === openSid))) {
+      setOpenSid(slots[0] ? jc427SlotId(slots[0]) : null);
+    }
+    // openSid is read, not watched: this reacts to the employee list changing only.
+  }, [slots]);
+
+  const requiredItems = JC427_CATEGORY_ORDER
+    .filter(cat => !JC427_COMPETENCY_CATEGORIES.includes(cat))
+    .flatMap(cat => items.filter(it => it.category === cat));
+  const ynRequired = requiredItems.filter(it => it.answerType === "yn");
+  const competencyGroups = JC427_COMPETENCY_CATEGORIES
     .map(cat => ({ cat, items: items.filter(it => it.category === cat) }))
     .filter(g => g.items.length > 0);
-  const [showInstructions, setShowInstructions] = useState(false);
 
-  const fieldStyle = { width: "100%", fontSize: 13, padding: "6px 8px", border: `1px solid ${T.gray200}`, borderRadius: 4, boxSizing: "border-box", color: T.ink };
-  const labelStyle = { fontSize: 11, color: T.gray600, marginBottom: 4, fontWeight: 600 };
+  const needsText = n => `${n} need${n === 1 ? "s" : ""} attention`;
+  const isFlagged = (it, key) => {
+    if (it.answerType === "yn") return answers[key] === "no";
+    const st = getJC427ExpirationStatus(dates[key], it.id);
+    return st === "red" || st === "yellow";
+  };
+
+  const labelStyle = { display: "block", fontSize: 11.5, fontWeight: 700, color: T.gray600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 };
+  const fieldStyle = { width: "100%", height: 40, padding: "0 10px", fontSize: 14, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, boxSizing: "border-box", color: T.ink, fontFamily: "inherit", background: T.white };
+  const sectionTitle = { margin: 0, fontSize: 13, fontWeight: 700, color: T.blue600, textTransform: "uppercase", letterSpacing: "0.06em" };
+
+  const rowProps = (it, s, who) => {
+    const key = jc427Key(it.id, s);
+    return {
+      item: it, who,
+      answer: answers[key], onAnswer: v => setAnswers(p => ({ ...p, [key]: v })),
+      date: dates[key] || "", onDate: v => setDates(p => ({ ...p, [key]: v })),
+      comment: comments[key] ?? "", onComment: v => setComments(p => ({ ...p, [key]: v })),
+      noteOpen: noteKey === key, onToggleNote: () => setNoteKey(k => (k === key ? null : key)),
+    };
+  };
 
   return (
-    <div style={{ marginTop: 24 }}>
+    <div style={{ margin: "24px auto 0", maxWidth: 1100 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 12, borderRadius: 6 }}>
         <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: "0.04em" }}>JC 427 — Personnel Records Review</div>
         <button onClick={() => setShowInstructions(true)} style={{ fontSize: 11, background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 5, padding: "4px 10px", cursor: "pointer" }}>
@@ -3098,93 +3241,130 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
         ALL employees MUST have a Personnel File and a SEPARATE Medical File. Employees transfilling or curbside filling liquid oxygen MUST have a SEPARATE FDA File.
       </div>
 
+      {slots.length === 0 && (
+        <div style={{ padding: "28px 16px", textAlign: "center", color: T.gray600, fontSize: 14, background: T.white, border: `1px solid ${T.gray200}`, borderRadius: 12, marginBottom: 12 }}>
+          No employees yet. Add the first employee to start the review.
+        </div>
+      )}
+
       {slots.map((s, idx) => {
-        const sid = slotId(s);
+        const sid = jc427SlotId(s);
+        const open = openSid === sid;
+        const who = employeeLabel(s, idx);
+        let answered = 0, issues = 0, dated = 0;
+        ynRequired.forEach(it => { if (answers[jc427Key(it.id, s)]) answered++; });
+        items.forEach(it => {
+          const key = jc427Key(it.id, s);
+          if (isFlagged(it, key)) issues++;
+          if (it.answerType === "date" && dates[key] && JC427_COMPETENCY_CATEGORIES.includes(it.category)) dated++;
+        });
+        const complete = ynRequired.length > 0 && answered === ynRequired.length;
+        const sub = [s.jobTitle, s.hireDate && `Hired ${s.hireDate}`].filter(Boolean).join(" · ") || "Add a job title and hire date";
         return (
-          <div key={sid} style={{ border: `2px solid ${BRAND}`, borderRadius: 8, padding: 16, marginBottom: 16, background: "#fff" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontWeight: 700, color: BRAND, fontSize: 14 }}>Employee {idx + 1}{s.name ? `: ${s.name}` : ""}</div>
-              <button onClick={() => onRemoveEmployee(s)} style={{ fontSize: 11, color: T.error, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                Remove
-              </button>
-            </div>
+          <section key={sid} style={{ background: T.white, borderRadius: 12, overflow: "hidden", border: `1.5px solid ${open ? T.blue600 : T.gray200}`, marginBottom: 12 }}>
+            <button type="button" aria-expanded={open} onClick={() => { setOpenSid(open ? "" : sid); setNoteKey(null); }}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", minHeight: 64, padding: "12px 18px", background: open ? T.blue50 : T.white, border: 0, cursor: "pointer", textAlign: "left", color: T.ink, fontFamily: "inherit" }}>
+              <JC427Chevron open={open} />
+              <span style={{ flex: "1 1 180px", minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 15.5, fontWeight: 700 }}>{who}</span>
+                <span style={{ display: "block", fontSize: 12.5, color: T.gray600 }}>{sub}</span>
+              </span>
+              <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {complete
+                  ? <JC427Pill fg={T.success} bg={T.successBg}>✓ Required records complete</JC427Pill>
+                  : <JC427Pill fg={T.gray700} bg={T.gray100}>{answered} of {ynRequired.length} Y/N answered</JC427Pill>}
+                <JC427Pill fg={T.gray700} bg={T.gray100}>{dated} {dated === 1 ? "competency" : "competencies"} dated</JC427Pill>
+                {issues > 0 && <JC427Pill fg={T.error} bg={T.errorBg} border={T.errorBorder}>{needsText(issues)}</JC427Pill>}
+              </span>
+            </button>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-              <label style={{ flex: "2 1 220px" }}>
-                <div style={labelStyle}>Name</div>
-                <input value={s.name} onChange={e => onUpdateSlot(s.sheetName, s.col, "name", e.target.value)} style={fieldStyle} />
-              </label>
-              <label style={{ flex: "2 1 220px" }}>
-                <div style={labelStyle}>Job Title</div>
-                <input value={s.jobTitle} onChange={e => onUpdateSlot(s.sheetName, s.col, "jobTitle", e.target.value)} style={fieldStyle} />
-              </label>
-              <label style={{ flex: "1 1 160px" }}>
-                <div style={labelStyle}>Hire Date</div>
-                <input value={s.hireDate} onChange={e => onUpdateSlot(s.sheetName, s.col, "hireDate", e.target.value)} placeholder="MM/DD/YYYY" style={fieldStyle} />
-              </label>
-            </div>
+            {open && (
+              <div style={{ borderTop: `1px solid ${T.gray200}`, padding: "16px 18px 18px", display: "flex", flexDirection: "column", gap: 18 }}>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <label style={{ flex: "2 1 200px" }}>
+                    <span style={labelStyle}>Name</span>
+                    <input value={s.name} onChange={e => onUpdateSlot(s.sheetName, s.col, "name", e.target.value)} style={fieldStyle} />
+                  </label>
+                  <label style={{ flex: "1 1 150px" }}>
+                    <span style={labelStyle}>Job Title</span>
+                    <input value={s.jobTitle} onChange={e => onUpdateSlot(s.sheetName, s.col, "jobTitle", e.target.value)} style={fieldStyle} />
+                  </label>
+                  <label style={{ flex: "1 1 150px" }}>
+                    <span style={labelStyle}>Hire Date</span>
+                    <input value={s.hireDate} onChange={e => onUpdateSlot(s.sheetName, s.col, "hireDate", e.target.value)} placeholder="MM/DD/YYYY" style={fieldStyle} />
+                  </label>
+                  <button type="button"
+                    onClick={() => { if (window.confirm(`Remove ${who} and all of their JC 427 answers?`)) onRemoveEmployee(s); }}
+                    style={{ height: 40, padding: "0 12px", fontSize: 13, fontWeight: 600, color: T.error, background: T.white, border: `1.5px solid ${T.errorBorder}`, borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit" }}>
+                    Remove employee
+                  </button>
+                </div>
 
-            {groups.map(({ cat, items: catItems }) => (
-              <div key={cat} style={{ background: T.successBg, border: "1px solid #c8e6c9", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, color: T.success, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{cat}</div>
-                {catItems.map(item => {
-                  const key = `${item.id}|${sid}`;
-                  const dateVal = dates[key] || "";
-                  const status = item.answerType === "date" ? getJC427ExpirationStatus(dateVal, item.id) : null;
-                  return (
-                    <div key={item.id} style={{ padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                        <div style={{ fontSize: 12, color: T.ink, flex: 1 }}>
-                          {item.text}
-                          {item.note && <div style={{ fontSize: 10, color: T.gray500, fontStyle: "italic", marginTop: 2 }}>{item.note}</div>}
-                        </div>
-                        {item.answerType === "yn" ? (
-                          <div style={{ display: "flex", gap: 4 }}>
-                            {["yes", "no", "na"].map(v => {
-                              const sc = STATUS_COLORS[v];
-                              const active = answers[key] === v;
-                              return (
-                                <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))} aria-label={sc.aria} aria-pressed={active}
-                                  style={{ width: 40, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 6, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${active ? sc.border : T.gray200}`, background: active ? sc.bg : T.white, color: active ? sc.text : T.gray400 }}>
-                                  {sc.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <input
-                            type="date"
-                            value={usDateToIso(dateVal)}
-                            onChange={e => setDates(p => ({ ...p, [key]: isoToUsDate(e.target.value) }))}
-                            style={{
-                              fontSize: 12, padding: "4px 6px", borderRadius: 4, boxSizing: "border-box", color: T.ink,
-                              border: `1px solid ${status ? JC427_STATUS_BORDER[status] : T.gray200}`,
-                              background: status ? JC427_STATUS_BG[status] : "#fff",
-                            }}
-                          />
-                        )}
-                      </div>
-                      <textarea
-                        value={comments[key] ?? ""}
-                        onChange={e => setComments(p => ({ ...p, [key]: e.target.value }))}
-                        rows={1}
-                        aria-label={`Comment for ${s.name || `Employee ${idx + 1}`}: ${item.text}`}
-                        placeholder={`Comment for ${s.name || `Employee ${idx + 1}`} only…`}
-                        style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: `1px solid ${T.gray200}`, borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: T.ink }}
-                      />
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                    <div>
+                      <h3 style={sectionTitle}>Required records</h3>
+                      <div style={{ fontSize: 12.5, color: T.gray600 }}>{answered} of {ynRequired.length} Y/N answered</div>
                     </div>
-                  );
-                })}
+                    <button type="button"
+                      onClick={() => setAnswers(p => {
+                        const next = { ...p };
+                        ynRequired.forEach(it => { const k = jc427Key(it.id, s); if (!next[k]) next[k] = "yes"; });
+                        return next;
+                      })}
+                      style={{ height: 40, padding: "0 14px", fontSize: 13, fontWeight: 600, color: T.success, background: T.successBg, border: `1.5px solid ${T.successBorder}`, borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit" }}>
+                      Mark unanswered as Yes
+                    </button>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))", columnGap: 24 }}>
+                    {requiredItems.map(it => <JC427Row key={it.id} {...rowProps(it, s, who)} statusBelow />)}
+                  </div>
+                </div>
+
+                {competencyGroups.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div>
+                      <h3 style={sectionTitle}>Competency assessments</h3>
+                      <div style={{ fontSize: 12.5, color: T.gray600 }}>Date only. Leave a competency blank if it doesn't apply to this employee.</div>
+                    </div>
+                    {competencyGroups.map(g => {
+                      const listKey = `${sid}|${g.cat}`;
+                      const listOpen = !!openLists[listKey];
+                      let gDated = 0, gIssues = 0;
+                      g.items.forEach(it => {
+                        const key = jc427Key(it.id, s);
+                        if (dates[key]) gDated++;
+                        if (isFlagged(it, key)) gIssues++;
+                      });
+                      return (
+                        <div key={g.cat} style={{ border: `1px solid ${T.gray200}`, borderRadius: 10, overflow: "hidden" }}>
+                          <button type="button" aria-expanded={listOpen} onClick={() => setOpenLists(p => ({ ...p, [listKey]: !p[listKey] }))}
+                            style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", minHeight: 52, padding: "10px 14px", background: T.white, border: 0, cursor: "pointer", textAlign: "left", color: T.ink, fontFamily: "inherit" }}>
+                            <JC427Chevron open={listOpen} />
+                            <span style={{ flex: "1 1 200px", fontSize: 14.5, fontWeight: 700 }}>{g.cat}</span>
+                            <span style={{ fontSize: 13, color: T.gray600 }}>{g.items.length} competencies · {gDated} dated</span>
+                            {gIssues > 0 && <JC427Pill fg={T.error} bg={T.errorBg} border={T.errorBorder}>{needsText(gIssues)}</JC427Pill>}
+                          </button>
+                          {listOpen && (
+                            <div style={{ borderTop: `1px solid ${T.gray200}`, padding: "0 14px" }}>
+                              {g.items.map(it => <JC427Row key={it.id} {...rowProps(it, s, who)} />)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
+            )}
+          </section>
         );
       })}
 
       <button
         onClick={onAddEmployee}
         disabled={!canAddEmployee}
-        style={{ width: "100%", padding: "10px", border: `2px dashed ${canAddEmployee ? BRAND : "#c0c0c0"}`, borderRadius: 6, background: "none", color: canAddEmployee ? BRAND : "#c0c0c0", fontWeight: 700, cursor: canAddEmployee ? "pointer" : "not-allowed" }}>
+        style={{ width: "100%", minHeight: 52, padding: "10px", border: `2px dashed ${canAddEmployee ? BRAND : "#c0c0c0"}`, borderRadius: 12, background: "none", color: canAddEmployee ? BRAND : "#c0c0c0", fontWeight: 700, fontSize: 14, cursor: canAddEmployee ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
         + Add Employee
       </button>
 

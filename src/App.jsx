@@ -1522,6 +1522,28 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
   return { buffer, cellsWritten, sheetsWritten };
 }
 
+// "Change file" on the OP 541 / OP 541T tabs replaces the tab's question list
+// and the file used for export, so a workbook that isn't that form has to be
+// turned away before any of that state is touched. The likeliest wrong pick is
+// the JC 427 export — it downloads into the same folder as the OP 541, named
+// for the same location and date. Taken as an OP 541 it parsed to zero
+// questions, which blanked the tab and cleared its answers in this browser
+// (the cloud copy survived only because mergeVisitForWrite never lets an empty
+// local list replace a remote one). The laxer OP 541T parser instead turned
+// the JC 427 Instructions sheet into 14 bogus questions.
+// Returns the text to alert for a rejected file, or null if it can be used.
+function wrongOp541FileMessage(wb, fileName, formName, itemCount) {
+  const kept = `Nothing on this tab was changed — your ${formName} answers are still here.`;
+  const retry = `Use "Change file" again and pick the ${formName} file the location filled out.`;
+  if (wb.SheetNames.some(n => /JC\s*-?\s*427/i.test(n))) {
+    return `"${fileName}" is a JC 427 file, not an ${formName}. JC 427 is filled in on the JC 427 tab, which has the form built in — it never needs uploading.\n\n${kept}\n\n${retry}`;
+  }
+  if (itemCount === 0) {
+    return `"${fileName}" doesn't look like an ${formName} — no ${formName} questions were found in it.\n\n${kept}\n\n${retry}`;
+  }
+  return null;
+}
+
 // Parses "Personnel Records" / "Additional Personnel Records" sheets — a
 // fundamentally different shape from every other OP 541T sheet: employees are
 // COLUMNS (C-L, 0-indexed 2-11; up to 10 per sheet) rather than rows.
@@ -4035,7 +4057,6 @@ function SurveyPrepApp() {
   async function handleOp541Upload(file) {
     try {
       const buf = await file.arrayBuffer();
-      setOp541BufferBytes(new Uint8Array(buf)); // store for write-back export
       const wb = XLSX.read(buf, { type: "array" });
       const allSections = [];
       const skippedSheets = [];
@@ -4112,6 +4133,11 @@ function SurveyPrepApp() {
         }
       }
 
+      const itemCount = allSections.reduce((n, sec) => n + sec.items.length, 0);
+      const rejection = wrongOp541FileMessage(wb, file.name, "OP 541", itemCount);
+      if (rejection) { alert(rejection); return; }
+
+      setOp541BufferBytes(new Uint8Array(buf)); // store for write-back export
       setOp541Sections(allSections);
       // Re-uploading the same file (e.g. after loading a visit synced from
       // another device, where the original file bytes aren't available) must
@@ -4252,7 +4278,6 @@ function SurveyPrepApp() {
   async function handleOp541tUpload(file) {
     try {
       const buf = await file.arrayBuffer();
-      setOp541tBufferBytes(new Uint8Array(buf)); // store for write-back export
       const wb = XLSX.read(buf, { type: "array" });
       const allSections = [];
       const skippedSheets = [];
@@ -4342,6 +4367,11 @@ function SurveyPrepApp() {
       // Remove empty sections
       const filtered = allSections.filter(s => s.items.length > 0);
 
+      const itemCount = filtered.reduce((n, sec) => n + sec.items.length, 0) + (parsedPersonnelItems?.length || 0);
+      const rejection = wrongOp541FileMessage(wb, file.name, "OP 541T", itemCount);
+      if (rejection) { alert(rejection); return; }
+
+      setOp541tBufferBytes(new Uint8Array(buf)); // store for write-back export
       setOp541tSections(filtered);
       // Re-uploading the same file (e.g. after loading a visit synced from
       // another device, where the original file bytes aren't available) must
@@ -5935,7 +5965,11 @@ function SurveyPrepApp() {
           {/* OP 541 tab content */}
           {isOp541Tab && (
             <div>
-              {!op541FileName ? (
+              {/* No questions means nothing to show — offer the upload again
+                  rather than an empty page. A file name with no sections is the
+                  state a wrong-file upload left behind before the guard in
+                  handleOp541Upload existed, and it persists in the local draft. */}
+              {!op541FileName || op541Sections.length === 0 ? (
                 <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray600 }}>
                   <div style={{ fontSize: 38, marginBottom: 12 }}>📂</div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>Upload the OP 541 Spreadsheet</div>
@@ -5944,7 +5978,7 @@ function SurveyPrepApp() {
                   </div>
                   <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 15, fontWeight: 600 }}>
                     Choose .xlsx File
-                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
+                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; e.target.value = ""; if (f) handleOp541Upload(f); }} />
                   </label>
                 </div>
               ) : (
@@ -5967,7 +6001,7 @@ function SurveyPrepApp() {
                       </button>
                       <label style={{ fontSize: 13, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
                         Change file
-                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
+                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; e.target.value = ""; if (f) handleOp541Upload(f); }} />
                       </label>
                     </div>
                   </div>
@@ -6110,7 +6144,7 @@ function SurveyPrepApp() {
                   </div>
                   <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 15, fontWeight: 600 }}>
                     Choose .xlsx File
-                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
+                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; e.target.value = ""; if (f) handleOp541tUpload(f); }} />
                   </label>
                 </div>
               ) : (
@@ -6132,7 +6166,7 @@ function SurveyPrepApp() {
                       </button>
                       <label style={{ fontSize: 13, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
                         Change file
-                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
+                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; e.target.value = ""; if (f) handleOp541tUpload(f); }} />
                       </label>
                     </div>
                   </div>

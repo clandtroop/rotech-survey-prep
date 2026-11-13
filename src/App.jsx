@@ -915,6 +915,14 @@ function checklistUrlFor(visitId) {
   return url.toString();
 }
 
+// The Follow-Up Call email's lookup: the checklist link for the visit an
+// uploaded tracker came from (it carries the visit id), or "" when that visit
+// never had one generated. Rejects when Firestore can't be reached.
+async function findChecklistUrl(visitId) {
+  const snap = await getDoc(doc(db, CHECKLISTS_COLLECTION, visitId));
+  return snap.exists() ? checklistUrlFor(visitId) : "";
+}
+
 // What a checklist doc's items have to match for it to be current: the same
 // findings, in the same groups. Comments are left out — rewording one is not
 // worth telling the specialist to regenerate.
@@ -4631,10 +4639,12 @@ function SurveyPrepApp() {
     return { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo, personnelSlots, personnelItems, personnelAnswers, personnelComments, jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments };
   }
 
+  // Resolves once the attempt is over (an error has already been alerted), so
+  // a caller can re-check for the checklist afterwards.
   function generateChecklistLink() {
-    if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return; }
+    if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return Promise.resolve(); }
     setChecklistLinkLoading(true);
-    ensureChecklistDoc(checklistVisitData(), currentVisitId)
+    return ensureChecklistDoc(checklistVisitData(), currentVisitId)
       .then(url => { setChecklistLink(url); setChecklistRev(r => r + 1); })
       .catch(() => alert("Couldn't create the checklist. Check your internet connection and try again."))
       .finally(() => setChecklistLinkLoading(false));
@@ -5553,7 +5563,15 @@ function SurveyPrepApp() {
 
       {/* EMAILS — After Visit (from the open visit) and Follow-Up Call (from an
           uploaded tracker). Composed for Outlook; nothing is sent. */}
-      {view === "followup" && <Emails afterVisit={afterVisitEmailProps()} />}
+      {view === "followup" && (
+        <Emails afterVisit={afterVisitEmailProps()}
+          followUp={{
+            findChecklist: findChecklistUrl,
+            openVisitId: currentVisitId,
+            generating: checklistLinkLoading,
+            onGenerate: generateChecklistLink,
+          }} />
+      )}
 
       {/* FORM VIEW */}
       {view === "form" && (

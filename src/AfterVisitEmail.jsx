@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline } from "./theme";
-import { clean, esc, paragraphsHtml, infoGridHtml, signatureHtml, EmailOutputCard } from "./emailKit";
+import {
+  clean, esc, paragraphsHtml, infoGridHtml, signatureHtml, EmailOutputCard,
+  findingText, TextBlock, FindingRow, CustomRow, AddCustomButton, PickerCategory, AddCategoryRow,
+  linkBtn, smallBtn, checkbox,
+} from "./emailKit";
 
 // ─── AFTER VISIT EMAIL ───────────────────────────────────────────────────────
 // The email the location manager receives right after the on-site visit: a
@@ -15,7 +19,7 @@ import { clean, esc, paragraphsHtml, infoGridHtml, signatureHtml, EmailOutputCar
 // checklist text reads as a requirement ("…current and complete"), and the
 // email wants a finding.
 //
-// Unlike the Follow-Up Call email, this one keeps state: the picks, rewritten
+// Unlike the Follow-Up Call email, this one saves its draft: the picks, rewritten
 // wording, custom items and paragraph edits live on the visit document
 // (visit.afterVisitEmail) so they survive leaving the screen, reopening the
 // visit, or picking it up on another device. Like the other emails it is never
@@ -66,8 +70,7 @@ function normalizeDraft(raw) {
   };
 }
 
-const defaultItemText = f => [f.prefix, f.text, f.comment].map(clean).filter(Boolean).join(" — ");
-const itemText = (f, d) => (Object.prototype.hasOwnProperty.call(d.edits, f.id) ? d.edits[f.id] : defaultItemText(f));
+const itemText = (f, d) => (Object.prototype.hasOwnProperty.call(d.edits, f.id) ? d.edits[f.id] : findingText(f));
 
 // "the Glen Burnie team" rather than "the Rotech team": most locations share a
 // trading name, so the city is what tells them apart (the same reason Issue
@@ -244,14 +247,8 @@ function buildEmailHtml({ meta, blocks, txt, attach, signature, totals, checklis
 }
 
 // ─── screen ──────────────────────────────────────────────────────────────────
-
-const linkBtn = {
-  background: "none", border: "none", padding: 0, color: T.blue600, fontSize: 12.5,
-  fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-};
-const smallBtn = { ...btnOutline, padding: "4px 10px", fontSize: 12 };
-const checkbox = { marginTop: 2, width: 16, height: 16, flexShrink: 0, accentColor: T.blue600, cursor: "pointer" };
-const textareaStyle = { ...metaField, fontSize: 13.5, lineHeight: 1.45, resize: "vertical", minHeight: 44 };
+// The picker's rows, text blocks and category headers come from emailKit,
+// shared with the Follow-Up Call email.
 
 function Segmented({ value, options, onChange, label }) {
   return (
@@ -266,61 +263,6 @@ function Segmented({ value, options, onChange, label }) {
           {text}
         </button>
       ))}
-    </div>
-  );
-}
-
-function TextBlock({ id, label, value, overridden, onChange, onReset, rows = 3, hint }) {
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-        <label htmlFor={id} style={metaLabel}>{label}</label>
-        {overridden && <button onClick={onReset} style={linkBtn}>Reset to default</button>}
-      </div>
-      <textarea id={id} rows={rows} value={value} onChange={e => onChange(e.target.value)} style={textareaStyle} />
-      {hint && <div style={{ fontSize: 12, color: T.gray500, marginTop: 4 }}>{hint}</div>}
-    </div>
-  );
-}
-
-function FindingRow({ f, checked, value, edited, onToggle, onEdit, onReset }) {
-  const id = `av-${f.id}`;
-  return (
-    <div style={{
-      padding: "8px 10px", borderRadius: T.radius,
-      background: checked ? T.blue50 : "transparent", border: `1px solid ${checked ? "#c5d9ef" : "transparent"}`,
-    }}>
-      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
-        <input type="checkbox" checked={checked} onChange={onToggle} style={checkbox} />
-        <span style={{ fontSize: 13.5, color: T.ink, lineHeight: 1.45 }}>
-          {f.prefix && <b>{f.prefix} — </b>}
-          {f.text}
-          {f.comment && <span style={{ color: T.gray600 }}> — {f.comment}</span>}
-          {f.source && <span style={{ display: "block", fontSize: 11.5, color: T.gray500, marginTop: 1 }}>{f.source}</span>}
-        </span>
-      </label>
-      {checked && (
-        <div style={{ marginLeft: 26, marginTop: 6 }}>
-          <textarea id={id} aria-label="Wording in the email" rows={2} value={value}
-            onChange={e => onEdit(e.target.value)} style={textareaStyle} />
-          {edited && <button onClick={onReset} style={{ ...linkBtn, marginTop: 3 }}>Reset wording</button>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CustomRow({ item, autoFocus, onChange, onRemove }) {
-  return (
-    <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 10px", borderRadius: T.radius, background: T.blue50, border: "1px solid #c5d9ef" }}>
-      <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: T.blue600, marginTop: 9, minWidth: 44 }}>Custom</span>
-      <textarea aria-label="Custom item wording" rows={2} value={item.text} autoFocus={autoFocus}
-        placeholder="Describe the finding as it should read in the email"
-        onChange={e => onChange(e.target.value)} style={{ ...textareaStyle, flex: 1 }} />
-      <button onClick={onRemove} aria-label="Remove custom item" title="Remove"
-        style={{ ...linkBtn, color: T.gray500, marginTop: 8 }}>
-        <Icon name="x" size={16} />
-      </button>
     </div>
   );
 }
@@ -416,7 +358,7 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
     return { ...x, picked };
   });
   const setEdit = (f, value) => update(x => ({
-    ...x, edits: value === defaultItemText(f) ? without(x.edits, f.id) : { ...x.edits, [f.id]: value },
+    ...x, edits: value === findingText(f) ? without(x.edits, f.id) : { ...x.edits, [f.id]: value },
   }));
   const resetEdit = id => update(x => ({ ...x, edits: without(x.edits, id) }));
   // An edit that lands back on the default drops the override, so the text
@@ -498,35 +440,28 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
       ? (d.binderParagraph ? "paragraph included" : "paragraph not included")
       : `${pickedHere + cat.custom.filter(c => clean(c.text)).length} of ${cat.findings.length + cat.custom.length} in email`;
 
-    return (
-      <div key={cat.name} style={{ borderTop: `1px solid ${T.gray200}`, padding: "10px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={() => setCollapsed(c => ({ ...c, [cat.name]: open }))} aria-expanded={open}
-            style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: "4px 0", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-            <Icon name={open ? "chevron-down" : "chevron-right"} size={16} style={{ color: T.gray500 }} />
-            <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: T.blue800 }}>{cat.name}</span>
-            <span style={{ fontSize: 12, color: T.gray500, fontWeight: 600 }}>· {countLabel}</span>
-          </button>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            {isBinders && (
-              <Segmented label="How binder findings appear" value={d.binderMode}
-                options={[["paragraph", "Paragraph"], ["list", "List items"]]}
-                onChange={v => update(x => ({ ...x, binderMode: v }))} />
-            )}
-            {!paragraphMode && ids.length > 1 && (
-              <>
-                <button onClick={() => setPicks(ids, true)} style={smallBtn}>All</button>
-                <button onClick={() => setPicks(ids, false)} style={smallBtn}>None</button>
-              </>
-            )}
-            {isCustomCategory && (
-              <button onClick={() => removeCategory(cat.name)} style={{ ...smallBtn, color: T.error, borderColor: T.errorBorder }}>Remove category</button>
-            )}
-          </div>
-        </div>
+    const actions = (
+      <>
+        {isBinders && (
+          <Segmented label="How binder findings appear" value={d.binderMode}
+            options={[["paragraph", "Paragraph"], ["list", "List items"]]}
+            onChange={v => update(x => ({ ...x, binderMode: v }))} />
+        )}
+        {!paragraphMode && ids.length > 1 && (
+          <>
+            <button onClick={() => setPicks(ids, true)} style={smallBtn}>All</button>
+            <button onClick={() => setPicks(ids, false)} style={smallBtn}>None</button>
+          </>
+        )}
+        {isCustomCategory && (
+          <button onClick={() => removeCategory(cat.name)} style={{ ...smallBtn, color: T.error, borderColor: T.errorBorder }}>Remove category</button>
+        )}
+      </>
+    );
 
-        {open && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+    return (
+      <PickerCategory key={cat.name} name={cat.name} countLabel={countLabel} open={open}
+        onToggle={() => setCollapsed(c => ({ ...c, [cat.name]: open }))} actions={actions}>
             {paragraphMode ? (
               <>
                 <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13.5, color: T.ink, cursor: "pointer", padding: "4px 10px" }}>
@@ -564,16 +499,10 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
                   <CustomRow key={c.id} item={c} autoFocus={c.id === focusId}
                     onChange={v => setCustom(c.id, v)} onRemove={() => removeCustom(c.id)} />
                 ))}
-                <div style={{ padding: "4px 10px" }}>
-                  <button onClick={() => addCustom(cat.name)} style={{ ...linkBtn, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <Icon name="plus" size={14} /> Add custom item
-                  </button>
-                </div>
+                <AddCustomButton onClick={() => addCustom(cat.name)} />
               </>
             )}
-          </div>
-        )}
-      </div>
+      </PickerCategory>
     );
   };
 
@@ -602,16 +531,7 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
 
         <div style={{ marginTop: 14 }}>
           {categories.map(renderCategory)}
-          <div style={{ borderTop: `1px solid ${T.gray200}`, paddingTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <input aria-label="New category name" placeholder="New category, e.g. Signage" value={newCategory}
-              onChange={e => setNewCategory(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
-              style={{ ...metaField, width: 260, fontSize: 13.5, padding: "7px 10px" }} />
-            <button onClick={addCategory} disabled={!canAddCategory}
-              style={{ ...smallBtn, padding: "7px 12px", opacity: canAddCategory ? 1 : 0.5, cursor: canAddCategory ? "pointer" : "default" }}>
-              Add category
-            </button>
-          </div>
+          <AddCategoryRow value={newCategory} onChange={setNewCategory} onAdd={addCategory} canAdd={!!canAddCategory} />
         </div>
       </div>
 
@@ -622,15 +542,10 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
         {/* The opening is written here, not in Outlook: editing pasted HTML
             there is what knocks the formatting out of shape. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-              <label htmlFor="av-text-salutation" style={metaLabel}>Salutation</label>
-              {has(d.text, "salutation") && <button onClick={() => resetText("salutation")} style={linkBtn}>Reset to default</button>}
-            </div>
-            <input id="av-text-salutation" style={metaField} value={txt("salutation")} placeholder="e.g. Good afternoon Sarah,"
-              onChange={e => setText("salutation", e.target.value)} />
-            <div style={{ fontSize: 12, color: T.gray500, marginTop: 4 }}>Add the manager's name, e.g. "Good afternoon Sarah,". Clear it to start straight with the greeting.</div>
-          </div>
+          <TextBlock id="av-text-salutation" label="Salutation" multiline={false} value={txt("salutation")}
+            placeholder="e.g. Good afternoon Sarah," overridden={has(d.text, "salutation")}
+            onChange={v => setText("salutation", v)} onReset={() => resetText("salutation")}
+            hint={`Add the manager's name, e.g. "Good afternoon Sarah,". Clear it to start straight with the greeting.`} />
           {textBlock("greeting", "Greeting", 3,
             has(d.text, "greeting") ? undefined : "Uses the visit's city so it reads naturally when the location is just \"Rotech\".")}
         </div>

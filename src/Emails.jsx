@@ -25,7 +25,7 @@ function loadMode() {
   catch { return "afterVisit"; }
 }
 
-export default function Emails({ afterVisit }) {
+export default function Emails({ afterVisit, followUp }) {
   const [mode, setModeState] = useState(loadMode);
   const [signature, setSignatureState] = useState(loadSignature);
 
@@ -58,7 +58,7 @@ export default function Emails({ afterVisit }) {
 
       {mode === "afterVisit"
         ? <AfterVisitEmail {...afterVisit} signature={signature} setSignature={setSignature} />
-        : <FollowUpEmail signature={signature} setSignature={setSignature} />}
+        : <FollowUpEmail {...followUp} signature={signature} setSignature={setSignature} />}
     </div>
   );
 }

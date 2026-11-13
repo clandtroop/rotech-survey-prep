@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { T, cardStyle, btnPrimary, btnOutline } from "./theme";
+import { T, cardStyle, Icon, metaLabel, metaField, btnPrimary, btnOutline } from "./theme";
 
 // ─── SHARED EMAIL PLUMBING ───────────────────────────────────────────────────
 // The After Visit email and the Follow-Up Call email are both composed here in
 // the app and handed to the specialist's own Outlook by copy and paste — never
 // sent by the application. This module holds what the two have in common: the
-// HTML escaping, the signature card, the remembered cell/email, and the
-// preview-and-copy card.
+// HTML escaping, the signature card, the remembered cell/email, the finding
+// picker's pieces, and the preview-and-copy card.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const clean = s => String(s ?? "").replace(/\s+/g, " ").trim();
@@ -79,6 +79,124 @@ export function signatureHtml({ name, phone, email }) {
     ${clean(email) ? `<div style="font-size:13.5px;font-weight:700;color:#9ec2ff;margin-top:2px;">Email: ${esc(email)}</div>` : ""}
     <div style="font-size:13.5px;font-weight:700;font-style:italic;margin-top:14px;"><span style="color:#e7a7ff;">Accreditation = </span><span style="color:#ffcc00;">$$$</span><span style="color:#5ec18b;"> For Services Rendered</span></div>
   </div>`;
+}
+
+// ─── finding picker ──────────────────────────────────────────────────────────
+// Both emails let the specialist choose which findings are listed, reword each
+// one, add their own items and categories, and rewrite any paragraph. These
+// are the controls they share; each email keeps its own draft shape.
+
+export const linkBtn = {
+  background: "none", border: "none", padding: 0, color: T.blue600, fontSize: 12.5,
+  fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+};
+export const smallBtn = { ...btnOutline, padding: "4px 10px", fontSize: 12 };
+export const checkbox = { marginTop: 2, width: 16, height: 16, flexShrink: 0, accentColor: T.blue600, cursor: "pointer" };
+const textareaStyle = { ...metaField, fontSize: 13.5, lineHeight: 1.45, resize: "vertical", minHeight: 44 };
+
+// A finding's wording in the email until the specialist rewrites it.
+export const findingText = f => [f.prefix, f.text, f.comment].map(clean).filter(Boolean).join(" — ");
+
+// One editable paragraph (or, with multiline off, one line) of an email, with
+// a reset that only shows once it differs from the default.
+export function TextBlock({ id, label, value, overridden, onChange, onReset, rows = 3, hint, multiline = true, placeholder }) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+        <label htmlFor={id} style={metaLabel}>{label}</label>
+        {overridden && <button onClick={onReset} style={linkBtn}>Reset to default</button>}
+      </div>
+      {multiline
+        ? <textarea id={id} rows={rows} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} style={textareaStyle} />
+        : <input id={id} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} style={metaField} />}
+      {hint && <div style={{ fontSize: 12, color: T.gray500, marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
+}
+
+export function FindingRow({ f, checked, value, edited, onToggle, onEdit, onReset }) {
+  return (
+    <div style={{
+      padding: "8px 10px", borderRadius: T.radius,
+      background: checked ? T.blue50 : "transparent", border: `1px solid ${checked ? "#c5d9ef" : "transparent"}`,
+    }}>
+      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+        <input type="checkbox" checked={checked} onChange={onToggle} style={checkbox} />
+        <span style={{ fontSize: 13.5, color: T.ink, lineHeight: 1.45 }}>
+          {f.prefix && <b>{f.prefix} — </b>}
+          {f.text}
+          {f.comment && <span style={{ color: T.gray600 }}> — {f.comment}</span>}
+          {f.source && <span style={{ display: "block", fontSize: 11.5, color: T.gray500, marginTop: 1 }}>{f.source}</span>}
+        </span>
+      </label>
+      {checked && (
+        <div style={{ marginLeft: 26, marginTop: 6 }}>
+          <textarea aria-label="Wording in the email" rows={2} value={value}
+            onChange={e => onEdit(e.target.value)} style={textareaStyle} />
+          {edited && <button onClick={onReset} style={{ ...linkBtn, marginTop: 3 }}>Reset wording</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CustomRow({ item, autoFocus, onChange, onRemove }) {
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 10px", borderRadius: T.radius, background: T.blue50, border: "1px solid #c5d9ef" }}>
+      <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: T.blue600, marginTop: 9, minWidth: 44 }}>Custom</span>
+      <textarea aria-label="Custom item wording" rows={2} value={item.text} autoFocus={autoFocus}
+        placeholder="Describe the finding as it should read in the email"
+        onChange={e => onChange(e.target.value)} style={{ ...textareaStyle, flex: 1 }} />
+      <button onClick={onRemove} aria-label="Remove custom item" title="Remove"
+        style={{ ...linkBtn, color: T.gray500, marginTop: 8 }}>
+        <Icon name="x" size={16} />
+      </button>
+    </div>
+  );
+}
+
+export function AddCustomButton({ onClick }) {
+  return (
+    <div style={{ padding: "4px 10px" }}>
+      <button onClick={onClick} style={{ ...linkBtn, display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Icon name="plus" size={14} /> Add custom item
+      </button>
+    </div>
+  );
+}
+
+// A collapsible category in the picker: its name and count, any actions on
+// the right (All / None, Remove category, …), and its rows when open.
+export function PickerCategory({ name, countLabel, open, onToggle, actions, children }) {
+  return (
+    <div style={{ borderTop: `1px solid ${T.gray200}`, padding: "10px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <button onClick={onToggle} aria-expanded={open}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: "4px 0", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+          <Icon name={open ? "chevron-down" : "chevron-right"} size={16} style={{ color: T.gray500 }} />
+          <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: T.blue800 }}>{name}</span>
+          <span style={{ fontSize: 12, color: T.gray500, fontWeight: 600 }}>· {countLabel}</span>
+        </button>
+        {actions && <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>{actions}</div>}
+      </div>
+      {open && <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>{children}</div>}
+    </div>
+  );
+}
+
+export function AddCategoryRow({ value, onChange, onAdd, canAdd }) {
+  return (
+    <div style={{ borderTop: `1px solid ${T.gray200}`, paddingTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      <input aria-label="New category name" placeholder="New category, e.g. Signage" value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onAdd(); } }}
+        style={{ ...metaField, width: 260, fontSize: 13.5, padding: "7px 10px" }} />
+      <button onClick={onAdd} disabled={!canAdd}
+        style={{ ...smallBtn, padding: "7px 12px", opacity: canAdd ? 1 : 0.5, cursor: canAdd ? "pointer" : "default" }}>
+        Add category
+      </button>
+    </div>
+  );
 }
 
 // ─── copy / open ─────────────────────────────────────────────────────────────

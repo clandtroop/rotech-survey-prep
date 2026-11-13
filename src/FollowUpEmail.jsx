@@ -231,17 +231,26 @@ const itemText = (f, d) => (has(d.edits, f.id) ? d.edits[f.id] : findingText(f))
 // draft; a different visit's tracker starts a fresh one.
 const trackerKey = p => p.meta.visitId || p.meta.Location || "";
 
+// "Pending" is the manager's word, not a verification, so when anything is
+// only reported complete the all-clear says so rather than calling every item
+// verified and nothing further required.
 function defaultTexts(p, allClear) {
   const loc = p.meta.Location || "your location";
+  const n = p.reported;
+  const one = n === 1;
   return {
     salutation: "Hello,",
     greeting: `Thank you for taking the time to walk through ${loc} with me today — I appreciate you and your team making the call a priority.`,
     summaryIntro: "Below is a summary of where things stand following our call, based on the follow-up tracker we worked through together.",
     outstandingIntro: "Still outstanding — please close these out:",
-    allClear: "Every item from the visit has been corrected and verified. Nothing further is required from your team at this time.",
+    allClear: n
+      ? `Every item from the visit has been addressed. ${n} ${one ? "item was" : "items were"} reported complete and still ${one ? "needs" : "need"} to be verified — please keep the supporting documentation on hand so I can confirm ${one ? "it" : "them"}.`
+      : "Every item from the visit has been corrected and verified. Nothing further is required from your team at this time.",
     checklistNote: "Keep marking items off as you complete them.",
     encouragement: allClear
-      ? "This is excellent work. Your team turned these around quickly and thoroughly, which puts this location in a strong position going into the survey window."
+      ? n
+        ? "This is great progress. Your team has worked through every finding, and once the remaining items are verified this location will be in a strong position going into the survey window."
+        : "This is excellent work. Your team turned these around quickly and thoroughly, which puts this location in a strong position going into the survey window."
       : "None of the remaining items are difficult — they just need to be closed out before your survey window opens.",
     closing: allClear
       ? "As always, reach out any time if questions come up between now and your survey. I'm happy to help."
@@ -329,7 +338,7 @@ function buildEmailHtml({ p, blocks, allClear, txt, form, signature, checklistUr
       <div style="padding:18px 20px 20px;">${blocks.map((b, i) => blockHtml(b, i === blocks.length - 1)).join("")}</div>
     </div>` : allClear ? `
     <div style="background:#e8f5ee;border:1px solid #bfe3d0;border-radius:8px;padding:16px 20px;margin:20px 0;">
-      <div style="font-size:15px;font-weight:700;color:#1e7a4d;margin-bottom:2px;">&#10004; All findings closed out</div>
+      <div style="font-size:15px;font-weight:700;color:#1e7a4d;margin-bottom:2px;">&#10004; ${p.reported ? "Nothing left outstanding" : "All findings closed out"}</div>
       ${paragraphsHtml(txt("allClear")).map((t, i) => `<div style="font-size:13.5px;color:#24303d;${i ? "margin-top:8px;" : ""}">${t}</div>`).join("")}
     </div>` : "";
 

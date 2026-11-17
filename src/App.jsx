@@ -2090,7 +2090,7 @@ const SECTIONS = [
       { text: "RM 1233 Site Specific Information Sheet" },
       { text: "RM 1234 Hazard Communication Program Training Record (copy also in employee file)" },
       { text: "RM 1238 PPE Hazard Assessment Form (copy also in employee file)" },
-      { text: "SDS on file for every hazardous chemical stored or used at location" },
+      { text: "SDS on file for every hazardous chemical stored or used at location", note: "If location uses Rotech Transfill: Rotech O2 SDS (FDA 035 – Gas / FDA 036 – Liquid) must be in the binder" },
     ]
   },
   {
@@ -2306,6 +2306,23 @@ function ExpiredProductsPrompt({ status, onChange }) {
         {pill("submitted", "Form submitted")}
         {pill("notNeeded", "Not needed")}
       </div>
+    </div>
+  );
+}
+
+// ─── VEHICLE SDS: ROTECH O2 ──────────────────────────────────────────────────
+// Locations on Rotech Transfill must carry the Rotech O2 SDS (FDA 035 gas /
+// FDA 036 liquid) in the vehicle SDS binder. The vehicle SDS question comes
+// from the uploaded OP 541 / 541T sheet ("SDS present on vehicle …"), so it
+// can't be reworded here — the requirement shows as a note under it instead.
+// Matched on a vehicle sheet, or on wording that names the vehicle.
+const isVehicleSdsItem = (text, onVehicleSheet) =>
+  /\bSDS\b/i.test(String(text || "")) && (onVehicleSheet || /\bvehicles?\b/i.test(String(text || "")));
+
+function VehicleSdsNote() {
+  return (
+    <div style={{ marginTop: 6, padding: "6px 10px", fontSize: 12.5, lineHeight: 1.45, color: T.blue700, background: T.blue50, border: `1px solid ${T.blueBorder}`, borderRadius: 5 }}>
+      <strong>If location uses Rotech Transfill:</strong> Rotech O2 SDS (FDA 035 – Gas / FDA 036 – Liquid) must be in the vehicle SDS binder.
     </div>
   );
 }
@@ -6207,6 +6224,7 @@ function SurveyPrepApp() {
                                       {item.policy && <span style={{ fontSize: 12, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
                                       <span style={{ fontSize: 14, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
                                       {item.locComment && <div style={{ fontSize: 12, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
+                                      {isVehicleSdsItem(item.text, isVehicleSheet) && <VehicleSdsNote />}
                                     </div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                                       <span style={{
@@ -6376,6 +6394,7 @@ function SurveyPrepApp() {
                                       {item.policy && <span style={{ fontSize: 12, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
                                       <span style={{ fontSize: 14, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
                                       {item.locComment && <div style={{ fontSize: 12, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
+                                      {isVehicleSdsItem(item.text, isVehicleSheet) && <VehicleSdsNote />}
                                     </div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                                       <span style={{

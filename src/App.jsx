@@ -502,7 +502,7 @@ const VISIT_ANSWER_MAPS = [
   "op541States", "op541Comments", "op541tStates", "op541tComments",
   "personnelAnswers", "personnelDates", "personnelComments",
   "jc427Answers", "jc427Dates", "jc427Comments",
-  "op541VehicleInfo", "meta",
+  "op541VehicleInfo", "meta", "expiredFormStatus",
 ];
 // Maps of tab id -> a small object (or, for tabComments, a string), so they need
 // one more level of merging than the flat answer maps above.
@@ -2070,7 +2070,7 @@ const SECTIONS = [
       { text: "Tab 1 — Quarterly Don't Bug Me newsletter and OP 520 attendance record" },
       { text: "Tab 1 — OP 201 Organizational Chart"}, 
       { text:  "Policy 1.1.2 Scope of Service" },
-      { text: "Tab 1 — Key contact person name documented for surveyor tracer selection" },
+      { text: "Tab 1 — Key contact person documented on JC 436 for surveyor tracer selection" },
       { text: "Tab 2 — Emergency Preparedness: Policy 2.2.2" },
       { text:  "OP 525 Emergency Preparedness Plan" },
       { text: "OP 857- Emergency documentation & recovery (AS - APPLICABLE - IF PLAN ACTIVATED)" },
@@ -2250,6 +2250,64 @@ function initStates() {
     c[`${si}-${ii}`] = "";
   }));
   return { states: s, comments: c };
+}
+
+// ─── EXPIRED PRODUCTS FORM ───────────────────────────────────────────────────
+// Expired product found on a visit has to be reported on this Microsoft Form.
+// The questions that ask about it come from the uploaded OP 541 / 541T
+// spreadsheets rather than from SECTIONS, so they're recognised by wording
+// ("Expired products removed", "First aid kit without expired products",
+// "Eye wash … check for expiration", …).
+//
+// The form opens in a new tab rather than embedded: company-only Microsoft
+// Forms routinely fail to sign in inside an iframe (Safari/iPad above all),
+// and an embed wouldn't report its answers back to the app either. What the
+// app tracks is the specialist's own word, per finding, in expiredFormStatus:
+// "submitted", or "notNeeded" for an N that had nothing to do with expired
+// product (a first aid kit that's missing outright, say).
+const EXPIRED_PRODUCTS_FORM_URL = "https://forms.cloud.microsoft/r/kFwaiWmbF3";
+const isExpiredProductsItem = text => /\bexpir(ed|ation)\b/i.test(String(text || ""));
+const expiredFormKey = (tab, itemKey) => `${tab}:${itemKey}`;
+
+// The amber prompt under an expired-products question marked N, on the OP 541
+// and OP 541T tabs. `status` is "submitted" | "notNeeded" | blank (pending).
+function ExpiredProductsPrompt({ status, onChange }) {
+  const pill = (value, label) => {
+    const on = status === value;
+    return (
+      <button type="button" onClick={() => onChange(on ? "" : value)} aria-pressed={on}
+        style={{
+          padding: "5px 11px", fontSize: 12.5, fontWeight: 600, borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit",
+          border: `1.5px solid ${on ? (value === "submitted" ? T.successBorder : T.gray300) : T.gray300}`,
+          background: on ? (value === "submitted" ? T.successBg : T.gray100) : T.white,
+          color: on ? (value === "submitted" ? T.success : T.gray700) : T.gray600,
+        }}>
+        {on ? "✓ " : ""}{label}
+      </button>
+    );
+  };
+  const done = status === "submitted" || status === "notNeeded";
+  return (
+    <div style={{
+      marginTop: 8, padding: "10px 12px", borderRadius: 6,
+      border: `1px solid ${status === "submitted" ? T.successBorder : done ? T.gray200 : T.warning}`,
+      background: status === "submitted" ? T.successBg : done ? T.gray50 : T.warningBg,
+    }}>
+      <div style={{ fontSize: 13, color: status === "submitted" ? T.success : done ? T.gray600 : T.warning, fontWeight: 600, marginBottom: 8, lineHeight: 1.45 }}>
+        {status === "submitted" ? "✓ Expired Products Form submitted"
+          : status === "notNeeded" ? "Expired Products Form not needed for this finding"
+          : "⚠ Expired products found? Complete the Expired Products Form, then mark it submitted."}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <a href={EXPIRED_PRODUCTS_FORM_URL} target="_blank" rel="noopener noreferrer"
+          style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12.5, textDecoration: "none", display: "inline-block" }}>
+          Open Expired Products Form ↗
+        </a>
+        {pill("submitted", "Form submitted")}
+        {pill("notNeeded", "Not needed")}
+      </div>
+    </div>
+  );
 }
 
 // `aria` is what a screen reader announces — "Y"/"N"/"N/A" alone are
@@ -3797,6 +3855,16 @@ function SurveyPrepApp() {
   const [op541tFileName, setOp541tFileName] = useState(() => draft?.op541tFileName ?? "");
   const [op541tBufferBytes, setOp541tBufferBytes] = useState(null); // original file bytes for write-back export — never persisted
 
+  // Expired Products Form status per OP 541/541T finding, keyed
+  // expiredFormKey("op541" | "op541t", item.key) — see EXPIRED_PRODUCTS_FORM_URL.
+  const [expiredFormStatus, setExpiredFormStatus] = useState(() => draft?.expiredFormStatus ?? {});
+  const setExpiredStatus = (key, val) => setExpiredFormStatus(prev => ({ ...prev, [key]: val }));
+  // The pre-report check: the pending findings while its pop-up is open, and
+  // which pending set "Generate anyway" last waved through (so opening the
+  // Report again doesn't re-ask about the same findings until one changes).
+  const [expiredCheck, setExpiredCheck] = useState(null);
+  const expiredAckRef = useRef("");
+
   // Personnel Records Review state — employees are columns, not rows (see
   // parsePersonnelSheet). personnelSlots covers both "Personnel Records" and
   // "Additional Personnel Records" sheets combined; personnelAnswers/Dates are
@@ -3915,6 +3983,7 @@ function SurveyPrepApp() {
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
       tabComments, tabPatientInfo, additionalComments, afterVisitEmail, currentVisitId,
+      expiredFormStatus,
     });
     setSavedAt(new Date().toISOString());
   }, [meta, states, comments,
@@ -3922,7 +3991,8 @@ function SurveyPrepApp() {
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
-      tabComments, tabPatientInfo, additionalComments, afterVisitEmail, currentVisitId]);
+      tabComments, tabPatientInfo, additionalComments, afterVisitEmail, currentVisitId,
+      expiredFormStatus]);
 
   function getSectionStats(si) {
     let yes = 0, no = 0, na = 0, pending = 0;
@@ -3970,7 +4040,13 @@ function SurveyPrepApp() {
     return { no, expired, expiring };
   }
 
-  function buildSummaryData() {
+  // formStatus is passed in when the caller has just changed it (the pre-report
+  // check's "I've submitted it") and this render's state is still the old one.
+  function buildSummaryData(formStatus = expiredFormStatus) {
+    // Expired Products Form status for an OP 541/541T finding — null unless
+    // the question is about expired product.
+    const expiredForm = (tab, item) => isExpiredProductsItem(item.text)
+      ? (formStatus[expiredFormKey(tab, item.key)] || "pending") : null;
     const data = SECTIONS.map((sec, si) => {
       const stats = getSectionStats(si);
       const issues = sec.items.flatMap((item, ii) => {
@@ -4006,6 +4082,7 @@ function SurveyPrepApp() {
           comment: op541Comments[item.key],
           type: "no",
           mismatch: item.locAns === "Y",
+          expiredForm: expiredForm("op541", item),
         }));
       const yes = sec.items.filter(item => op541States[item.key] === "yes").length;
       const no  = sec.items.filter(item => op541States[item.key] === "no").length;
@@ -4037,6 +4114,7 @@ function SurveyPrepApp() {
           comment: op541tComments[item.key],
           type: "no",
           mismatch: item.locAns === "Y",
+          expiredForm: expiredForm("op541t", item),
         }));
       const yes = sec.items.filter(item => op541tStates[item.key] === "yes").length;
       const no  = sec.items.filter(item => op541tStates[item.key] === "no").length;
@@ -4537,6 +4615,8 @@ function SurveyPrepApp() {
     setTabPatientInfo({ pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments("");
     setAfterVisitEmail(null);
+    setExpiredFormStatus({});
+    expiredAckRef.current = "";
   }
 
   // The visit document as this device currently sees it. Shared by the explicit
@@ -4553,6 +4633,7 @@ function SurveyPrepApp() {
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
       tabComments, tabPatientInfo, additionalComments, afterVisitEmail,
+      expiredFormStatus,
     };
   }
 
@@ -4709,6 +4790,8 @@ function SurveyPrepApp() {
     setTabPatientInfo(visit.tabPatientInfo ?? { pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments(visit.additionalComments ?? "");
     setAfterVisitEmail(visit.afterVisitEmail ?? null);
+    setExpiredFormStatus(visit.expiredFormStatus ?? {});
+    expiredAckRef.current = "";
     // jc427BufferBytes is left alone — it's the bundled template's bytes,
     // not per-visit data, and stays valid across a visit load.
     setActiveTab(0); setView("form"); setReportLines([]); setOp541BufferBytes(null); setOp541tBufferBytes(null);
@@ -4726,8 +4809,21 @@ function SurveyPrepApp() {
   // Builds the Survey Prep Report from the visit as it stands. The report's
   // own view renders it; the email to the location is the After Visit Email
   // on the Emails tab.
-  function generateReport() {
-    setReportLines(buildSummaryData());
+  function generateReport(formStatus) {
+    setReportLines(buildSummaryData(formStatus));
+  }
+
+  // Every OP 541/541T expired-products question currently marked N, with its
+  // Expired Products Form status ("" while pending).
+  function expiredFindings() {
+    const out = [];
+    [["op541", "OP 541", op541Sections, op541States], ["op541t", "OP 541T", op541tSections, op541tStates]]
+      .forEach(([tab, form, sections, answers]) => sections.forEach(sec => sec.items.forEach(item => {
+        if (answers[item.key] !== "no" || !isExpiredProductsItem(item.text)) return;
+        const key = expiredFormKey(tab, item.key);
+        out.push({ key, tab, where: `${form} — ${sec.sheetLabel}`, text: item.text, status: expiredFormStatus[key] || "" });
+      })));
+    return out;
   }
 
   async function exportFollowUpXLSX() {
@@ -5108,10 +5204,39 @@ function SurveyPrepApp() {
     }
   }
 
+  // Secondary check: an expired-products question marked N whose Expired
+  // Products Form isn't marked submitted (or not needed) stops here first. It
+  // warns rather than blocks — "Generate anyway" goes through, and the report
+  // then shows the form as pending against that finding.
   function goReport() {
-    generateReport();
+    const pending = expiredFindings().filter(f => !f.status);
+    const signature = pending.map(f => f.key).join("|");
+    if (pending.length > 0 && signature !== expiredAckRef.current) {
+      setExpiredCheck(pending);
+      return;
+    }
+    openReport();
+  }
+  function openReport(formStatus) {
+    setExpiredCheck(null);
+    generateReport(formStatus);
     setView("report");
     window.scrollTo({ top: 0 });
+  }
+  function expiredCheckSubmitted() {
+    const next = { ...expiredFormStatus };
+    (expiredCheck || []).forEach(f => { next[f.key] = "submitted"; });
+    setExpiredFormStatus(next);
+    openReport(next);
+  }
+  function expiredCheckAnyway() {
+    expiredAckRef.current = (expiredCheck || []).map(f => f.key).join("|");
+    openReport();
+  }
+  function expiredCheckReview() {
+    const first = expiredCheck?.[0];
+    setExpiredCheck(null);
+    if (first) goTab(first.tab === "op541t" ? TAB.op541t : TAB.op541);
   }
   // The Team Planner is its own module rather than a checklist tab — it has
   // nothing to do with the visit in progress, so it never touches activeTab.
@@ -6114,6 +6239,11 @@ function SurveyPrepApp() {
                                       rows={2}
                                       style={{ marginTop: 8, width: "50%", fontSize: 13, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
                                   )}
+                                  {s === "no" && isExpiredProductsItem(item.text) && (
+                                    <ExpiredProductsPrompt
+                                      status={expiredFormStatus[expiredFormKey("op541", item.key)]}
+                                      onChange={v => setExpiredStatus(expiredFormKey("op541", item.key), v)} />
+                                  )}
                                 </div>
                               );
                             })}
@@ -6277,6 +6407,11 @@ function SurveyPrepApp() {
                                       onChange={e => setOp541tComments(p => ({ ...p, [item.key]: e.target.value }))}
                                       rows={2}
                                       style={{ marginTop: 8, width: "50%", fontSize: 13, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
+                                  )}
+                                  {s === "no" && isExpiredProductsItem(item.text) && (
+                                    <ExpiredProductsPrompt
+                                      status={expiredFormStatus[expiredFormKey("op541t", item.key)]}
+                                      onChange={v => setExpiredStatus(expiredFormKey("op541t", item.key), v)} />
                                   )}
                                 </div>
                               );
@@ -6594,6 +6729,12 @@ function SurveyPrepApp() {
                         {iss.mismatch && (
                           <div style={{ fontSize: 11, color: T.warning, marginTop: 3, fontWeight: 600 }}>⚠ Mismatch — location self-audit marked compliant</div>
                         )}
+                        {iss.expiredForm === "submitted" && (
+                          <div style={{ fontSize: 11, color: T.success, marginTop: 3, fontWeight: 600 }}>✓ Expired Products Form submitted</div>
+                        )}
+                        {iss.expiredForm === "pending" && (
+                          <div style={{ fontSize: 11, color: T.warning, marginTop: 3, fontWeight: 600 }}>⚠ Expired Products Form — not yet submitted</div>
+                        )}
                         {iss.comment && (
                           <div style={{ fontSize: 12, color: "#7a3a3a", marginTop: 5, paddingTop: 5, borderTop: `1px solid ${iss.mismatch ? "#ffe082" : "#f5c6c6"}`, lineHeight: 1.4 }}>
                             <strong>Note:</strong> {iss.comment}
@@ -6699,6 +6840,51 @@ function SurveyPrepApp() {
           style={{ position: "fixed", bottom: 24, right: 24, zIndex: 1100, padding: "14px 24px", fontSize: 15, fontWeight: 700, background: T.blue600, color: T.white, border: "none", borderRadius: T.radiusPill, cursor: "pointer", boxShadow: "0 8px 20px rgba(0,58,112,0.35)", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8 }}>
           <Icon name="save" size={17} />Save Progress
         </button>
+      )}
+
+      {/* Pre-report check: expired-products findings whose Expired Products
+          Form hasn't been marked submitted (see goReport). */}
+      {expiredCheck && (
+        <div className="no-print" role="dialog" aria-modal="true" aria-labelledby="expired-check-title"
+          style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(19,25,34,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: T.white, borderRadius: T.radiusCard, padding: "24px 22px", width: 480, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 18px 40px rgba(19,25,34,0.35)", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: T.warningBg, color: T.warning, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="alert-circle" size={20} />
+              </div>
+              <div>
+                <div id="expired-check-title" style={{ fontSize: 16, fontWeight: 700, color: T.ink, marginBottom: 4 }}>Expired Products Form not marked submitted</div>
+                <div style={{ fontSize: 13, color: T.gray600, lineHeight: 1.5 }}>
+                  {expiredCheck.length === 1 ? "This expired-products question is" : `These ${expiredCheck.length} expired-products questions are`} marked N.
+                  If expired products were found, complete the Expired Products Form before sending the report.
+                </div>
+              </div>
+            </div>
+            <ul style={{ listStyle: "none", margin: "0 0 16px", padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+              {expiredCheck.map(f => (
+                <li key={f.key} style={{ padding: "8px 10px", background: "#fff8f8", borderLeft: `3px solid ${T.errorBorder}`, borderRadius: "0 4px 4px 0", fontSize: 13, lineHeight: 1.45 }}>
+                  <div style={{ fontSize: 11, color: T.gray500, fontWeight: 600 }}>{f.where}</div>
+                  <div style={{ color: T.ink }}>{f.text}</div>
+                </li>
+              ))}
+            </ul>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <a href={EXPIRED_PRODUCTS_FORM_URL} target="_blank" rel="noopener noreferrer"
+                style={{ ...btnOutline, textAlign: "center", textDecoration: "none" }}>
+                Open Expired Products Form ↗
+              </a>
+              <button onClick={expiredCheckSubmitted} style={{ ...btnPrimary, fontWeight: 700 }}>
+                I've submitted it — generate report
+              </button>
+              <button onClick={expiredCheckAnyway} style={{ ...btnOutline, color: T.warning, borderColor: T.warning }}>
+                Generate anyway (form pending)
+              </button>
+              <button onClick={expiredCheckReview} style={{ ...btnOutline, color: T.gray600, borderColor: T.gray300, fontWeight: 500 }}>
+                Back to the {expiredCheck[0]?.tab === "op541t" ? "OP 541T" : "OP 541"} tab
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 30-minute save reminder */}

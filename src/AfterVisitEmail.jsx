@@ -66,6 +66,17 @@ export const SESSIONS = [
 ];
 const MIN_SESSIONS = 3;
 
+// The EMR audit is run outside the app, so that session has no findings in the
+// visit to pick from — its category is offered empty, to be typed into. Held as
+// an index so renaming the session above keeps the two in step.
+//
+// Typed items reach the manager in this email only: they are not visit findings,
+// so they do not appear on the Follow-Up Checklist, in the tracker, or in the
+// Follow-Up Call email's corrected count. That is deliberate for now — EMR is
+// closed out outside the app too — and is what to revisit when the audit moves
+// into it.
+const TYPED_SESSION = 2;
+
 const asObj = v => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
 
 // What one email's priority block is made of. An on-site visit has a single
@@ -188,13 +199,16 @@ function defaultTexts(meta, d, followUpDisplay) {
 
 // Findings in their arrival order, then the specialist's own categories, with
 // Binders always last — that is where the template puts it.
-function groupCategories(findings, b) {
+function groupCategories(findings, b, lead = []) {
   const order = [];
   const byName = {};
   const ensure = name => {
     if (!byName[name]) { byName[name] = { name, findings: [], custom: [] }; order.push(name); }
     return byName[name];
   };
+  // A session that is typed rather than picked leads, so it is not buried under
+  // the categories this session is not about.
+  lead.forEach(ensure);
   findings.forEach(f => ensure(f.category).findings.push(f));
   b.customCategories.forEach(ensure);
   b.custom.forEach(c => ensure(c.category).custom.push(c));
@@ -231,7 +245,9 @@ function priorSessionCount(d, findings, txt) {
   let n = 0;
   for (let i = 1; i < d.session; i++) {
     const b = d.buckets[String(i)];
-    if (b) n += countListed(buildBlocks(groupCategories(findings, b), b, txt));
+    if (!b) continue;
+    const lead = i === TYPED_SESSION + 1 ? [SESSIONS[TYPED_SESSION]] : [];
+    n += countListed(buildBlocks(groupCategories(findings, b, lead), b, txt));
   }
   return n;
 }
@@ -458,7 +474,9 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
   const defaults = { ...baseDefaults, priorSessions: defaultPriorSessions(priorCount) };
   const txt = k => (has(d.text, k) ? d.text[k] : defaults[k]);
 
-  const categories = groupCategories(findings, b);
+  // Null on every session but the EMR one, and on on-site visits.
+  const typedCategory = virtual && d.session === TYPED_SESSION + 1 ? SESSIONS[TYPED_SESSION] : null;
+  const categories = groupCategories(findings, b, typedCategory ? [typedCategory] : []);
   const blocks = buildBlocks(categories, b, txt);
   const checklistUrl = checklist && (checklist.status === "exists" || checklist.status === "stale") ? checklist.url : "";
   const session = {
@@ -606,14 +624,18 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
 
   const renderCategory = cat => {
     const isBinders = cat.name === BINDERS;
+    const isTyped = cat.name === typedCategory;
     const paragraphMode = isBinders && b.binderMode === "paragraph";
     const ids = cat.findings.map(f => f.id);
     const pickedHere = ids.filter(id => b.picked[id]).length;
     const isCustomCategory = b.customCategories.includes(cat.name) && cat.findings.length === 0;
     const open = !collapsed[cat.name];
+    const added = cat.custom.filter(c => clean(c.text)).length;
     const countLabel = paragraphMode
       ? (b.binderParagraph ? "paragraph included" : "paragraph not included")
-      : `${pickedHere + cat.custom.filter(c => clean(c.text)).length} of ${cat.findings.length + cat.custom.length} in email`;
+      : isTyped
+        ? `${added} added`
+        : `${pickedHere + added} of ${cat.findings.length + cat.custom.length} in email`;
 
     const actions = (
       <>
@@ -670,6 +692,12 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
                   <FindingRow key={f.id} f={f} checked={!!b.picked[f.id]} value={itemText(f, b)} edited={has(b.edits, f.id)}
                     onToggle={() => togglePick(f.id)} onEdit={v => setEdit(f, v)} onReset={() => resetEdit(f.id)} />
                 ))}
+                {isTyped && cat.custom.length === 0 && (
+                  <div style={{ padding: "4px 10px 8px", fontSize: 12.5, color: T.gray600 }}>
+                    The EMR audit is reviewed outside the app, so there are no findings here to pick from — add each one below.
+                    They go in this email only, not onto the Follow-Up Checklist or into the tracker.
+                  </div>
+                )}
                 {cat.custom.map(c => (
                   <CustomRow key={c.id} item={c} autoFocus={c.id === focusId}
                     onChange={v => setCustom(c.id, v)} onRemove={() => removeCustom(c.id)} />

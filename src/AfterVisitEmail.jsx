@@ -50,27 +50,82 @@ const ATTACHMENTS = [
 ];
 const DEFAULT_ATTACH = { reports: true, binderGuide: true, warehouseGuide: true };
 
-// The stored draft is whatever the visit document carried — possibly nothing,
-// possibly written by an older build — so every read goes through here.
-function normalizeDraft(raw) {
-  const x = raw && typeof raw === "object" ? raw : {};
-  const obj = v => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
+// A virtual prep visit covers the same ground as an on-site one, split across a
+// week of Teams calls. The split is the same at every location, so the email can
+// name the session rather than make the specialist type it, and the manager can
+// see where they are in the week.
+//
+// PST and clinician ride-alongs are deliberately absent: they cannot be observed
+// over Teams. Arranging and completing them is the location manager's own
+// responsibility, which is what the reminder this email can carry is for.
+export const SESSIONS = [
+  "Vehicles / Warehouse & Facility Review",
+  "Personnel Record Review",
+  "EMR Audit Review",
+  "Binders & Documentation Review",
+];
+const MIN_SESSIONS = 3;
+
+const asObj = v => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
+
+// What one email's priority block is made of. An on-site visit has a single
+// bucket; a virtual prep visit has one per session, which is what lets a later
+// session count what the earlier ones already sent.
+function normalizeBucket(raw) {
+  const x = asObj(raw);
   return {
-    picked: obj(x.picked),
-    edits: obj(x.edits),
+    picked: asObj(x.picked),
+    edits: asObj(x.edits),
     custom: Array.isArray(x.custom) ? x.custom : [],
     customCategories: Array.isArray(x.customCategories) ? x.customCategories : [],
     binderMode: x.binderMode === "list" ? "list" : "paragraph",
     binderParagraph: !!x.binderParagraph,
-    // Only the current attachment keys: a draft from the first release also
-    // carries "binderReport", which no longer exists.
-    attach: Object.fromEntries(Object.keys(DEFAULT_ATTACH).map(k =>
-      [k, typeof obj(x.attach)[k] === "boolean" ? x.attach[k] : DEFAULT_ATTACH[k]])),
-    text: obj(x.text),
+    // A week's sessions fall on different days, but the visit record carries
+    // only one date. Blank falls back to the visit's.
+    date: typeof x.date === "string" ? x.date : "",
   };
 }
 
-const itemText = (f, d) => (Object.prototype.hasOwnProperty.call(d.edits, f.id) ? d.edits[f.id] : findingText(f));
+export const ONSITE = "onsite";
+const clampSession = (n, count) => Math.min(Math.max(Math.round(Number(n)) || 1, 1), count);
+
+// The stored draft is whatever the visit document carried — possibly nothing,
+// possibly written by an older build — so every read goes through here.
+function normalizeDraft(raw) {
+  const x = asObj(raw);
+  const sessionCount = Math.min(Math.max(Math.round(Number(x.sessionCount)) || SESSIONS.length, MIN_SESSIONS), SESSIONS.length);
+  const visitType = x.visitType === "virtual" ? "virtual" : ONSITE;
+
+  // A draft written before virtual prep visits existed kept one set of picks at
+  // the top level. That is the on-site bucket, so an existing visit keeps its
+  // email exactly as it was.
+  const rawBuckets = asObj(x.buckets);
+  const legacy = Object.keys(rawBuckets).length === 0 ? x : null;
+  const buckets = {};
+  for (const key of [ONSITE, ...SESSIONS.map((_, i) => String(i + 1))])
+    buckets[key] = normalizeBucket(rawBuckets[key] ?? (key === ONSITE ? legacy : null));
+
+  return {
+    visitType,
+    sessionCount,
+    session: clampSession(x.session, sessionCount),
+    // Defaults on for a virtual visit: the ride-alongs are the one part of the
+    // prep this format cannot cover, so saying nothing is the riskier default.
+    clinicianReminder: typeof x.clinicianReminder === "boolean" ? x.clinicianReminder : true,
+    buckets,
+    // Only the current attachment keys: a draft from the first release also
+    // carries "binderReport", which no longer exists.
+    attach: Object.fromEntries(Object.keys(DEFAULT_ATTACH).map(k =>
+      [k, typeof asObj(x.attach)[k] === "boolean" ? x.attach[k] : DEFAULT_ATTACH[k]])),
+    text: asObj(x.text),
+  };
+}
+
+// Which bucket a given draft state is editing.
+const bucketKeyOf = d => (d.visitType === "virtual" ? String(d.session) : ONSITE);
+const activeBucket = d => d.buckets[bucketKeyOf(d)];
+
+const itemText = (f, b) => (Object.prototype.hasOwnProperty.call(b.edits, f.id) ? b.edits[f.id] : findingText(f));
 
 // "the Glen Burnie team" rather than "the Rotech team": most locations share a
 // trading name, so the city is what tells them apart (the same reason Issue
@@ -79,7 +134,16 @@ function teamName(meta) {
   return clean(meta.city).split(",")[0].trim() || clean(meta.location);
 }
 
-function defaultTexts(meta, attach, followUpDisplay) {
+// Written separately from the rest because it is the one default that depends
+// on the other sessions' picks, which are not known until the draft is read.
+const defaultPriorSessions = n =>
+  `${n} item${n === 1 ? "" : "s"} from our earlier sessions this week ${n === 1 ? "is" : "are"} still outstanding. ` +
+  "Please keep working through those alongside the items above.";
+
+function defaultTexts(meta, d, followUpDisplay) {
+  const { attach } = d;
+  const virtual = d.visitType === "virtual";
+  const isLast = !virtual || d.session >= d.sessionCount;
   const team = teamName(meta);
   // Each attachment sentence reads naturally whichever others are ticked —
   // no "also" on the first one, and no two "I have also attached" in a row.
@@ -93,17 +157,30 @@ function defaultTexts(meta, attach, followUpDisplay) {
       : attach.binderGuide
         ? "Please use the attached OP 840 Location Binder Guide as a reference when organizing your binders."
         : "Please review each binder against OP 840 and correct the missing items prior to our Follow-Up Call.";
+  // A virtual prep visit is the same prep work delivered over a week of calls,
+  // so only the wording that would be untrue changes — "our visit" when there
+  // are four of them, a report that is still being added to, and a call banner
+  // that has nothing to announce until the last session.
+  const greeting = !virtual
+    ? `It was great meeting you and the ${team ? `${team} ` : ""}team — I appreciate everyone's receptiveness during our visit.`
+    : isLast
+      ? `It was great working with you and the ${team ? `${team} ` : ""}team across our virtual visits this week — I appreciate everyone's receptiveness throughout.`
+      : "It was great meeting with you on our virtual visit — I appreciate your receptiveness during our call. We have the rest of our calls scheduled for later this week, but I wanted to provide you with a list of items to begin working on while we continue our virtual visits.";
+
   return {
     salutation: "Hello,",
-    greeting: `It was great meeting you and the ${team ? `${team} ` : ""}team — I appreciate everyone's receptiveness during our visit.`,
-    reports: "Attached you will find the Survey Prep Report completed during our visit. Please ensure that it is thoroughly reviewed and that corrective action is taken on every area of non-compliance prior to our Follow-Up Call.",
+    greeting,
+    reports: virtual && !isLast
+      ? "Attached you will find the Survey Prep Report as it stands after today's session. Please ensure that it is thoroughly reviewed and that corrective action is taken on every area of non-compliance."
+      : `Attached you will find the Survey Prep Report completed during our ${virtual ? "virtual visits" : "visit"}. Please ensure that it is thoroughly reviewed and that corrective action is taken on every area of non-compliance prior to our Follow-Up Call.`,
     binderGuide: `I have ${attach.reports ? "also " : ""}attached the OP 840 Location Binder Guide for reference as you organize your binders.`,
     warehouseGuide: `${warehouseLead} Please review this with your team and ensure you are utilizing your space efficiently while remaining compliant with the standards outlined.`,
     priorityIntro: "The following items require your immediate attention and should be treated as top priorities:",
     binders: `Each binder reviewed has missing items. ${binderRefs}`,
     checklistNote: "Use this checklist to mark items off as you correct them before our Follow-Up Call.",
+    clinicianReminder: "Your PST and Clinician visits are the location's responsibility. If they have not been completed yet, please get them scheduled and completed — they need to be done before your survey window opens.",
     encouragement: "I know this is a lot to work through, and I have full confidence in your team's ability to get these items corrected. Addressing these findings proactively is what separates a well-prepared location from one that is caught off guard — and you have the opportunity to be in a great position before your survey.",
-    followup: followUpDisplay || "",
+    followup: isLast ? followUpDisplay || "" : "",
     followupNote: "A calendar invite has already been sent. Please have Teams available on your phone, as I will want to do a walkthrough of the location, warehouse, and vehicle, as well as review any updated documentation at that time.",
     closing: "Please don't hesitate to reach out with any questions as you work through these items. I'm happy to support you along the way.",
   };
@@ -111,7 +188,7 @@ function defaultTexts(meta, attach, followUpDisplay) {
 
 // Findings in their arrival order, then the specialist's own categories, with
 // Binders always last — that is where the template puts it.
-function groupCategories(findings, d) {
+function groupCategories(findings, b) {
   const order = [];
   const byName = {};
   const ensure = name => {
@@ -119,22 +196,22 @@ function groupCategories(findings, d) {
     return byName[name];
   };
   findings.forEach(f => ensure(f.category).findings.push(f));
-  d.customCategories.forEach(ensure);
-  d.custom.forEach(c => ensure(c.category).custom.push(c));
+  b.customCategories.forEach(ensure);
+  b.custom.forEach(c => ensure(c.category).custom.push(c));
   const names = order.filter(n => n !== BINDERS);
   if (byName[BINDERS]) names.push(BINDERS);
   return names.map(n => byName[n]);
 }
 
-function buildBlocks(categories, d, txt) {
+function buildBlocks(categories, b, txt) {
   const blocks = [];
   for (const cat of categories) {
-    if (cat.name === BINDERS && d.binderMode === "paragraph") {
-      if (d.binderParagraph && clean(txt("binders"))) blocks.push({ name: BINDERS, type: "prose", text: txt("binders") });
+    if (cat.name === BINDERS && b.binderMode === "paragraph") {
+      if (b.binderParagraph && clean(txt("binders"))) blocks.push({ name: BINDERS, type: "prose", text: txt("binders") });
       continue;
     }
     const items = [
-      ...cat.findings.filter(f => d.picked[f.id]).map(f => itemText(f, d)),
+      ...cat.findings.filter(f => b.picked[f.id]).map(f => itemText(f, b)),
       ...cat.custom.map(c => c.text),
     ].filter(t => clean(t));
     if (items.length) blocks.push({ name: cat.name, type: "list", items });
@@ -142,11 +219,28 @@ function buildBlocks(categories, d, txt) {
   return blocks;
 }
 
+// How many lines a block list puts in front of the manager — a prose block
+// (the Binders paragraph) counts as one.
+const countListed = blocks => blocks.reduce((n, b) => n + (b.type === "list" ? b.items.length : 1), 0);
+
+// What the earlier sessions of this week already sent. Nothing is verified
+// corrected until the follow-up call, so everything raised earlier in the week
+// is still outstanding — which is exactly what this counts.
+function priorSessionCount(d, findings, txt) {
+  if (d.visitType !== "virtual") return 0;
+  let n = 0;
+  for (let i = 1; i < d.session; i++) {
+    const b = d.buckets[String(i)];
+    if (b) n += countListed(buildBlocks(groupCategories(findings, b), b, txt));
+  }
+  return n;
+}
+
 // ─── the email ───────────────────────────────────────────────────────────────
 // The After Visit Email template, with every style inlined so it survives the
 // paste into Outlook. Section order and colours follow the template exactly.
 
-function buildEmailHtml({ meta, blocks, txt, attach, signature, totals, checklistUrl }) {
+function buildEmailHtml({ meta, blocks, txt, attach, signature, totals, checklistUrl, session }) {
   const P = html => `<p style="font-size:14.5px;color:#24303d;margin:0 0 16px;">${html}</p>`;
   const paras = text => paragraphsHtml(text).map(P).join("");
   const lawson = clean(meta.lawson);
@@ -155,7 +249,7 @@ function buildEmailHtml({ meta, blocks, txt, attach, signature, totals, checklis
     [`Location${lawson && lawson !== "other" ? ` (Lawson # ${lawson})` : ""}`, meta.location],
     ["City / State", meta.city],
     ["Accreditation Specialist", meta.specialist],
-    ["Visit Date", meta.date],
+    [session.virtual ? "Session Date" : "Visit Date", session.date || meta.date],
   ]);
 
   const intro = [
@@ -202,11 +296,27 @@ function buildEmailHtml({ meta, blocks, txt, attach, signature, totals, checklis
     <div style="padding:18px 20px 20px;">${blocks.map((b, i) => blockHtml(b, i === blocks.length - 1)).join("")}</div>
   </div>` : "";
 
+  // Nothing is verified corrected until the follow-up call, so everything the
+  // earlier sessions raised is still outstanding — said once, as a count, so
+  // this email stays the current session's action list rather than the week's.
+  const priorHtml = session.priorCount > 0 && clean(txt("priorSessions")) ? `
+  <div style="background:#f7f9fc;border:1px solid #dde3ea;border-radius:8px;padding:12px 18px;margin:20px 0;font-size:13.5px;color:#24303d;">
+    ${esc(txt("priorSessions"))}
+  </div>` : "";
+
+  // The one part of the prep a virtual visit cannot do: the ride-alongs are
+  // the manager's to arrange, so the email asks rather than assumes.
+  const clinicianHtml = session.clinicianReminder && clean(txt("clinicianReminder")) ? `
+  <div style="background:#eef4fb;border-left:4px solid #0053a1;border-radius:0 8px 8px 0;padding:14px 20px;margin:20px 0;">
+    <div style="font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#00468a;margin-bottom:3px;">PST &amp; Clinician Visits</div>
+    <div style="font-size:14px;color:#24303d;">${esc(txt("clinicianReminder"))}</div>
+  </div>` : "";
+
   const followup = clean(txt("followup"));
   // Without a follow-up banner between them, the encouragement and closing
   // share one card so the stack has no orphaned borders.
   const encouragement = `
-  <div style="background:#ffffff;border:1px solid #dde3ea;border-radius:${followup ? "8px" : "8px 8px 0 0"};padding:24px 28px 8px;${blocks.length || checklistHtml ? "" : "margin-top:20px;"}">
+  <div style="background:#ffffff;border:1px solid #dde3ea;border-radius:${followup ? "8px" : "8px 8px 0 0"};padding:24px 28px 8px;${blocks.length || checklistHtml || priorHtml || clinicianHtml ? "" : "margin-top:20px;"}">
     ${paras(txt("encouragement"))}
     ${followup ? "" : paras(txt("closing"))}
   </div>`;
@@ -221,12 +331,13 @@ function buildEmailHtml({ meta, blocks, txt, attach, signature, totals, checklis
     ${paras(txt("closing"))}
   </div>` : "";
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(meta.location || "Location")} — After Visit Follow-Up</title></head>
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(meta.location || "Location")} — ${session.virtual ? `Virtual Prep Visit, session ${session.number}` : "After Visit Follow-Up"}</title></head>
 <body style="margin:0;padding:32px 16px;background:#eef1f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;line-height:1.55;color:#24303d;">
 <div id="report" style="max-width:760px;margin:0 auto;">
   <div style="background:#143a63;color:#ffffff;border-radius:10px 10px 0 0;padding:22px 28px;">
     <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#b9cbe0;margin-bottom:4px;">Accreditation Survey Prep</div>
-    <div style="font-size:26px;font-weight:700;">After Visit Follow-Up</div>
+    <div style="font-size:26px;font-weight:700;">${session.virtual ? "Virtual Prep Visit" : "After Visit Follow-Up"}</div>
+    ${session.virtual ? `<div style="font-size:13.5px;color:#b9cbe0;margin-top:6px;">Session ${session.number} of ${session.count} &middot; ${esc(session.name)}</div>` : ""}
   </div>
 
   ${infoGrid}
@@ -236,7 +347,9 @@ function buildEmailHtml({ meta, blocks, txt, attach, signature, totals, checklis
   </div>
   ${totalsHtml}
   ${priority}
+  ${priorHtml}
   ${checklistHtml}
+  ${clinicianHtml}
   ${encouragement}
   ${followupHtml}
   ${signatureHtml({ name: meta.specialist, phone: signature.phone, email: signature.email })}
@@ -332,15 +445,28 @@ function ChecklistNotice({ checklist, onOpenChecklist, compact }) {
 export default function AfterVisitEmail({ visit, draft, setDraft, signature, setSignature, checklist, totals, onOpenChecklist, onOpenDashboard }) {
   const { meta = {}, findings = [], followUpDisplay = "", hasVisit } = visit;
   const d = normalizeDraft(draft);
-  const defaults = defaultTexts(meta, d.attach, followUpDisplay);
+  const b = activeBucket(d);
+  const virtual = d.visitType === "virtual";
+  const isLast = !virtual || d.session >= d.sessionCount;
   const has = (obj, k) => Object.prototype.hasOwnProperty.call(obj, k);
+
+  // The earlier sessions' count depends on their picks, which need the Binders
+  // paragraph text to resolve — so the defaults are read once without it, the
+  // count is taken, and only then does the prior-sessions line get its number.
+  const baseDefaults = defaultTexts(meta, d, followUpDisplay);
+  const priorCount = priorSessionCount(d, findings, k => (has(d.text, k) ? d.text[k] : baseDefaults[k]));
+  const defaults = { ...baseDefaults, priorSessions: defaultPriorSessions(priorCount) };
   const txt = k => (has(d.text, k) ? d.text[k] : defaults[k]);
 
-  const categories = groupCategories(findings, d);
-  const blocks = buildBlocks(categories, d, txt);
+  const categories = groupCategories(findings, b);
+  const blocks = buildBlocks(categories, b, txt);
   const checklistUrl = checklist && (checklist.status === "exists" || checklist.status === "stale") ? checklist.url : "";
-  const html = buildEmailHtml({ meta, blocks, txt, attach: d.attach, signature, totals, checklistUrl });
-  const listedCount = blocks.reduce((n, b) => n + (b.type === "list" ? b.items.length : 1), 0);
+  const session = {
+    virtual, number: d.session, count: d.sessionCount, name: SESSIONS[d.session - 1] || "",
+    date: b.date, priorCount, clinicianReminder: virtual && d.clinicianReminder,
+  };
+  const html = buildEmailHtml({ meta, blocks, txt, attach: d.attach, signature, totals, checklistUrl, session });
+  const listedCount = countListed(blocks);
 
   const [collapsed, setCollapsed] = useState({});
   const [focusId, setFocusId] = useState(null);
@@ -350,17 +476,23 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
   // build (or none at all) is upgraded on its first edit.
   const update = fn => setDraft(prev => fn(normalizeDraft(prev)));
   const without = (obj, k) => { const o = { ...obj }; delete o[k]; return o; };
+  // Picks, rewordings and custom items belong to the session being composed;
+  // attachments, wording and the session settings belong to the draft.
+  const updateBucket = fn => update(x => {
+    const key = bucketKeyOf(x);
+    return { ...x, buckets: { ...x.buckets, [key]: fn(x.buckets[key]) } };
+  });
 
-  const togglePick = id => update(x => ({ ...x, picked: x.picked[id] ? without(x.picked, id) : { ...x.picked, [id]: true } }));
-  const setPicks = (ids, on) => update(x => {
+  const togglePick = id => updateBucket(x => ({ ...x, picked: x.picked[id] ? without(x.picked, id) : { ...x.picked, [id]: true } }));
+  const setPicks = (ids, on) => updateBucket(x => {
     const picked = { ...x.picked };
     ids.forEach(id => { if (on) picked[id] = true; else delete picked[id]; });
     return { ...x, picked };
   });
-  const setEdit = (f, value) => update(x => ({
+  const setEdit = (f, value) => updateBucket(x => ({
     ...x, edits: value === findingText(f) ? without(x.edits, f.id) : { ...x.edits, [f.id]: value },
   }));
-  const resetEdit = id => update(x => ({ ...x, edits: without(x.edits, id) }));
+  const resetEdit = id => updateBucket(x => ({ ...x, edits: without(x.edits, id) }));
   // An edit that lands back on the default drops the override, so the text
   // keeps following the attachments and visit details from then on.
   const setText = (k, value) => update(x => ({
@@ -373,21 +505,21 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
     const id = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     setFocusId(id);
     setCollapsed(c => ({ ...c, [category]: false }));
-    update(x => ({ ...x, custom: [...x.custom, { id, category, text: "" }] }));
+    updateBucket(x => ({ ...x, custom: [...x.custom, { id, category, text: "" }] }));
   };
-  const setCustom = (id, text) => update(x => ({ ...x, custom: x.custom.map(c => (c.id === id ? { ...c, text } : c)) }));
-  const removeCustom = id => update(x => ({ ...x, custom: x.custom.filter(c => c.id !== id) }));
+  const setCustom = (id, text) => updateBucket(x => ({ ...x, custom: x.custom.map(c => (c.id === id ? { ...c, text } : c)) }));
+  const removeCustom = id => updateBucket(x => ({ ...x, custom: x.custom.filter(c => c.id !== id) }));
 
   const existingNames = categories.map(c => c.name.toLowerCase());
   const trimmedNew = clean(newCategory);
   const canAddCategory = trimmedNew && !existingNames.includes(trimmedNew.toLowerCase());
   const addCategory = () => {
     if (!canAddCategory) return;
-    update(x => ({ ...x, customCategories: [...x.customCategories, trimmedNew] }));
+    updateBucket(x => ({ ...x, customCategories: [...x.customCategories, trimmedNew] }));
     addCustom(trimmedNew);
     setNewCategory("");
   };
-  const removeCategory = name => update(x => ({
+  const removeCategory = name => updateBucket(x => ({
     ...x,
     customCategories: x.customCategories.filter(n => n !== name),
     custom: x.custom.filter(c => c.category !== name),
@@ -398,6 +530,48 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
     return <div style={{ background: bg, color: fg, borderRadius: T.radius, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>{children}</div>;
   };
 
+  // A virtual prep visit is one visit record worked across a week of calls, so
+  // the session lives on the draft rather than being a separate visit: one
+  // report, one checklist, one tracker, and the follow-up call closes it out
+  // exactly as it does after an on-site visit.
+  const sessionControls = !hasVisit ? null : (
+    <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.gray200}`,
+      display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
+      <div>
+        <div style={metaLabel}>This visit was</div>
+        <Segmented label="Visit type" value={d.visitType}
+          options={[[ONSITE, "On-site"], ["virtual", "Virtual prep"]]}
+          onChange={v => update(x => ({ ...x, visitType: v }))} />
+      </div>
+      {virtual && (
+        <>
+          <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+            <label htmlFor="av-session" style={metaLabel}>This email covers</label>
+            <select id="av-session" style={metaField} value={d.session}
+              onChange={e => update(x => ({ ...x, session: Number(e.target.value) }))}>
+              {SESSIONS.slice(0, d.sessionCount).map((name, i) => (
+                <option key={name} value={i + 1}>{`${i + 1}. ${name}`}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ width: 150 }}>
+            <label htmlFor="av-session-count" style={metaLabel}>Calls this week</label>
+            <select id="av-session-count" style={metaField} value={d.sessionCount}
+              onChange={e => update(x => ({ ...x, sessionCount: Number(e.target.value) }))}>
+              {[MIN_SESSIONS, SESSIONS.length].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div style={{ width: 180 }}>
+            <label htmlFor="av-session-date" style={metaLabel}>Session date</label>
+            <input id="av-session-date" style={metaField} value={b.date}
+              placeholder={meta.date ? `${meta.date} (the visit's)` : "e.g. 11/19/26"}
+              onChange={e => updateBucket(x => ({ ...x, date: e.target.value }))} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   const header = (
     <div style={{ ...cardStyle(T.blue600), padding: "20px 22px", marginBottom: 16 }}>
       <h2 style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 4px", fontSize: 19, color: T.ink }}>
@@ -406,8 +580,9 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
       </h2>
       <p style={{ margin: 0, fontSize: 14, color: T.gray600 }}>
         Choose which findings from the open visit to call out as top priorities. The email is composed here for you to paste into
-        Outlook — nothing is sent. Your picks and edits are saved with the visit.
+        Outlook — nothing is sent. Your picks and edits are saved with the visit{virtual ? ", per session" : ""}.
       </p>
+      {sessionControls}
     </div>
   );
 
@@ -431,21 +606,21 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
 
   const renderCategory = cat => {
     const isBinders = cat.name === BINDERS;
-    const paragraphMode = isBinders && d.binderMode === "paragraph";
+    const paragraphMode = isBinders && b.binderMode === "paragraph";
     const ids = cat.findings.map(f => f.id);
-    const pickedHere = ids.filter(id => d.picked[id]).length;
-    const isCustomCategory = d.customCategories.includes(cat.name) && cat.findings.length === 0;
+    const pickedHere = ids.filter(id => b.picked[id]).length;
+    const isCustomCategory = b.customCategories.includes(cat.name) && cat.findings.length === 0;
     const open = !collapsed[cat.name];
     const countLabel = paragraphMode
-      ? (d.binderParagraph ? "paragraph included" : "paragraph not included")
+      ? (b.binderParagraph ? "paragraph included" : "paragraph not included")
       : `${pickedHere + cat.custom.filter(c => clean(c.text)).length} of ${cat.findings.length + cat.custom.length} in email`;
 
     const actions = (
       <>
         {isBinders && (
-          <Segmented label="How binder findings appear" value={d.binderMode}
+          <Segmented label="How binder findings appear" value={b.binderMode}
             options={[["paragraph", "Paragraph"], ["list", "List items"]]}
-            onChange={v => update(x => ({ ...x, binderMode: v }))} />
+            onChange={v => updateBucket(x => ({ ...x, binderMode: v }))} />
         )}
         {!paragraphMode && ids.length > 1 && (
           <>
@@ -465,11 +640,11 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
             {paragraphMode ? (
               <>
                 <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13.5, color: T.ink, cursor: "pointer", padding: "4px 10px" }}>
-                  <input type="checkbox" checked={d.binderParagraph} style={{ ...checkbox, marginTop: 0 }}
-                    onChange={e => update(x => ({ ...x, binderParagraph: e.target.checked }))} />
+                  <input type="checkbox" checked={b.binderParagraph} style={{ ...checkbox, marginTop: 0 }}
+                    onChange={e => updateBucket(x => ({ ...x, binderParagraph: e.target.checked }))} />
                   Include the Binders paragraph
                 </label>
-                {d.binderParagraph && (
+                {b.binderParagraph && (
                   <div style={{ padding: "0 10px 0 36px" }}>
                     <TextBlock id="av-binders" label="Binders paragraph" value={txt("binders")} rows={3}
                       overridden={has(d.text, "binders")} onChange={v => setText("binders", v)} onReset={() => resetText("binders")} />
@@ -492,7 +667,7 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
             ) : (
               <>
                 {cat.findings.map(f => (
-                  <FindingRow key={f.id} f={f} checked={!!d.picked[f.id]} value={itemText(f, d)} edited={has(d.edits, f.id)}
+                  <FindingRow key={f.id} f={f} checked={!!b.picked[f.id]} value={itemText(f, b)} edited={has(b.edits, f.id)}
                     onToggle={() => togglePick(f.id)} onEdit={v => setEdit(f, v)} onReset={() => resetEdit(f.id)} />
                 ))}
                 {cat.custom.map(c => (
@@ -525,7 +700,11 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
           <b>{meta.location || "This visit"}</b>{meta.city ? ` · ${meta.city}` : ""} — {findings.length} finding{findings.length === 1 ? "" : "s"} marked Issue.
           {" "}Nothing is listed in the email until you tick it; each ticked item can be reworded.
           {" "}<b style={{ color: listedCount ? T.blue600 : T.gray600 }}>{listedCount} in the email.</b>
+          {virtual && <>{" "}Picks are kept per session, so switching sessions above leaves this one as you left it.</>}
         </p>
+        {virtual && priorCount > 0 && note("info",
+          <><b>{priorCount} item{priorCount === 1 ? "" : "s"} already went out in session{d.session > 2 ? "s" : ""} 1{d.session > 2 ? `–${d.session - 1}` : ""}.</b>{" "}
+            This email counts {priorCount === 1 ? "it" : "them"} as still outstanding rather than listing {priorCount === 1 ? "it" : "them"} again.</>)}
         {!meta.location && note("warn", <><b>This visit has no location yet.</b> Fill in the Lawson # on the checklist so the email header is complete.</>)}
         {findings.length === 0 && note("info", <>No findings on this visit are marked <b>Issue</b>. You can still add a category and custom items below.</>)}
 
@@ -563,20 +742,44 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
           The opening paragraphs and the Binders paragraph mention only what's ticked. Attach the files to the Outlook message yourself.
         </div>
 
+        {virtual && (
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13.5, color: T.ink, cursor: "pointer", marginBottom: 16 }}>
+            <input type="checkbox" checked={d.clinicianReminder} style={checkbox}
+              onChange={e => update(x => ({ ...x, clinicianReminder: e.target.checked }))} />
+            <span>
+              Remind them about <b>PST &amp; Clinician visits</b>
+              <span style={{ display: "block", fontSize: 12, color: T.gray500 }}>
+                These can&apos;t be observed over Teams, so the email asks the manager to get them scheduled and completed — they stay the location&apos;s responsibility.
+              </span>
+            </span>
+          </label>
+        )}
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
-          <div style={{ gridColumn: "span 2", minWidth: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-              <label htmlFor="av-followup" style={metaLabel}>Follow-Up Teams call</label>
-              {followupOverridden && <button onClick={() => resetText("followup")} style={linkBtn}>Use the visit's date</button>}
+          {isLast ? (
+            <div style={{ gridColumn: "span 2", minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                <label htmlFor="av-followup" style={metaLabel}>Follow-Up Teams call</label>
+                {followupOverridden && <button onClick={() => resetText("followup")} style={linkBtn}>Use the visit&apos;s date</button>}
+              </div>
+              <input id="av-followup" style={metaField} value={txt("followup")} placeholder="e.g. Friday, November 13, 2026 · 2:00 PM EST"
+                onChange={e => setText("followup", e.target.value)} />
+              <div style={{ fontSize: 12, color: T.gray500, marginTop: 4 }}>
+                {followUpDisplay
+                  ? "Prefilled from the visit's Follow-Up Teams Call. Clear it to leave the call banner out."
+                  : "No follow-up call is set on this visit. Type one here, or leave it blank to leave the call banner out."}
+              </div>
             </div>
-            <input id="av-followup" style={metaField} value={txt("followup")} placeholder="e.g. Friday, November 13, 2026 · 2:00 PM EST"
-              onChange={e => setText("followup", e.target.value)} />
-            <div style={{ fontSize: 12, color: T.gray500, marginTop: 4 }}>
-              {followUpDisplay
-                ? "Prefilled from the visit's Follow-Up Teams Call. Clear it to leave the call banner out."
-                : "No follow-up call is set on this visit. Type one here, or leave it blank to leave the call banner out."}
+          ) : (
+            /* Sessions before the last have no call to announce — the week is
+               still running, and the follow-up is scheduled once it ends. */
+            <div style={{ gridColumn: "span 2", minWidth: 0 }}>
+              <div style={metaLabel}>Follow-Up Teams call</div>
+              <div style={{ fontSize: 12.5, color: T.gray600 }}>
+                The call banner appears on session {d.sessionCount}&apos;s email, once the week&apos;s reviews are done.
+              </div>
             </div>
-          </div>
+          )}
           <div>
             <label htmlFor="av-sig-phone" style={metaLabel}>Your cell</label>
             <input id="av-sig-phone" style={metaField} placeholder="(000) 000-0000" value={signature.phone}
@@ -598,11 +801,13 @@ export default function AfterVisitEmail({ visit, draft, setDraft, signature, set
               ["binderGuide", "OP 840 Location Binder Guide paragraph", d.attach.binderGuide],
               ["warehouseGuide", "Warehouse Organization Guide paragraph", d.attach.warehouseGuide],
               ["priorityIntro", "Priorities lead-in", blocks.length > 0],
+              ["priorSessions", "Earlier sessions note", virtual && priorCount > 0],
               ["checklistNote", "Follow-Up Checklist note", !!checklistUrl],
+              ["clinicianReminder", "PST & Clinician reminder", virtual && d.clinicianReminder],
               ["encouragement", "Encouragement", true],
               ["followupNote", "Follow-up call note", !!clean(txt("followup"))],
               ["closing", "Closing", true],
-            ].filter(([, , shown]) => shown).map(([k, label]) => textBlock(k, label, k === "priorityIntro" || k === "checklistNote" ? 2 : 3))}
+            ].filter(([, , shown]) => shown).map(([k, label]) => textBlock(k, label, ["priorityIntro", "checklistNote", "priorSessions", "clinicianReminder"].includes(k) ? 2 : 3))}
             <div style={{ fontSize: 12, color: T.gray500 }}>Leave a blank line to start a new paragraph.</div>
           </div>
         </details>

@@ -97,6 +97,8 @@ export const ICON_PATHS = {
   trash:           'M3 6h18|M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2|M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6|M10 11v6|M14 11v6',
   // Added for Site Circuit (leadership visit-schedule email).
   mail:            'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z|M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7',
+  // Added for the Emails tab (After Visit / Follow-Up Call).
+  send:            'M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z|M21.854 2.147l-10.94 10.939',
 };
 
 export function Icon({ name, size = 16, style }) {

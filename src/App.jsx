@@ -13,7 +13,13 @@ import TrendDashboard from "./TrendDashboard";
 import ReadinessDashboard from "./ReadinessDashboard";
 import TeamPlanner from "./TeamPlanner";
 import SiteCircuit from "./SiteCircuit";
-import FollowUpEmail from "./FollowUpEmail";
+import Emails from "./Emails";
+import { BINDERS as AFTER_VISIT_BINDERS } from "./AfterVisitEmail";
+import JC427Report, { downloadJC427ReportHtml } from "./JC427Report";
+import {
+  JC427_CATEGORY_ORDER, getJC427ExpirationStatus, jc427FindingSuffix, excelSerialFromUsDate,
+  jc427Key, jc427SlotId, jc427Comment, migrateJC427Comments, employeeLabel, jc427DateInfo,
+} from "./jc427";
 
 // What the assessment module is called in the nav, on its dashboard card, and
 // in any CTA pointing at it. Kept in one place so renaming it is a one-line
@@ -496,7 +502,7 @@ const VISIT_ANSWER_MAPS = [
   "op541States", "op541Comments", "op541tStates", "op541tComments",
   "personnelAnswers", "personnelDates", "personnelComments",
   "jc427Answers", "jc427Dates", "jc427Comments",
-  "op541VehicleInfo", "meta",
+  "op541VehicleInfo", "meta", "expiredFormStatus",
 ];
 // Maps of tab id -> a small object (or, for tabComments, a string), so they need
 // one more level of merging than the flat answer maps above.
@@ -584,6 +590,17 @@ function mergeVisitForWrite(remote, local) {
     const r = Array.isArray(remote[key]) ? remote[key] : [];
     const l = Array.isArray(local[key]) ? local[key] : [];
     merged[key] = l.length ? l : r;
+  }
+
+  // The After Visit Email draft is one composition, edited as a whole —
+  // splicing two devices' picks and rewordings together would produce an email
+  // nobody wrote. Keep whichever copy was edited last, and never let a device
+  // that has not touched it (null) erase one that has.
+  const rEmail = remote.afterVisitEmail, lEmail = local.afterVisitEmail;
+  if (isPlainObject(rEmail) && isPlainObject(lEmail)) {
+    merged.afterVisitEmail = String(rEmail.updatedAt || "") > String(lEmail.updatedAt || "") ? rEmail : lEmail;
+  } else if (isPlainObject(rEmail)) {
+    merged.afterVisitEmail = rEmail;
   }
 
   return merged;
@@ -739,27 +756,119 @@ function buildChecklistItems(visit) {
 
   // JC 427: "No" answers, plus expired (red) or expiring-soon (yellow)
   // competency/date items — unlike OP 541T's FDA dates, JC 427 has a real
-  // 3-year/6-month-warning ruleset (ported from the Semi Annual app), so
-  // there's a clean signal to surface here.
+  // ruleset (the template's own: see ./jc427.js), so there's a clean signal to
+  // surface here. Each finding carries that employee's own comment.
+  const jc427Notes = migrateJC427Comments(jc427Comments, jc427Slots, jc427Items, jc427Answers, jc427Dates);
   jc427Items.forEach(item => {
     jc427Slots.forEach(slot => {
-      const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+      const key = jc427Key(item.id, slot);
       const subheader = slot.name || `Employee (col ${slot.col})`;
+      const comment = jc427Comment(jc427Notes, item.id, slot);
       if (item.answerType === "yn") {
         if (jc427Answers[key] === "no") {
-          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: item.text, comment: jc427Comments[item.id] || "", done: false });
+          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: item.text, comment, done: false });
         }
       } else {
-        const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+        const status = getJC427ExpirationStatus(jc427Dates[key], item.id);
         if (status === "red" || status === "yellow") {
-          const label = status === "red" ? "EXPIRED" : "Expires within 6 months";
-          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: `${item.text} — ${label}`, comment: jc427Comments[item.id] || "", done: false });
+          items.push({ id: `i${n++}`, category: "Personnel Records (JC 427)", subheader, text: `${item.text} — ${jc427FindingSuffix(status)}`, comment, done: false });
         }
       }
     });
   });
 
   return items;
+}
+
+// Every "Issue" finding on a visit, shaped for the After Visit Email's picker
+// (AfterVisitEmail.jsx). Ids are built from the same keys the answers are
+// stored under, so a pick saved on the visit still points at the same finding
+// after a reload or on another device.
+//
+// Grouping is the specialist's: OP 541 / 541T findings under their section
+// header (OVERALL FACILITY, WAREHOUSE SPACE, …), vehicle sheets by unit, the
+// patient-visit forms by form, personnel by file type, and every checklist
+// binder under one "Binders" category (which the picker always shows last).
+// Order of arrival here is the order the categories appear in.
+function buildAfterVisitFindings(visit) {
+  const out = [];
+  const t = v => String(v ?? "").trim();
+  const { states = {}, comments = {}, op541Sections = [], op541States = {}, op541Comments = {},
+          op541tSections = [], op541tStates = {}, op541tComments = {},
+          op541VehicleInfo = {},
+          personnelSlots = [], personnelItems = [], personnelAnswers = {}, personnelComments = {},
+          jc427Slots = [], jc427Items = [], jc427Answers = {}, jc427Dates = {}, jc427Comments = {} } = visit;
+
+  const selfAudit = (sections, stateMap, commentMap, idPrefix, form) => {
+    sections.forEach(sec => {
+      const vInfo = op541VehicleInfo[sec.sheetLabel] || {};
+      // Same vehicle test the OP 541 tab uses to show the PST/Unit # fields.
+      const isVehicle = !!vInfo.vehicleNum || /^(Vehicle|Unit)/.test(sec.sheetLabel);
+      let category;
+      if (isVehicle) {
+        const unit = vInfo.vehicleNum ? `Unit # ${vInfo.vehicleNum}` : sec.sheetLabel;
+        category = `${/^vehicle/i.test(unit) ? "" : "Vehicle "}${unit}${vInfo.pstName ? ` (${vInfo.pstName})` : ""}`;
+      } else {
+        category = t(sec.label) || sec.sheetLabel;
+      }
+      const source = `${form} · ${sec.sheetLabel}${isVehicle && sec.label ? ` / ${sec.label}` : ""}`;
+      sec.items.forEach(item => {
+        if (stateMap[item.key] !== "no") return;
+        out.push({
+          id: `${idPrefix}:${item.key}`, category, text: item.text, comment: t(commentMap[item.key]),
+          source: item.policy ? `${source} · ${item.policy}` : source,
+        });
+      });
+    });
+  };
+  selfAudit(op541Sections, op541States, op541Comments, "op541", "OP 541");
+  selfAudit(op541tSections, op541tStates, op541tComments, "op541t", "OP 541T");
+
+  SECTIONS.forEach((sec, si) => {
+    const isBinder = !PATIENT_FORM_IDS.includes(sec.id);
+    sec.items.forEach((item, ii) => {
+      const key = `${si}-${ii}`;
+      if (states[key] !== "no") return;
+      out.push({
+        id: `sec:${key}`, category: isBinder ? AFTER_VISIT_BINDERS : sec.label,
+        text: item.text, comment: t(comments[key]), source: isBinder ? sec.label : sec.ref,
+      });
+    });
+  });
+
+  personnelItems.forEach(item => {
+    if (item.answerType !== "yn") return;
+    personnelSlots.forEach(slot => {
+      const key = `${item.key}|${slot.sheetName}|${slot.col}`;
+      if (personnelAnswers[key] !== "no") return;
+      out.push({
+        id: `pers:${key}`, category: "Personnel", prefix: t(slot.name) || `Employee (col ${slot.col})`,
+        text: item.text, comment: t(personnelComments[item.key]), source: "Personnel / Medical File",
+      });
+    });
+  });
+
+  // Same JC 427 rule as the follow-up checklist: "No" answers, plus dates that
+  // are expired or inside their expiring-soon window.
+  const jc427Notes = migrateJC427Comments(jc427Comments, jc427Slots, jc427Items, jc427Answers, jc427Dates);
+  jc427Items.forEach(item => {
+    jc427Slots.forEach(slot => {
+      const key = jc427Key(item.id, slot);
+      const base = {
+        id: `jc427:${key}`, category: "Personnel Records (JC 427)", prefix: t(slot.name) || `Employee (col ${slot.col})`,
+        comment: jc427Comment(jc427Notes, item.id, slot), source: "JC 427 Personnel Records Review",
+      };
+      if (item.answerType === "yn") {
+        if (jc427Answers[key] === "no") out.push({ ...base, text: item.text });
+      } else {
+        const status = getJC427ExpirationStatus(jc427Dates[key], item.id);
+        if (status === "red" || status === "yellow")
+          out.push({ ...base, text: `${item.text} — ${jc427FindingSuffix(status)}` });
+      }
+    });
+  });
+
+  return out;
 }
 
 // Creates the Firestore checklist doc for a visit if it doesn't already exist,
@@ -793,9 +902,32 @@ async function ensureChecklistDoc(visit, visitId) {
     await updateDoc(ref, { categories: merged, updatedAt: Date.now() });
   }
 
+  return checklistUrlFor(visitId);
+}
+
+// The shareable link for a visit's follow-up checklist. Deterministic, so a
+// checklist generated in an earlier session can be linked again (the After
+// Visit Email does) without regenerating it.
+function checklistUrlFor(visitId) {
   const url = new URL(window.location.href);
   url.search = `?checklist=${encodeURIComponent(visitId)}`;
+  url.hash = "";
   return url.toString();
+}
+
+// The Follow-Up Call email's lookup: the checklist link for the visit an
+// uploaded tracker came from (it carries the visit id), or "" when that visit
+// never had one generated. Rejects when Firestore can't be reached.
+async function findChecklistUrl(visitId) {
+  const snap = await getDoc(doc(db, CHECKLISTS_COLLECTION, visitId));
+  return snap.exists() ? checklistUrlFor(visitId) : "";
+}
+
+// What a checklist doc's items have to match for it to be current: the same
+// findings, in the same groups. Comments are left out — rewording one is not
+// worth telling the specialist to regenerate.
+function checklistSignature(items) {
+  return (items || []).map(i => `${i.category}|${i.subheader}|${i.text}`).join("\n");
 }
 
 // --- Direct OOXML cell patching -------------------------------------------
@@ -888,50 +1020,20 @@ function setInlineStringValue(doc, cellEl, value) {
   cellEl.appendChild(isEl);
 }
 
-// Appends a new solid-fill entry to an existing styles.xml <fills> table,
-// returning its fillId. Always appends rather than searching for a matching
-// existing fill — simpler, and styles.xml only grows by at most 2 entries
-// per export (one red, one yellow), reused via the cache in
-// ensureHighlightCellXf below rather than re-added per cell.
-function ensureFill(stylesDoc, hex6) {
-  const ns = stylesDoc.documentElement.namespaceURI;
-  const fillsEl = stylesDoc.getElementsByTagName("fills")[0];
-  const newIndex = fillsEl.getElementsByTagName("fill").length;
-  const fillEl = stylesDoc.createElementNS(ns, "fill");
-  const patternEl = stylesDoc.createElementNS(ns, "patternFill");
-  patternEl.setAttribute("patternType", "solid");
-  const fgEl = stylesDoc.createElementNS(ns, "fgColor");
-  fgEl.setAttribute("rgb", "00" + hex6);
-  const bgEl = stylesDoc.createElementNS(ns, "bgColor");
-  bgEl.setAttribute("rgb", "00" + hex6);
-  patternEl.appendChild(fgEl);
-  patternEl.appendChild(bgEl);
-  fillEl.appendChild(patternEl);
-  fillsEl.appendChild(fillEl);
-  fillsEl.setAttribute("count", String(newIndex + 1));
-  return newIndex;
-}
-
-// Clones the cell's CURRENT cellXf (preserving its number format, font,
-// border, and alignment — everything the template's own designer already
-// set for that cell) and appends a new cellXf with only the fill swapped to
-// the given fillId. Memoized per (baseStyleIndex, fillId) pair via `cache` so
-// re-highlighting many cells with the same starting style + color reuses one
-// new cellXf instead of bloating styles.xml with a near-duplicate per cell.
-function ensureHighlightCellXf(stylesDoc, baseStyleIndex, fillId, cache) {
-  const key = `${baseStyleIndex}|${fillId}`;
-  if (cache.has(key)) return cache.get(key);
-  const cellXfsEl = stylesDoc.getElementsByTagName("cellXfs")[0];
-  const xfs = cellXfsEl.getElementsByTagName("xf");
-  const baseXf = xfs[baseStyleIndex] || xfs[0];
-  const newXf = baseXf.cloneNode(true);
-  newXf.setAttribute("fillId", String(fillId));
-  newXf.setAttribute("applyFill", "1");
-  const newIndex = xfs.length;
-  cellXfsEl.appendChild(newXf);
-  cellXfsEl.setAttribute("count", String(newIndex + 1));
-  cache.set(key, newIndex);
-  return newIndex;
+// Overwrites a cell's value with a plain number — used for JC 427 dates,
+// written as Excel date serials. Like setInlineStringValue it keeps the
+// cell's style index (`s`), which in the template already carries a date
+// number format, so the serial displays as a date. Dropping `t` is what makes
+// Excel read the value as a number: a date stored as text compares greater
+// than every number, so each of the template's "older than TODAY()-1095"
+// color rules quietly failed and every date showed green.
+function setNumericCellValue(doc, cellEl, num) {
+  const ns = doc.documentElement.namespaceURI;
+  cellEl.removeAttribute("t");
+  while (cellEl.firstChild) cellEl.removeChild(cellEl.firstChild);
+  const vEl = doc.createElementNS(ns, "v");
+  vEl.appendChild(doc.createTextNode(String(num)));
+  cellEl.appendChild(vEl);
 }
 
 // Resolves sheet names (e.g. "Binder_1") to their internal zip paths
@@ -1316,28 +1418,19 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     }
   });
 
-  // JC 427 competency dates can carry a baked-in highlight color (see
-  // buildJC427Writes) — load+mutate styles.xml lazily, only if at least one
-  // write actually needs it, since this is the only write path that ever
-  // touches cell styling.
-  const needsStyles = jc427Writes.some(w => w.style);
-  let stylesDoc = null;
-  const highlightFillIds = {};
-  const highlightXfCache = new Map();
-  if (needsStyles) {
-    const stylesXmlStr = await zip.file("xl/styles.xml").async("string");
-    stylesDoc = parser.parseFromString(stylesXmlStr, "application/xml");
-    assertParsedOk(stylesDoc, "xl/styles.xml");
-    highlightFillIds.red = ensureFill(stylesDoc, "FFEBEE");
-    highlightFillIds.yellow = ensureFill(stylesDoc, "FFF9C4");
-  }
-
   // Cell notes (native Excel red-corner comments) collected per sheet here,
   // then attached once at the end via addLegacyCommentsToSheet — that call
   // mutates each sheet's `doc` further (adding a <legacyDrawing> element), so
   // it has to happen before docs are serialized into the zip below.
   const notesBySheet = {};
+  const dateColsByPath = {};
 
+  // JC 427 writes carry either a text `value` or a numeric `serial` (a date),
+  // and optionally a `note`. A write may be note-only: an employee can have a
+  // comment on an item they haven't answered. Colors are deliberately NOT
+  // written here — the template's own conditional formatting colors each date
+  // live (relative to the day the file is opened) once the date is a real
+  // number, which a fill baked in at export time could only contradict.
   jc427Writes.forEach(w => {
     const path = sheetPaths[w.sheetName];
     const doc = path && docs[path];
@@ -1348,17 +1441,70 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     const colNum = w.col + 1;
     const address = numToColLetters(colNum) + rowNum;
     const cellEl = getOrCreateCell(doc, getOrCreateRow(doc, sheetDataEl, rowNum), address, colNum);
-    if (w.style && stylesDoc) {
-      const baseStyleIndex = parseInt(cellEl.getAttribute("s"), 10) || 0;
-      const newXfIndex = ensureHighlightCellXf(stylesDoc, baseStyleIndex, highlightFillIds[w.style], highlightXfCache);
-      cellEl.setAttribute("s", String(newXfIndex));
+    if (w.serial != null) {
+      setNumericCellValue(doc, cellEl, w.serial);
+      (dateColsByPath[path] ??= new Set()).add(colNum);
+      cellsWritten++;
+    } else if (w.value) {
+      setInlineStringValue(doc, cellEl, w.value);
+      cellsWritten++;
     }
-    setInlineStringValue(doc, cellEl, w.value);
-    cellsWritten++;
     if (w.note) {
       (notesBySheet[w.sheetName] ??= []).push({ address, text: w.note });
     }
   });
+
+  // The JC 427 template sizes employee columns C–E at 11.57 but F–L at 10.14,
+  // too narrow for a 12pt mm/dd/yyyy date — as a real date (not text) it
+  // shows as ##### there. Widen any column that got a date to the template's
+  // own C–E width. The sheets print fit-to-width, so this only nudges the
+  // print scale; the page count doesn't change.
+  const MIN_DATE_COL_WIDTH = 11.5703125;
+  for (const [path, cols] of Object.entries(dateColsByPath)) {
+    const colEls = docs[path].getElementsByTagName("col");
+    for (let i = 0; i < colEls.length; i++) {
+      const el = colEls[i];
+      const min = parseInt(el.getAttribute("min"), 10), max = parseInt(el.getAttribute("max"), 10);
+      const width = parseFloat(el.getAttribute("width"));
+      const hitsDateCol = [...cols].some(c => c >= min && c <= max);
+      if (hitsDateCol && !(width >= MIN_DATE_COL_WIDTH)) {
+        el.setAttribute("width", String(MIN_DATE_COL_WIDTH));
+        el.setAttribute("customWidth", "1");
+        el.removeAttribute("bestFit");
+      }
+    }
+  }
+
+  // The template's "Total" column is =COUNTIF(C10:L10,"N") with a cached 0.
+  // Excel trusts cached results from a file saved by the same calc engine, so
+  // without this the totals (and the Comments highlight keyed off them) stay 0
+  // however many N's were just written. fullCalcOnLoad makes Excel recompute
+  // every formula when the file opens. Excel honors that flag; LibreOffice
+  // and some viewers don't, and keep showing the cached 0 — so the stale
+  // cached results are also dropped from every formula cell on the sheets we
+  // wrote, which leaves those apps nothing to show but a freshly computed one.
+  if (jc427Writes.length > 0) {
+    const jc427Paths = new Set(jc427Writes.map(w => sheetPaths[w.sheetName]).filter(Boolean));
+    jc427Paths.forEach(path => {
+      const doc = docs[path];
+      if (!doc) return;
+      const formulas = doc.getElementsByTagName("f");
+      for (let i = 0; i < formulas.length; i++) {
+        const cellEl = formulas[i].parentNode;
+        const cached = cellEl.getElementsByTagName("v");
+        for (let j = cached.length - 1; j >= 0; j--) cellEl.removeChild(cached[j]);
+      }
+    });
+
+    const wbPath = "xl/workbook.xml";
+    const wbDoc = parser.parseFromString(await zip.file(wbPath).async("string"), "application/xml");
+    assertParsedOk(wbDoc, wbPath);
+    const calcPr = wbDoc.getElementsByTagName("calcPr")[0];
+    if (calcPr) {
+      calcPr.setAttribute("fullCalcOnLoad", "1");
+      zip.file(wbPath, serializer.serializeToString(wbDoc));
+    }
+  }
 
   for (const [sheetName, notes] of Object.entries(notesBySheet)) {
     const path = sheetPaths[sheetName];
@@ -1373,10 +1519,6 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
     zip.file(path, xml);
   });
 
-  if (stylesDoc) {
-    zip.file("xl/styles.xml", serializer.serializeToString(stylesDoc));
-  }
-
   let sheetsWritten = Object.keys(docs).length;
   if (personnelResponseRows.length > 0) {
     await addNewWorksheetFromRows(zip, parser, serializer, "Accreditation Specialist Responses", personnelResponseRows);
@@ -1386,6 +1528,28 @@ async function writeBackToOriginalWorkbook(bufferBytes, sections, states, commen
 
   const buffer = await zip.generateAsync({ type: "arraybuffer" });
   return { buffer, cellsWritten, sheetsWritten };
+}
+
+// "Change file" on the OP 541 / OP 541T tabs replaces the tab's question list
+// and the file used for export, so a workbook that isn't that form has to be
+// turned away before any of that state is touched. The likeliest wrong pick is
+// the JC 427 export — it downloads into the same folder as the OP 541, named
+// for the same location and date. Taken as an OP 541 it parsed to zero
+// questions, which blanked the tab and cleared its answers in this browser
+// (the cloud copy survived only because mergeVisitForWrite never lets an empty
+// local list replace a remote one). The laxer OP 541T parser instead turned
+// the JC 427 Instructions sheet into 14 bogus questions.
+// Returns the text to alert for a rejected file, or null if it can be used.
+function wrongOp541FileMessage(wb, fileName, formName, itemCount) {
+  const kept = `Nothing on this tab was changed — your ${formName} answers are still here.`;
+  const retry = `Use "Change file" again and pick the ${formName} file the location filled out.`;
+  if (wb.SheetNames.some(n => /JC\s*-?\s*427/i.test(n))) {
+    return `"${fileName}" is a JC 427 file, not an ${formName}. JC 427 is filled in on the JC 427 tab, which has the form built in — it never needs uploading.\n\n${kept}\n\n${retry}`;
+  }
+  if (itemCount === 0) {
+    return `"${fileName}" doesn't look like an ${formName} — no ${formName} questions were found in it.\n\n${kept}\n\n${retry}`;
+  }
+  return null;
 }
 
 // Parses "Personnel Records" / "Additional Personnel Records" sheets — a
@@ -1506,20 +1670,21 @@ async function writeTrendData(visitId, meta, locations, sections, states, commen
     });
 
     // JC 427 — "No" answers, plus expired/expiring-soon competency dates
-    // (real 3-year/6-month ruleset, unlike OP 541T's FDA dates).
+    // (the template's own ruleset, unlike OP 541T's FDA dates).
+    const jc427Notes = migrateJC427Comments(jc427Comments, jc427Slots, jc427Items, jc427Answers, jc427Dates);
     jc427Items.forEach(item => {
       jc427Slots.forEach(slot => {
-        const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+        const key = jc427Key(item.id, slot);
         const who = slot.name || `Employee (col ${slot.col})`;
+        const comment = jc427Comment(jc427Notes, item.id, slot);
         if (item.answerType === "yn") {
           if (jc427Answers[key] === "no") {
-            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: item.text, comment: jc427Comments[item.id] || "", visitType: "jc427" });
+            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: item.text, comment, visitType: "jc427" });
           }
         } else {
-          const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+          const status = getJC427ExpirationStatus(jc427Dates[key], item.id);
           if (status === "red" || status === "yellow") {
-            const label = status === "red" ? "EXPIRED" : "Expires within 6 months";
-            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: `${item.text} — ${label}`, comment: jc427Comments[item.id] || "", visitType: "jc427" });
+            records.push({ ...base, section: `JC 427 — Personnel Records (${who})`, formRef: "JC 427 Personnel Records", itemText: `${item.text} — ${jc427FindingSuffix(status)}`, comment, visitType: "jc427" });
           }
         }
       });
@@ -1662,8 +1827,6 @@ const JC427_ALL_ITEMS = [
   ...JC427_CLINICAL_COMPETENCIES.items.map(it => ({ ...it, category: JC427_CLINICAL_COMPETENCIES.category, sheetBanner: JC427_CLINICAL_COMPETENCIES.sheetBanner, answerType: "date" })),
 ];
 
-const JC427_CATEGORY_ORDER = ["Onboarding Documents", "Training", "Performance Review", "Medical Record", "Non-Clinical Competency Assessments", "Clinical Competency Assessments"];
-
 // Reference-only instructions, shown in a modal — ported verbatim.
 const JC427_INSTRUCTIONS = [
   { title: "Welcome to Rotech (Okay to Hire) Email (applicable to employees hired after 2017)", body: "Must have a copy of \"Okay to hire\" email. Check LCM and AM email.\n\nIf email cannot be located:\n- Check ICIMS\n- Search by Requisition the employee was hired under\n- Email (may have to go to \"More\")\n- Shares (these are emails that have been sent to hiring managers)\n- Look for \"Cleared for hire\" or \"Welcome\" email - print email for employee file\n\nIf email cannot be located in ICIMS, answer \"N\"." },
@@ -1687,24 +1850,9 @@ const JC427_INSTRUCTIONS = [
   { title: "File Requirements", body: "ALL employees MUST have a Personnel file and a SEPARATE Medical File.\nEmployees transfilling or curbside filling liquid oxygen MUST have a SEPARATE FDA File." },
 ];
 
-// Competency/date items are valid for 3 years from the entered date, with a
-// 6-month "expiring soon" warning window — ported from the Semi Annual app's
-// getExpirationStatus. Returns null (no date entered), "red" (expired),
-// "yellow" (expiring within 6 months), or "green" (current).
-function getJC427ExpirationStatus(dateStr) {
-  if (!dateStr) return null;
-  const entered = new Date(`${dateStr}T00:00:00`);
-  if (isNaN(entered.getTime())) return null;
-  const expiration = new Date(entered);
-  expiration.setFullYear(expiration.getFullYear() + 3);
-  const warningStart = new Date(expiration);
-  warningStart.setMonth(warningStart.getMonth() - 6);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (today > expiration) return "red";
-  if (today >= warningStart) return "yellow";
-  return "green";
-}
+// Date rules (getJC427ExpirationStatus and friends) live in ./jc427.js — they
+// mirror the template's own conditional formatting: 3 years with a 12-month
+// warning band, except N95 fit testing, which is annual.
 
 // Parses the real JC 427 "PERSONNEL RECORDS REVIEW" sheet by locating known
 // label/category text rather than hardcoded row numbers — row positions
@@ -1734,6 +1882,23 @@ function parseJC427Sheet(rows, sheetName) {
   }
   if (employeeNameRow === -1 || totalCol === -1) {
     return { ok: false, slots: [], items: [] };
+  }
+
+  // Visit header cells above the employee block: "Location #:" and
+  // "City/State:" labels sit in A (merged A:B) with the value cell starting at
+  // C (merged C:L); "Date:" and "Reviewer:" labels sit in a later column with
+  // the value immediately to their right.
+  const headerCells = {};
+  for (let r = 0; r < employeeNameRow; r++) {
+    const row = rows[r] || [];
+    const a = norm(row[0]);
+    if (a.startsWith("location") && !headerCells.location) headerCells.location = { rowIdx: r, col: 2 };
+    if (a.startsWith("city") && !headerCells.city) headerCells.city = { rowIdx: r, col: 2 };
+    for (let c = 1; c < row.length; c++) {
+      const v = norm(row[c]);
+      if (v === "date:" && !headerCells.date) headerCells.date = { rowIdx: r, col: c + 1 };
+      if (v === "reviewer:" && !headerCells.reviewer) headerCells.reviewer = { rowIdx: r, col: c + 1 };
+    }
   }
 
   // Column A is the item label, column B is a blank bordered spacer (no
@@ -1774,54 +1939,76 @@ function parseJC427Sheet(rows, sheetName) {
     });
   });
 
-  return { ok: true, slots, items, employeeNameRow, jobTitleRow, hireDateRow, commentsCol, employeeCols };
+  return { ok: true, slots, items, employeeNameRow, jobTitleRow, hireDateRow, commentsCol, employeeCols, headerCells };
 }
 
 // Builds the flat list of cell writes for JC 427 — mirrors buildVehicleWrites/
-// the old personnel write-back: Name/Job Title/Hire Date per slot's column,
-// each item's answer (Y/N/N/A, or a date string) per (item, employee), and
-// each item's comment (shared across employees, one Comments column per row).
-// Competency/date answers additionally carry a `style` ("red"/"yellow"/null)
-// baked in from getJC427ExpirationStatus at export time — a snapshot of what
-// the specialist saw color-coded in the app during this visit, not a live
-// formula (dates are stored as plain text, and this app has been burned by
-// conditional-formatting complexity before). Any answer cell whose item has
-// a comment also carries a `note` — the same shared comment text as a native
-// Excel cell note (red-corner hover), in addition to the plain-text Comments
-// column write below.
-function buildJC427Writes(slots, items, answers, dates, comments, meta) {
+// the old personnel write-back:
+//   • the visit header (Location #, City/State, Date, Reviewer) on every page
+//     that has employees, plus the first page;
+//   • Name / Job Title / Hire Date in each employee's column;
+//   • each (item, employee) answer: Y / N / NA as text (NA, not N/A, because
+//     that is the value in the template's own dropdown), or a date as a real
+//     Excel date serial so the template's conditional formatting colors it;
+//   • each employee's OWN comment as a native cell note (red-corner hover) on
+//     that employee's cell only;
+//   • the row's Comments column: the template's existing guidance text for
+//     that row (e.g. "Requires certificate only"), then one "Name: comment"
+//     line per employee on that page who left one.
+function buildJC427Writes(slots, items, answers, dates, comments, meta, visitMeta = {}) {
   const writes = [];
   const sheetNames = [...new Set(slots.map(s => s.sheetName))];
+  const nameOf = slot => employeeLabel(slot, slots.indexOf(slot));
+
+  const header = meta.headerCells || {};
+  const lawson = visitMeta.lawson && visitMeta.lawson !== "other" ? visitMeta.lawson : "";
+  const headerValues = {
+    location: [lawson, visitMeta.location].filter(Boolean).join(" — "),
+    city: visitMeta.city || "",
+    date: visitMeta.date || "",
+    reviewer: visitMeta.specialist || "",
+  };
+  const headerSheets = [...new Set([...(meta.sheetNames || []).slice(0, 1), ...sheetNames])];
+  headerSheets.forEach(sheetName => {
+    Object.entries(headerValues).forEach(([field, value]) => {
+      const cell = header[field];
+      if (cell && value) writes.push({ sheetName, rowIdx: cell.rowIdx, col: cell.col, value });
+    });
+  });
 
   slots.forEach(slot => {
     if (slot.name) writes.push({ sheetName: slot.sheetName, rowIdx: meta.employeeNameRow, col: slot.col, value: slot.name });
     if (slot.jobTitle && meta.jobTitleRow != null) writes.push({ sheetName: slot.sheetName, rowIdx: meta.jobTitleRow, col: slot.col, value: slot.jobTitle });
-    if (slot.hireDate && meta.hireDateRow != null) writes.push({ sheetName: slot.sheetName, rowIdx: meta.hireDateRow, col: slot.col, value: slot.hireDate });
+    if (slot.hireDate && meta.hireDateRow != null) {
+      const serial = excelSerialFromUsDate(slot.hireDate);
+      writes.push({ sheetName: slot.sheetName, rowIdx: meta.hireDateRow, col: slot.col, value: slot.hireDate, serial });
+    }
   });
 
   items.forEach(item => {
-    const commentVal = (comments[item.id] || "").trim();
     slots.forEach(slot => {
-      const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+      const key = jc427Key(item.id, slot);
+      const note = jc427Comment(comments, item.id, slot) || null;
+      let value = "", serial = null;
       if (item.answerType === "yn") {
         const val = answers[key];
-        const text = val === "yes" ? "Y" : val === "no" ? "N" : val === "na" ? "N/A" : "";
-        if (text) writes.push({ sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: text, note: commentVal || null });
+        value = val === "yes" ? "Y" : val === "no" ? "N" : val === "na" ? "NA" : "";
       } else {
-        const val = (dates[key] || "").trim();
-        if (val) {
-          const status = getJC427ExpirationStatus(usDateToIso(val));
-          writes.push({
-            sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value: val,
-            style: (status === "red" || status === "yellow") ? status : null,
-            note: commentVal || null,
-          });
-        }
+        value = String(dates[key] || "").trim();
+        serial = excelSerialFromUsDate(value);
       }
+      if (value || note) writes.push({ sheetName: slot.sheetName, rowIdx: item.rowIdx, col: slot.col, value, serial, note });
     });
-    if (commentVal && meta.commentsCol != null) {
+
+    if (meta.commentsCol != null) {
       sheetNames.forEach(sheetName => {
-        writes.push({ sheetName, rowIdx: item.rowIdx, col: meta.commentsCol, value: commentVal });
+        const lines = slots
+          .filter(s => s.sheetName === sheetName)
+          .map(s => { const c = jc427Comment(comments, item.id, s); return c ? `${nameOf(s)}: ${c}` : null; })
+          .filter(Boolean);
+        if (lines.length === 0) return;
+        const guidance = String(item.comment || "").trim();
+        writes.push({ sheetName, rowIdx: item.rowIdx, col: meta.commentsCol, value: [guidance, ...lines].filter(Boolean).join("\n") });
       });
     }
   });
@@ -1883,7 +2070,7 @@ const SECTIONS = [
       { text: "Tab 1 — Quarterly Don't Bug Me newsletter and OP 520 attendance record" },
       { text: "Tab 1 — OP 201 Organizational Chart"}, 
       { text:  "Policy 1.1.2 Scope of Service" },
-      { text: "Tab 1 — Key contact person name documented for surveyor tracer selection" },
+      { text: "Tab 1 — Key contact person documented on JC 436 for surveyor tracer selection" },
       { text: "Tab 2 — Emergency Preparedness: Policy 2.2.2" },
       { text:  "OP 525 Emergency Preparedness Plan" },
       { text: "OP 857- Emergency documentation & recovery (AS - APPLICABLE - IF PLAN ACTIVATED)" },
@@ -1903,7 +2090,7 @@ const SECTIONS = [
       { text: "RM 1233 Site Specific Information Sheet" },
       { text: "RM 1234 Hazard Communication Program Training Record (copy also in employee file)" },
       { text: "RM 1238 PPE Hazard Assessment Form (copy also in employee file)" },
-      { text: "SDS on file for every hazardous chemical stored or used at location" },
+      { text: "SDS on file for every hazardous chemical stored or used at location", note: "If location uses Rotech Transfill: Rotech O2 SDS (FDA 035 – Gas / FDA 036 – Liquid) must be in the binder" },
     ]
   },
   {
@@ -2063,6 +2250,81 @@ function initStates() {
     c[`${si}-${ii}`] = "";
   }));
   return { states: s, comments: c };
+}
+
+// ─── EXPIRED PRODUCTS FORM ───────────────────────────────────────────────────
+// Expired product found on a visit has to be reported on this Microsoft Form.
+// The questions that ask about it come from the uploaded OP 541 / 541T
+// spreadsheets rather than from SECTIONS, so they're recognised by wording
+// ("Expired products removed", "First aid kit without expired products",
+// "Eye wash … check for expiration", …).
+//
+// The form opens in a new tab rather than embedded: company-only Microsoft
+// Forms routinely fail to sign in inside an iframe (Safari/iPad above all),
+// and an embed wouldn't report its answers back to the app either. What the
+// app tracks is the specialist's own word, per finding, in expiredFormStatus:
+// "submitted", or "notNeeded" for an N that had nothing to do with expired
+// product (a first aid kit that's missing outright, say).
+const EXPIRED_PRODUCTS_FORM_URL = "https://forms.cloud.microsoft/r/kFwaiWmbF3";
+const isExpiredProductsItem = text => /\bexpir(ed|ation)\b/i.test(String(text || ""));
+const expiredFormKey = (tab, itemKey) => `${tab}:${itemKey}`;
+
+// The amber prompt under an expired-products question marked N, on the OP 541
+// and OP 541T tabs. `status` is "submitted" | "notNeeded" | blank (pending).
+function ExpiredProductsPrompt({ status, onChange }) {
+  const pill = (value, label) => {
+    const on = status === value;
+    return (
+      <button type="button" onClick={() => onChange(on ? "" : value)} aria-pressed={on}
+        style={{
+          padding: "5px 11px", fontSize: 12.5, fontWeight: 600, borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit",
+          border: `1.5px solid ${on ? (value === "submitted" ? T.successBorder : T.gray300) : T.gray300}`,
+          background: on ? (value === "submitted" ? T.successBg : T.gray100) : T.white,
+          color: on ? (value === "submitted" ? T.success : T.gray700) : T.gray600,
+        }}>
+        {on ? "✓ " : ""}{label}
+      </button>
+    );
+  };
+  const done = status === "submitted" || status === "notNeeded";
+  return (
+    <div style={{
+      marginTop: 8, padding: "10px 12px", borderRadius: 6,
+      border: `1px solid ${status === "submitted" ? T.successBorder : done ? T.gray200 : T.warning}`,
+      background: status === "submitted" ? T.successBg : done ? T.gray50 : T.warningBg,
+    }}>
+      <div style={{ fontSize: 13, color: status === "submitted" ? T.success : done ? T.gray600 : T.warning, fontWeight: 600, marginBottom: 8, lineHeight: 1.45 }}>
+        {status === "submitted" ? "✓ Expired Products Form submitted"
+          : status === "notNeeded" ? "Expired Products Form not needed for this finding"
+          : "⚠ Expired products found? Complete the Expired Products Form, then mark it submitted."}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <a href={EXPIRED_PRODUCTS_FORM_URL} target="_blank" rel="noopener noreferrer"
+          style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12.5, textDecoration: "none", display: "inline-block" }}>
+          Open Expired Products Form ↗
+        </a>
+        {pill("submitted", "Form submitted")}
+        {pill("notNeeded", "Not needed")}
+      </div>
+    </div>
+  );
+}
+
+// ─── VEHICLE SDS: ROTECH O2 ──────────────────────────────────────────────────
+// Locations on Rotech Transfill must carry the Rotech O2 SDS (FDA 035 gas /
+// FDA 036 liquid) in the vehicle SDS binder. The vehicle SDS question comes
+// from the uploaded OP 541 / 541T sheet ("SDS present on vehicle …"), so it
+// can't be reworded here — the requirement shows as a note under it instead.
+// Matched on a vehicle sheet, or on wording that names the vehicle.
+const isVehicleSdsItem = (text, onVehicleSheet) =>
+  /\bSDS\b/i.test(String(text || "")) && (onVehicleSheet || /\bvehicles?\b/i.test(String(text || "")));
+
+function VehicleSdsNote() {
+  return (
+    <div style={{ marginTop: 6, padding: "6px 10px", fontSize: 12.5, lineHeight: 1.45, color: T.blue700, background: T.blue50, border: `1px solid ${T.blueBorder}`, borderRadius: 5 }}>
+      <strong>If location uses Rotech Transfill:</strong> Rotech O2 SDS (FDA 035 – Gas / FDA 036 – Liquid) must be in the vehicle SDS binder.
+    </div>
+  );
 }
 
 // `aria` is what a screen reader announces — "Y"/"N"/"N/A" alone are
@@ -2909,26 +3171,170 @@ function PersonnelRecordsPanel({ slots, items, answers, setAnswers, dates, setDa
   );
 }
 
-// Card-per-employee layout for JC 427, ported from the Semi Annual app's
-// JC427Form.jsx (see the constants above it). Date items get the same
-// 3-year/6-month-warning red/yellow/green coloring that app uses; per-item
-// comments are shared across employees (one Comments column per row in the
-// real file, same convention as OP 541T's Personnel Records).
+// JC 427 entry layout: one employee card open at a time. Inside it, the 15
+// required records are a compact two-column Y / N / N/A checklist, and each
+// competency category (20 non-clinical, 24 clinical — mostly blank for any
+// one employee) is its own collapsible list, collapsed until opened. The old
+// layout listed all 59 items with a comment box under each for every
+// employee, so ten employees meant roughly 600 rows of scrolling.
+//
+// Item content is ported from the Semi Annual app's JC427Form.jsx (see the
+// constants above it). Date items get the template's own red/yellow/green
+// rules (./jc427.js). Comments are per employee and stay behind each row's
+// note button until there is one; on export a comment becomes a note on that
+// employee's cell plus a "Name: comment" line in the row's Comments column.
 const JC427_STATUS_BG     = { red: T.errorBg, yellow: "#fff9c4", green: T.successBg };
-const JC427_STATUS_BORDER = { red: T.errorBorder, yellow: "#fff59d", green: T.successBorder };
+const JC427_STATUS_BORDER = { red: T.errorBorder, yellow: "#e8a317", green: T.successBorder };
+const JC427_STATUS_PILL   = {
+  red:    { fg: T.error,   bg: T.errorBg,   border: T.errorBorder,   word: "Expired" },
+  yellow: { fg: "#8a5300", bg: "#fff4cc",   border: "#e8a317",       word: "Expires" },
+  green:  { fg: T.success, bg: T.successBg, border: T.successBorder, word: "Valid to" },
+};
+const JC427_COMPETENCY_CATEGORIES = ["Non-Clinical Competency Assessments", "Clinical Competency Assessments"];
 
-function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments, onAddEmployee, onRemoveEmployee, onUpdateSlot, canAddEmployee }) {
-  const slotId = s => `${s.sheetName}|${s.col}`;
-  const groups = JC427_CATEGORY_ORDER
+function JC427Chevron({ open }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.gray600} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ flexShrink: 0, transform: `rotate(${open ? 90 : 0}deg)`, transition: "transform .15s" }}>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+function JC427Pill({ fg, bg, border, children }) {
+  return (
+    <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 9px", borderRadius: T.radiusPill, color: fg, background: bg, border: `1px solid ${border || bg}`, whiteSpace: "nowrap" }}>
+      {children}
+    </span>
+  );
+}
+
+// One answerable line: the item (with its guidance text), the answer control
+// (Y / N / N/A, or a date), and a note button. The employee's comment shows
+// under the row once it exists; the text box only opens on demand.
+// statusBelow puts a date's status under the label (the narrow two-column
+// checklist) instead of beside the date field (the full-width competency lists).
+function JC427Row({ item, who, answer, onAnswer, date, onDate, comment, onComment, noteOpen, onToggleNote, statusBelow }) {
+  const info = item.answerType === "date" ? jc427DateInfo(date, item.id) : null;
+  const pill = info ? JC427_STATUS_PILL[info.status] : null;
+  const statusText = info ? `${pill.word} ${info.expires}` : "";
+  const hasNote = !!String(comment || "").trim();
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 0", borderBottom: `1px solid ${T.gray100}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, color: T.ink, lineHeight: 1.3 }}>{item.text}</div>
+          {item.note && <div style={{ fontSize: 11.5, color: T.gray500, marginTop: 1 }}>{item.note}</div>}
+          {statusBelow && info && <div style={{ fontSize: 11.5, fontWeight: 700, color: pill.fg, marginTop: 1 }}>{statusText}</div>}
+        </div>
+        {item.answerType === "yn" ? (
+          <div role="group" aria-label={`${item.text}, ${who}`} style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+            {["yes", "no", "na"].map(v => {
+              const sc = STATUS_COLORS[v];
+              const active = answer === v;
+              return (
+                <button key={v} type="button" onClick={() => onAnswer(v)} aria-label={sc.aria} aria-pressed={active}
+                  style={{ minWidth: 44, height: 38, padding: "0 8px", fontSize: 12.5, fontWeight: 700, borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit",
+                    border: `1.5px solid ${active ? sc.border : T.gray200}`, background: active ? sc.bg : T.white, color: active ? sc.text : T.gray500 }}>
+                  {sc.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {!statusBelow && info && <JC427Pill fg={pill.fg} bg={pill.bg} border={pill.border}>{statusText}</JC427Pill>}
+            <input
+              type="date"
+              aria-label={`${item.text} date for ${who}`}
+              value={usDateToIso(date || "")}
+              onChange={e => onDate(isoToUsDate(e.target.value))}
+              style={{ height: 38, padding: "0 8px", fontSize: 13, borderRadius: T.radius, boxSizing: "border-box", color: T.ink, fontFamily: "inherit",
+                border: `1.5px solid ${info ? JC427_STATUS_BORDER[info.status] : T.gray300}`, background: info ? JC427_STATUS_BG[info.status] : T.white }}
+            />
+          </div>
+        )}
+        <button type="button" onClick={onToggleNote} aria-expanded={noteOpen} title={hasNote ? "Edit note" : "Add note"}
+          aria-label={`${hasNote ? "Edit" : "Add"} note for ${who}: ${item.text}`}
+          style={{ position: "relative", flexShrink: 0, width: 38, height: 38, display: "inline-flex", alignItems: "center", justifyContent: "center",
+            background: T.white, border: `1px solid ${T.gray200}`, borderRadius: T.radius, cursor: "pointer", color: hasNote ? T.blue600 : T.gray500 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+          </svg>
+          {hasNote && <span aria-hidden="true" style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: T.radiusPill, background: T.blue600 }} />}
+        </button>
+      </div>
+      {hasNote && !noteOpen && (
+        <div style={{ fontSize: 12.5, color: T.gray700, background: T.blue50, borderRadius: 6, padding: "5px 9px", whiteSpace: "pre-wrap" }}>{comment}</div>
+      )}
+      {noteOpen && (
+        <textarea
+          autoFocus
+          value={comment || ""}
+          onChange={e => onComment(e.target.value)}
+          rows={2}
+          aria-label={`Note for ${who}: ${item.text}`}
+          placeholder={`Note for ${who} only`}
+          style={{ width: "100%", boxSizing: "border-box", padding: "7px 9px", fontSize: 13, fontFamily: "inherit", border: `1.5px solid ${T.blue600}`, borderRadius: T.radius, resize: "vertical", color: T.ink }}
+        />
+      )}
+    </div>
+  );
+}
+
+function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, comments, setComments, onAddEmployee, onRemoveEmployee, onUpdateSlot, canAddEmployee, onViewReport }) {
+  const [showInstructions, setShowInstructions] = useState(false);
+  // The one open card. null = not chosen yet (open the first), "" = the
+  // specialist closed every card themselves (leave them closed).
+  const [openSid, setOpenSid] = useState(null);
+  const [openLists, setOpenLists] = useState({}); // `${sid}|${category}` -> true; competency lists start collapsed
+  const [noteKey, setNoteKey] = useState(null);
+  const slotCount = useRef(slots.length);
+
+  useEffect(() => {
+    const prev = slotCount.current;
+    slotCount.current = slots.length;
+    // A single new employee from "+ Add Employee": open their card.
+    if (slots.length === prev + 1) { setOpenSid(jc427SlotId(slots[slots.length - 1])); return; }
+    // First load, or the open employee was removed: fall back to the first card.
+    if (openSid === null || (openSid && !slots.some(s => jc427SlotId(s) === openSid))) {
+      setOpenSid(slots[0] ? jc427SlotId(slots[0]) : null);
+    }
+    // openSid is read, not watched: this reacts to the employee list changing only.
+  }, [slots]);
+
+  const requiredItems = JC427_CATEGORY_ORDER
+    .filter(cat => !JC427_COMPETENCY_CATEGORIES.includes(cat))
+    .flatMap(cat => items.filter(it => it.category === cat));
+  const ynRequired = requiredItems.filter(it => it.answerType === "yn");
+  const competencyGroups = JC427_COMPETENCY_CATEGORIES
     .map(cat => ({ cat, items: items.filter(it => it.category === cat) }))
     .filter(g => g.items.length > 0);
-  const [showInstructions, setShowInstructions] = useState(false);
 
-  const fieldStyle = { width: "100%", fontSize: 13, padding: "6px 8px", border: `1px solid ${T.gray200}`, borderRadius: 4, boxSizing: "border-box", color: T.ink };
-  const labelStyle = { fontSize: 11, color: T.gray600, marginBottom: 4, fontWeight: 600 };
+  const needsText = n => `${n} need${n === 1 ? "s" : ""} attention`;
+  const isFlagged = (it, key) => {
+    if (it.answerType === "yn") return answers[key] === "no";
+    const st = getJC427ExpirationStatus(dates[key], it.id);
+    return st === "red" || st === "yellow";
+  };
+
+  const labelStyle = { display: "block", fontSize: 11.5, fontWeight: 700, color: T.gray600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 };
+  const fieldStyle = { width: "100%", height: 40, padding: "0 10px", fontSize: 14, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, boxSizing: "border-box", color: T.ink, fontFamily: "inherit", background: T.white };
+  const sectionTitle = { margin: 0, fontSize: 13, fontWeight: 700, color: T.blue600, textTransform: "uppercase", letterSpacing: "0.06em" };
+
+  const rowProps = (it, s, who) => {
+    const key = jc427Key(it.id, s);
+    return {
+      item: it, who,
+      answer: answers[key], onAnswer: v => setAnswers(p => ({ ...p, [key]: v })),
+      date: dates[key] || "", onDate: v => setDates(p => ({ ...p, [key]: v })),
+      comment: comments[key] ?? "", onComment: v => setComments(p => ({ ...p, [key]: v })),
+      noteOpen: noteKey === key, onToggleNote: () => setNoteKey(k => (k === key ? null : key)),
+    };
+  };
 
   return (
-    <div style={{ marginTop: 24 }}>
+    <div style={{ margin: "24px auto 0", maxWidth: 1100 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: BRAND, color: "#fff", padding: "10px 16px", marginBottom: 12, borderRadius: 6 }}>
         <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: "0.04em" }}>JC 427 — Personnel Records Review</div>
         <button onClick={() => setShowInstructions(true)} style={{ fontSize: 11, background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 5, padding: "4px 10px", cursor: "pointer" }}>
@@ -2940,94 +3346,143 @@ function JC427Panel({ slots, items, answers, setAnswers, dates, setDates, commen
         ALL employees MUST have a Personnel File and a SEPARATE Medical File. Employees transfilling or curbside filling liquid oxygen MUST have a SEPARATE FDA File.
       </div>
 
+      {slots.length === 0 && (
+        <div style={{ padding: "28px 16px", textAlign: "center", color: T.gray600, fontSize: 14, background: T.white, border: `1px solid ${T.gray200}`, borderRadius: 12, marginBottom: 12 }}>
+          No employees yet. Add the first employee to start the review.
+        </div>
+      )}
+
       {slots.map((s, idx) => {
-        const sid = slotId(s);
+        const sid = jc427SlotId(s);
+        const open = openSid === sid;
+        const who = employeeLabel(s, idx);
+        let answered = 0, issues = 0, dated = 0;
+        ynRequired.forEach(it => { if (answers[jc427Key(it.id, s)]) answered++; });
+        items.forEach(it => {
+          const key = jc427Key(it.id, s);
+          if (isFlagged(it, key)) issues++;
+          if (it.answerType === "date" && dates[key] && JC427_COMPETENCY_CATEGORIES.includes(it.category)) dated++;
+        });
+        const complete = ynRequired.length > 0 && answered === ynRequired.length;
+        const sub = [s.jobTitle, s.hireDate && `Hired ${s.hireDate}`].filter(Boolean).join(" · ") || "Add a job title and hire date";
         return (
-          <div key={sid} style={{ border: `2px solid ${BRAND}`, borderRadius: 8, padding: 16, marginBottom: 16, background: "#fff" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontWeight: 700, color: BRAND, fontSize: 14 }}>Employee {idx + 1}{s.name ? `: ${s.name}` : ""}</div>
-              <button onClick={() => onRemoveEmployee(s)} style={{ fontSize: 11, color: T.error, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                Remove
-              </button>
-            </div>
+          <section key={sid} style={{ background: T.white, borderRadius: 12, overflow: "hidden", border: `1.5px solid ${open ? T.blue600 : T.gray200}`, marginBottom: 12 }}>
+            <button type="button" aria-expanded={open} onClick={() => { setOpenSid(open ? "" : sid); setNoteKey(null); }}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", minHeight: 64, padding: "12px 18px", background: open ? T.blue50 : T.white, border: 0, cursor: "pointer", textAlign: "left", color: T.ink, fontFamily: "inherit" }}>
+              <JC427Chevron open={open} />
+              <span style={{ flex: "1 1 180px", minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 15.5, fontWeight: 700 }}>{who}</span>
+                <span style={{ display: "block", fontSize: 12.5, color: T.gray600 }}>{sub}</span>
+              </span>
+              <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {complete
+                  ? <JC427Pill fg={T.success} bg={T.successBg}>✓ Required records complete</JC427Pill>
+                  : <JC427Pill fg={T.gray700} bg={T.gray100}>{answered} of {ynRequired.length} Y/N answered</JC427Pill>}
+                <JC427Pill fg={T.gray700} bg={T.gray100}>{dated} {dated === 1 ? "competency" : "competencies"} dated</JC427Pill>
+                {issues > 0 && <JC427Pill fg={T.error} bg={T.errorBg} border={T.errorBorder}>{needsText(issues)}</JC427Pill>}
+              </span>
+            </button>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-              <label style={{ flex: "2 1 220px" }}>
-                <div style={labelStyle}>Name</div>
-                <input value={s.name} onChange={e => onUpdateSlot(s.sheetName, s.col, "name", e.target.value)} style={fieldStyle} />
-              </label>
-              <label style={{ flex: "2 1 220px" }}>
-                <div style={labelStyle}>Job Title</div>
-                <input value={s.jobTitle} onChange={e => onUpdateSlot(s.sheetName, s.col, "jobTitle", e.target.value)} style={fieldStyle} />
-              </label>
-              <label style={{ flex: "1 1 160px" }}>
-                <div style={labelStyle}>Hire Date</div>
-                <input value={s.hireDate} onChange={e => onUpdateSlot(s.sheetName, s.col, "hireDate", e.target.value)} placeholder="MM/DD/YYYY" style={fieldStyle} />
-              </label>
-            </div>
+            {open && (
+              <div style={{ borderTop: `1px solid ${T.gray200}`, padding: "16px 18px 18px", display: "flex", flexDirection: "column", gap: 18 }}>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <label style={{ flex: "2 1 200px" }}>
+                    <span style={labelStyle}>Name</span>
+                    <input value={s.name} onChange={e => onUpdateSlot(s.sheetName, s.col, "name", e.target.value)} style={fieldStyle} />
+                  </label>
+                  <label style={{ flex: "1 1 150px" }}>
+                    <span style={labelStyle}>Job Title</span>
+                    <input value={s.jobTitle} onChange={e => onUpdateSlot(s.sheetName, s.col, "jobTitle", e.target.value)} style={fieldStyle} />
+                  </label>
+                  <label style={{ flex: "1 1 150px" }}>
+                    <span style={labelStyle}>Hire Date</span>
+                    <input value={s.hireDate} onChange={e => onUpdateSlot(s.sheetName, s.col, "hireDate", e.target.value)} placeholder="MM/DD/YYYY" style={fieldStyle} />
+                  </label>
+                  <button type="button"
+                    onClick={() => { if (window.confirm(`Remove ${who} and all of their JC 427 answers?`)) onRemoveEmployee(s); }}
+                    style={{ height: 40, padding: "0 12px", fontSize: 13, fontWeight: 600, color: T.error, background: T.white, border: `1.5px solid ${T.errorBorder}`, borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit" }}>
+                    Remove employee
+                  </button>
+                </div>
 
-            {groups.map(({ cat, items: catItems }) => (
-              <div key={cat} style={{ background: T.successBg, border: "1px solid #c8e6c9", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, color: T.success, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{cat}</div>
-                {catItems.map(item => {
-                  const key = `${item.id}|${sid}`;
-                  const dateVal = dates[key] || "";
-                  const status = item.answerType === "date" ? getJC427ExpirationStatus(usDateToIso(dateVal)) : null;
-                  return (
-                    <div key={item.id} style={{ padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                        <div style={{ fontSize: 12, color: T.ink, flex: 1 }}>
-                          {item.text}
-                          {item.note && <div style={{ fontSize: 10, color: T.gray500, fontStyle: "italic", marginTop: 2 }}>{item.note}</div>}
-                        </div>
-                        {item.answerType === "yn" ? (
-                          <div style={{ display: "flex", gap: 4 }}>
-                            {["yes", "no", "na"].map(v => {
-                              const sc = STATUS_COLORS[v];
-                              const active = answers[key] === v;
-                              return (
-                                <button key={v} onClick={() => setAnswers(p => ({ ...p, [key]: v }))} aria-label={sc.aria} aria-pressed={active}
-                                  style={{ width: 40, padding: "4px 0", fontSize: 11, fontWeight: 700, borderRadius: 6, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${active ? sc.border : T.gray200}`, background: active ? sc.bg : T.white, color: active ? sc.text : T.gray400 }}>
-                                  {sc.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <input
-                            type="date"
-                            value={usDateToIso(dateVal)}
-                            onChange={e => setDates(p => ({ ...p, [key]: isoToUsDate(e.target.value) }))}
-                            style={{
-                              fontSize: 12, padding: "4px 6px", borderRadius: 4, boxSizing: "border-box", color: T.ink,
-                              border: `1px solid ${status ? JC427_STATUS_BORDER[status] : T.gray200}`,
-                              background: status ? JC427_STATUS_BG[status] : "#fff",
-                            }}
-                          />
-                        )}
-                      </div>
-                      <textarea
-                        value={comments[item.id] ?? ""}
-                        onChange={e => setComments(p => ({ ...p, [item.id]: e.target.value }))}
-                        rows={1}
-                        placeholder="Comments (added as a note on each employee's cell for this item)…"
-                        style={{ width: "100%", marginTop: 6, fontSize: 11, padding: "4px 6px", border: `1px solid ${T.gray200}`, borderRadius: 4, resize: "vertical", boxSizing: "border-box", color: T.ink }}
-                      />
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                    <div>
+                      <h3 style={sectionTitle}>Required records</h3>
+                      <div style={{ fontSize: 12.5, color: T.gray600 }}>{answered} of {ynRequired.length} Y/N answered</div>
                     </div>
-                  );
-                })}
+                    <button type="button"
+                      onClick={() => setAnswers(p => {
+                        const next = { ...p };
+                        ynRequired.forEach(it => { const k = jc427Key(it.id, s); if (!next[k]) next[k] = "yes"; });
+                        return next;
+                      })}
+                      style={{ height: 40, padding: "0 14px", fontSize: 13, fontWeight: 600, color: T.success, background: T.successBg, border: `1.5px solid ${T.successBorder}`, borderRadius: T.radius, cursor: "pointer", fontFamily: "inherit" }}>
+                      Mark unanswered as Yes
+                    </button>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))", columnGap: 24 }}>
+                    {requiredItems.map(it => <JC427Row key={it.id} {...rowProps(it, s, who)} statusBelow />)}
+                  </div>
+                </div>
+
+                {competencyGroups.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div>
+                      <h3 style={sectionTitle}>Competency assessments</h3>
+                      <div style={{ fontSize: 12.5, color: T.gray600 }}>Date only. Leave a competency blank if it doesn't apply to this employee.</div>
+                    </div>
+                    {competencyGroups.map(g => {
+                      const listKey = `${sid}|${g.cat}`;
+                      const listOpen = !!openLists[listKey];
+                      let gDated = 0, gIssues = 0;
+                      g.items.forEach(it => {
+                        const key = jc427Key(it.id, s);
+                        if (dates[key]) gDated++;
+                        if (isFlagged(it, key)) gIssues++;
+                      });
+                      return (
+                        <div key={g.cat} style={{ border: `1px solid ${T.gray200}`, borderRadius: 10, overflow: "hidden" }}>
+                          <button type="button" aria-expanded={listOpen} onClick={() => setOpenLists(p => ({ ...p, [listKey]: !p[listKey] }))}
+                            style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", minHeight: 52, padding: "10px 14px", background: T.white, border: 0, cursor: "pointer", textAlign: "left", color: T.ink, fontFamily: "inherit" }}>
+                            <JC427Chevron open={listOpen} />
+                            <span style={{ flex: "1 1 200px", fontSize: 14.5, fontWeight: 700 }}>{g.cat}</span>
+                            <span style={{ fontSize: 13, color: T.gray600 }}>{g.items.length} competencies · {gDated} dated</span>
+                            {gIssues > 0 && <JC427Pill fg={T.error} bg={T.errorBg} border={T.errorBorder}>{needsText(gIssues)}</JC427Pill>}
+                          </button>
+                          {listOpen && (
+                            <div style={{ borderTop: `1px solid ${T.gray200}`, padding: "0 14px" }}>
+                              {g.items.map(it => <JC427Row key={it.id} {...rowProps(it, s, who)} />)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
+            )}
+          </section>
         );
       })}
 
       <button
         onClick={onAddEmployee}
         disabled={!canAddEmployee}
-        style={{ width: "100%", padding: "10px", border: `2px dashed ${canAddEmployee ? BRAND : "#c0c0c0"}`, borderRadius: 6, background: "none", color: canAddEmployee ? BRAND : "#c0c0c0", fontWeight: 700, cursor: canAddEmployee ? "pointer" : "not-allowed" }}>
+        style={{ width: "100%", minHeight: 52, padding: "10px", border: `2px dashed ${canAddEmployee ? BRAND : "#c0c0c0"}`, borderRadius: 12, background: "none", color: canAddEmployee ? BRAND : "#c0c0c0", fontWeight: 700, fontSize: 14, cursor: canAddEmployee ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
         + Add Employee
       </button>
+
+      {slots.length > 0 && (
+        <div style={{ marginTop: 20, padding: "16px 18px", background: T.blue50, border: `1px solid ${T.blueBorder}`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 13, color: T.gray700, flex: "1 1 260px" }}>
+            <strong style={{ color: T.ink }}>Finished reviewing?</strong> Open the visual report for this review: findings by employee, upcoming expirations and a color-coded grid, ready to print or download.
+          </div>
+          <button onClick={onViewReport} style={{ ...btnPrimary, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon name="file-text" size={15} />Complete Review &amp; View Report
+          </button>
+        </div>
+      )}
 
       {showInstructions && (
         <div onClick={() => setShowInstructions(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300, padding: 16 }}>
@@ -3288,9 +3743,10 @@ function SurveyPrepApp() {
       document.removeEventListener("keydown", onEsc);
     };
   }, [showMoreActions]);
-  const [emailText, setEmailText] = useState("");
   const [reportLines, setReportLines] = useState([]);
-  const [copied, setCopied] = useState(false);
+  // Rendered JC 427 visual report — its outerHTML is what "Download HTML
+  // report" saves (see downloadJC427ReportHtml).
+  const jc427ReportRef = useRef(null);
   const [hasDraft, setHasDraft] = useState(!!draft);
   const [savedAt, setSavedAt] = useState(draft?.savedAt ?? null);
   const [savedVisits, setSavedVisits] = useState(loadVisits);
@@ -3416,6 +3872,16 @@ function SurveyPrepApp() {
   const [op541tFileName, setOp541tFileName] = useState(() => draft?.op541tFileName ?? "");
   const [op541tBufferBytes, setOp541tBufferBytes] = useState(null); // original file bytes for write-back export — never persisted
 
+  // Expired Products Form status per OP 541/541T finding, keyed
+  // expiredFormKey("op541" | "op541t", item.key) — see EXPIRED_PRODUCTS_FORM_URL.
+  const [expiredFormStatus, setExpiredFormStatus] = useState(() => draft?.expiredFormStatus ?? {});
+  const setExpiredStatus = (key, val) => setExpiredFormStatus(prev => ({ ...prev, [key]: val }));
+  // The pre-report check: the pending findings while its pop-up is open, and
+  // which pending set "Generate anyway" last waved through (so opening the
+  // Report again doesn't re-ask about the same findings until one changes).
+  const [expiredCheck, setExpiredCheck] = useState(null);
+  const expiredAckRef = useRef("");
+
   // Personnel Records Review state — employees are columns, not rows (see
   // parsePersonnelSheet). personnelSlots covers both "Personnel Records" and
   // "Additional Personnel Records" sheets combined; personnelAnswers/Dates are
@@ -3441,7 +3907,10 @@ function SurveyPrepApp() {
   const [jc427Items, setJc427Items] = useState(() => draft?.jc427Items ?? []);
   const [jc427Answers, setJc427Answers] = useState(() => draft?.jc427Answers ?? {});
   const [jc427Dates, setJc427Dates] = useState(() => draft?.jc427Dates ?? {});
-  const [jc427Comments, setJc427Comments] = useState(() => draft?.jc427Comments ?? {});
+  // Per-employee (item|sheet|col). Drafts from before that change held one
+  // comment per item shared by everyone; migrateJC427Comments moves those.
+  const [jc427Comments, setJc427Comments] = useState(() => migrateJC427Comments(
+    draft?.jc427Comments ?? {}, draft?.jc427Slots ?? [], draft?.jc427Items ?? [], draft?.jc427Answers ?? {}, draft?.jc427Dates ?? {}));
   // Sheet names (in order) that actually carry Personnel Records slots in
   // the template — the real file has a main sheet plus "Additional Page"
   // overflow sheets (2/3/4), each offering 10 more employee columns, same
@@ -3480,9 +3949,12 @@ function SurveyPrepApp() {
         }
         setJc427Items(prev => prev.length > 0 ? prev : firstParsed.items);
         setJc427SheetNames(prev => prev.length > 0 ? prev : foundSheetNames);
-        setJc427Meta(prev => prev || {
+        // headerCells is filled in even on a restored draft: it was added
+        // after drafts started persisting jc427Meta, and the template it
+        // describes is the same static file either way.
+        setJc427Meta(prev => prev ? { ...prev, headerCells: prev.headerCells || firstParsed.headerCells } : {
           employeeNameRow: firstParsed.employeeNameRow, jobTitleRow: firstParsed.jobTitleRow, hireDateRow: firstParsed.hireDateRow,
-          commentsCol: firstParsed.commentsCol, employeeCols: firstParsed.employeeCols,
+          commentsCol: firstParsed.commentsCol, employeeCols: firstParsed.employeeCols, headerCells: firstParsed.headerCells,
         });
         setJc427TemplateStatus("ready");
       })
@@ -3497,6 +3969,12 @@ function SurveyPrepApp() {
   const setTabPatient = (id, field, val) => setTabPatientInfo(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }));
   // Additional comments shown at bottom of report
   const [additionalComments, setAdditionalComments] = useState(() => draft?.additionalComments ?? "");
+  // After Visit Email picks, rewordings and paragraph edits (see
+  // AfterVisitEmail.jsx). null until the specialist first touches the screen.
+  // Stamped on every edit so mergeVisitForWrite can keep the newest copy.
+  const [afterVisitEmail, setAfterVisitEmail] = useState(() => draft?.afterVisitEmail ?? null);
+  const updateAfterVisitEmail = useCallback(
+    fn => setAfterVisitEmail(prev => ({ ...fn(prev), updatedAt: new Date().toISOString() })), []);
 
   const setState = useCallback((key, val) => {
     setForm(prev => ({ ...prev, states: { ...prev.states, [key]: prev.states[key] === val ? null : val } }));
@@ -3521,7 +3999,8 @@ function SurveyPrepApp() {
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
-      tabComments, tabPatientInfo, additionalComments, currentVisitId,
+      tabComments, tabPatientInfo, additionalComments, afterVisitEmail, currentVisitId,
+      expiredFormStatus,
     });
     setSavedAt(new Date().toISOString());
   }, [meta, states, comments,
@@ -3529,7 +4008,8 @@ function SurveyPrepApp() {
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
-      tabComments, tabPatientInfo, additionalComments, currentVisitId]);
+      tabComments, tabPatientInfo, additionalComments, afterVisitEmail, currentVisitId,
+      expiredFormStatus]);
 
   function getSectionStats(si) {
     let yes = 0, no = 0, na = 0, pending = 0;
@@ -3564,11 +4044,11 @@ function SurveyPrepApp() {
     let no = 0, expired = 0, expiring = 0;
     jc427Items.forEach(item => {
       jc427Slots.forEach(slot => {
-        const key = `${item.id}|${slot.sheetName}|${slot.col}`;
+        const key = jc427Key(item.id, slot);
         if (item.answerType === "yn") {
           if (jc427Answers[key] === "no") no++;
         } else {
-          const status = getJC427ExpirationStatus(usDateToIso(jc427Dates[key] || ""));
+          const status = getJC427ExpirationStatus(jc427Dates[key], item.id);
           if (status === "red") expired++;
           else if (status === "yellow") expiring++;
         }
@@ -3577,32 +4057,13 @@ function SurveyPrepApp() {
     return { no, expired, expiring };
   }
 
-  function getAllIssues() {
-    const existing = SECTIONS.flatMap((sec, si) =>
-      sec.items.flatMap((item, ii) => {
-        const key = `${si}-${ii}`;
-        if (states[key] === "no") return [{ section: sec.label, text: item.text, comment: comments[key] }];
-        return [];
-      })
-    );
-    const op541 = op541Sections.flatMap(sec =>
-      sec.items.flatMap(item => {
-        if (op541States[item.key] === "no")
-          return [{ section: `OP 541 — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`, text: item.text, comment: op541Comments[item.key] }];
-        return [];
-      })
-    );
-    const op541t = op541tSections.flatMap(sec =>
-      sec.items.flatMap(item => {
-        if (op541tStates[item.key] === "no")
-          return [{ section: `OP 541T — ${sec.sheetLabel}${sec.label ? " / " + sec.label : ""}`, text: item.text, comment: op541tComments[item.key] }];
-        return [];
-      })
-    );
-    return [...existing, ...op541, ...op541t];
-  }
-
-  function buildSummaryData() {
+  // formStatus is passed in when the caller has just changed it (the pre-report
+  // check's "I've submitted it") and this render's state is still the old one.
+  function buildSummaryData(formStatus = expiredFormStatus) {
+    // Expired Products Form status for an OP 541/541T finding — null unless
+    // the question is about expired product.
+    const expiredForm = (tab, item) => isExpiredProductsItem(item.text)
+      ? (formStatus[expiredFormKey(tab, item.key)] || "pending") : null;
     const data = SECTIONS.map((sec, si) => {
       const stats = getSectionStats(si);
       const issues = sec.items.flatMap((item, ii) => {
@@ -3638,6 +4099,7 @@ function SurveyPrepApp() {
           comment: op541Comments[item.key],
           type: "no",
           mismatch: item.locAns === "Y",
+          expiredForm: expiredForm("op541", item),
         }));
       const yes = sec.items.filter(item => op541States[item.key] === "yes").length;
       const no  = sec.items.filter(item => op541States[item.key] === "no").length;
@@ -3669,6 +4131,7 @@ function SurveyPrepApp() {
           comment: op541tComments[item.key],
           type: "no",
           mismatch: item.locAns === "Y",
+          expiredForm: expiredForm("op541t", item),
         }));
       const yes = sec.items.filter(item => op541tStates[item.key] === "yes").length;
       const no  = sec.items.filter(item => op541tStates[item.key] === "no").length;
@@ -3697,7 +4160,6 @@ function SurveyPrepApp() {
   async function handleOp541Upload(file) {
     try {
       const buf = await file.arrayBuffer();
-      setOp541BufferBytes(new Uint8Array(buf)); // store for write-back export
       const wb = XLSX.read(buf, { type: "array" });
       const allSections = [];
       const skippedSheets = [];
@@ -3774,6 +4236,11 @@ function SurveyPrepApp() {
         }
       }
 
+      const itemCount = allSections.reduce((n, sec) => n + sec.items.length, 0);
+      const rejection = wrongOp541FileMessage(wb, file.name, "OP 541", itemCount);
+      if (rejection) { alert(rejection); return; }
+
+      setOp541BufferBytes(new Uint8Array(buf)); // store for write-back export
       setOp541Sections(allSections);
       // Re-uploading the same file (e.g. after loading a visit synced from
       // another device, where the original file bytes aren't available) must
@@ -3914,7 +4381,6 @@ function SurveyPrepApp() {
   async function handleOp541tUpload(file) {
     try {
       const buf = await file.arrayBuffer();
-      setOp541tBufferBytes(new Uint8Array(buf)); // store for write-back export
       const wb = XLSX.read(buf, { type: "array" });
       const allSections = [];
       const skippedSheets = [];
@@ -4004,6 +4470,11 @@ function SurveyPrepApp() {
       // Remove empty sections
       const filtered = allSections.filter(s => s.items.length > 0);
 
+      const itemCount = filtered.reduce((n, sec) => n + sec.items.length, 0) + (parsedPersonnelItems?.length || 0);
+      const rejection = wrongOp541FileMessage(wb, file.name, "OP 541T", itemCount);
+      if (rejection) { alert(rejection); return; }
+
+      setOp541tBufferBytes(new Uint8Array(buf)); // store for write-back export
       setOp541tSections(filtered);
       // Re-uploading the same file (e.g. after loading a visit synced from
       // another device, where the original file bytes aren't available) must
@@ -4096,6 +4567,11 @@ function SurveyPrepApp() {
       Object.keys(next).forEach(k => { if (k.endsWith(`|${sid}`)) delete next[k]; });
       return next;
     });
+    setJc427Comments(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => { if (k.endsWith(`|${sid}`)) delete next[k]; });
+      return next;
+    });
   }
 
   function updateJC427Slot(sheetName, col, field, value) {
@@ -4114,7 +4590,7 @@ function SurveyPrepApp() {
     try {
       const { buffer, cellsWritten, sheetsWritten } = await writeBackToOriginalWorkbook(
         jc427BufferBytes, [], {}, {}, [], [],
-        buildJC427Writes(jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427Meta)
+        buildJC427Writes(jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, { ...jc427Meta, sheetNames: jc427SheetNames }, meta)
       );
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
@@ -4151,10 +4627,13 @@ function SurveyPrepApp() {
     // and their answers reset for the new visit.
     setJc427Slots([]); setJc427Answers({}); setJc427Dates({}); setJc427Comments({});
     setTabComments({ pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
-    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setHasDraft(false); setSavedAt(null);
-    setCurrentVisitId(null); setVisitFinalized(false);
+    setActiveTab(0); setView("form"); setReportLines([]); setHasDraft(false); setSavedAt(null);
+    setCurrentVisitId(null); setVisitFinalized(false); setChecklistLink("");
     setTabPatientInfo({ pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments("");
+    setAfterVisitEmail(null);
+    setExpiredFormStatus({});
+    expiredAckRef.current = "";
   }
 
   // The visit document as this device currently sees it. Shared by the explicit
@@ -4170,7 +4649,8 @@ function SurveyPrepApp() {
       op541tSections, op541tStates, op541tComments, op541tFileName,
       personnelSlots, personnelItems, personnelAnswers, personnelDates, personnelComments, personnelSheetNames,
       jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments, jc427SheetNames, jc427Meta,
-      tabComments, tabPatientInfo, additionalComments,
+      tabComments, tabPatientInfo, additionalComments, afterVisitEmail,
+      expiredFormStatus,
     };
   }
 
@@ -4253,15 +4733,46 @@ function SurveyPrepApp() {
     }
   }
 
+  function checklistVisitData() {
+    return { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo, personnelSlots, personnelItems, personnelAnswers, personnelComments, jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments };
+  }
+
+  // Resolves once the attempt is over (an error has already been alerted), so
+  // a caller can re-check for the checklist afterwards.
   function generateChecklistLink() {
-    if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return; }
-    const visit = { meta, states, comments, op541Sections, op541States, op541Comments, op541tSections, op541tStates, op541tComments, op541VehicleInfo, personnelSlots, personnelItems, personnelAnswers, personnelComments, jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments };
+    if (!currentVisitId) { alert('Save this visit first ("Save Progress") so it has a visit ID to link the checklist to.'); return Promise.resolve(); }
     setChecklistLinkLoading(true);
-    ensureChecklistDoc(visit, currentVisitId)
-      .then(url => setChecklistLink(url))
+    return ensureChecklistDoc(checklistVisitData(), currentVisitId)
+      .then(url => { setChecklistLink(url); setChecklistRev(r => r + 1); })
       .catch(() => alert("Couldn't create the checklist. Check your internet connection and try again."))
       .finally(() => setChecklistLinkLoading(false));
   }
+
+  // Does this visit's follow-up checklist exist, and does it still list the
+  // visit's current findings? Asked whenever the Emails tab opens (and after a
+  // generate), so the After Visit Email can include the link or say that it
+  // has to be generated first. The checklist doc is world-readable by design
+  // (managers open it without signing in), so this read needs no special rule.
+  const [checklistCheck, setChecklistCheck] = useState({ id: null, status: "idle" });
+  const [checklistRev, setChecklistRev] = useState(0);
+  useEffect(() => {
+    if (view !== "followup" || !currentVisitId) return;
+    let cancelled = false;
+    const id = currentVisitId;
+    setChecklistCheck({ id, status: "checking" });
+    getDoc(doc(db, CHECKLISTS_COLLECTION, id))
+      .then(snap => {
+        if (cancelled) return;
+        if (!snap.exists()) { setChecklistCheck({ id, status: "missing" }); return; }
+        const current = checklistSignature(buildChecklistItems(checklistVisitData()));
+        setChecklistCheck({ id, status: checklistSignature(snap.data().categories) === current ? "exists" : "stale" });
+      })
+      .catch(() => { if (!cancelled) setChecklistCheck({ id, status: "error" }); });
+    return () => { cancelled = true; };
+    // Re-checked on entering the tab, on a different visit, and after a
+    // generate — not on every answer change, which can't happen on this tab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, currentVisitId, checklistRev]);
 
   function loadVisit(visit) {
     // Measure on load too: a visit that is already too big to save can then be
@@ -4291,13 +4802,16 @@ function SurveyPrepApp() {
     setJc427Slots(visit.jc427Slots ?? []);
     setJc427Answers(visit.jc427Answers ?? {});
     setJc427Dates(visit.jc427Dates ?? {});
-    setJc427Comments(visit.jc427Comments ?? {});
+    setJc427Comments(migrateJC427Comments(visit.jc427Comments ?? {}, visit.jc427Slots ?? [], visit.jc427Items ?? jc427Items, visit.jc427Answers ?? {}, visit.jc427Dates ?? {}));
     setTabComments(visit.tabComments ?? { pstSetup: "", pstMaintenance: "", clinician: "", vent: "" });
     setTabPatientInfo(visit.tabPatientInfo ?? { pstSetup: { globalId: "", currentRx: "" }, pstMaintenance: { globalId: "", currentRx: "" }, clinician: { globalId: "", currentRx: "" }, vent: { globalId: "", currentRx: "" } });
     setAdditionalComments(visit.additionalComments ?? "");
+    setAfterVisitEmail(visit.afterVisitEmail ?? null);
+    setExpiredFormStatus(visit.expiredFormStatus ?? {});
+    expiredAckRef.current = "";
     // jc427BufferBytes is left alone — it's the bundled template's bytes,
     // not per-visit data, and stays valid across a visit load.
-    setActiveTab(0); setView("form"); setEmailText(""); setReportLines([]); setOp541BufferBytes(null); setOp541tBufferBytes(null);
+    setActiveTab(0); setView("form"); setReportLines([]); setOp541BufferBytes(null); setOp541tBufferBytes(null);
     setVisitFinalized(false);
     setShowVisits(false);
   }
@@ -4309,21 +4823,24 @@ function SurveyPrepApp() {
     deleteVisitFromFirestore(id).catch(() => {}); // best-effort — it's already gone locally either way
   }
 
-  function generateOutputs() {
-    const issues = getAllIssues();
-    const summaryData = buildSummaryData();
-    const loc  = meta.location  || "[Location]";
-    const city = meta.city      || "[City, ST]";
-    const spec = meta.specialist || "[Specialist]";
-    const date = meta.date      || new Date().toLocaleDateString("en-US");
+  // Builds the Survey Prep Report from the visit as it stands. The report's
+  // own view renders it; the email to the location is the After Visit Email
+  // on the Emails tab.
+  function generateReport(formStatus) {
+    setReportLines(buildSummaryData(formStatus));
+  }
 
-    const issueBlock = issues.length === 0
-      ? "No issues identified. All reviewed areas are compliant."
-      : issues.map(i => `- [${i.section}] ${i.text}${i.comment ? ` — Note: ${i.comment}` : ""}`).join("\n");
-
-    setEmailText(`Subject: Accreditation Survey Prep Follow-Up — ${loc}, ${city} — ${date}\n\nHello,\n\nThank you for your time during the accreditation survey prep visit on ${date} for ${loc}, ${city}.\n\n${issues.length === 0 ? "All reviewed areas were found to be in compliance. No corrective action is required at this time." : `The following items require corrective action:\n\n${issueBlock}\n\nPlease address each item and report back with your findings. A follow-up Teams call with the LCM and Area/Region Manager will be scheduled.`}\n\nBest regards,\n${spec}\nAccreditation Specialist`);
-    setReportLines(summaryData);
-    setView("email");
+  // Every OP 541/541T expired-products question currently marked N, with its
+  // Expired Products Form status ("" while pending).
+  function expiredFindings() {
+    const out = [];
+    [["op541", "OP 541", op541Sections, op541States], ["op541t", "OP 541T", op541tSections, op541tStates]]
+      .forEach(([tab, form, sections, answers]) => sections.forEach(sec => sec.items.forEach(item => {
+        if (answers[item.key] !== "no" || !isExpiredProductsItem(item.text)) return;
+        const key = expiredFormKey(tab, item.key);
+        out.push({ key, tab, where: `${form} — ${sec.sheetLabel}`, text: item.text, status: expiredFormStatus[key] || "" });
+      })));
+    return out;
   }
 
   async function exportFollowUpXLSX() {
@@ -4643,10 +5160,6 @@ function SurveyPrepApp() {
     setTimeout(restoreTitle, 5000); // fallback in case afterprint doesn't fire
   }
 
-  function copyText(txt) {
-    navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
-  }
-
   const isOp541Tab    = activeTab === TAB.op541;
   const isOp541tTab   = activeTab === TAB.op541t;
   const isJc427Tab    = activeTab === TAB.jc427;
@@ -4684,11 +5197,63 @@ function SurveyPrepApp() {
     setView("form");
     window.scrollTo({ top: 0 });
   }
+  // JC 427 visual report — its own view rather than part of the Visit
+  // Overview, so printing it prints only this report.
+  function goJC427Report() {
+    setView("jc427report");
+    window.scrollTo({ top: 0 });
+  }
+  function printJC427Report() {
+    // Same filename trick as exportPDF: browsers suggest document.title as
+    // the "Save as PDF" name.
+    const loc = meta.location || "Unknown Location";
+    const dateStr = (meta.date || "").replace(/\//g, "-");
+    const prevTitle = document.title;
+    document.title = `${loc} - JC 427 Personnel Records Report${dateStr ? ` - ${dateStr}` : ""}`;
+    const restoreTitle = () => { document.title = prevTitle; window.removeEventListener("afterprint", restoreTitle); };
+    window.addEventListener("afterprint", restoreTitle);
+    window.print();
+    setTimeout(restoreTitle, 5000);
+  }
+  function downloadJC427Report() {
+    if (!downloadJC427ReportHtml(jc427ReportRef.current, meta)) {
+      alert("The report hasn't finished rendering yet — try again in a moment.");
+    }
+  }
+
+  // Secondary check: an expired-products question marked N whose Expired
+  // Products Form isn't marked submitted (or not needed) stops here first. It
+  // warns rather than blocks — "Generate anyway" goes through, and the report
+  // then shows the form as pending against that finding.
   function goReport() {
-    // Same generation as the email flow, but landing on the report instead.
-    generateOutputs();
+    const pending = expiredFindings().filter(f => !f.status);
+    const signature = pending.map(f => f.key).join("|");
+    if (pending.length > 0 && signature !== expiredAckRef.current) {
+      setExpiredCheck(pending);
+      return;
+    }
+    openReport();
+  }
+  function openReport(formStatus) {
+    setExpiredCheck(null);
+    generateReport(formStatus);
     setView("report");
     window.scrollTo({ top: 0 });
+  }
+  function expiredCheckSubmitted() {
+    const next = { ...expiredFormStatus };
+    (expiredCheck || []).forEach(f => { next[f.key] = "submitted"; });
+    setExpiredFormStatus(next);
+    openReport(next);
+  }
+  function expiredCheckAnyway() {
+    expiredAckRef.current = (expiredCheck || []).map(f => f.key).join("|");
+    openReport();
+  }
+  function expiredCheckReview() {
+    const first = expiredCheck?.[0];
+    setExpiredCheck(null);
+    if (first) goTab(first.tab === "op541t" ? TAB.op541t : TAB.op541);
   }
   // The Team Planner is its own module rather than a checklist tab — it has
   // nothing to do with the visit in progress, so it never touches activeTab.
@@ -4702,9 +5267,9 @@ function SurveyPrepApp() {
     setView("circuit");
     window.scrollTo({ top: 0 });
   }
-  // The follow-up email screen takes a filled-in tracker file as its whole
-  // input, so like the planner and Site Circuit it stands apart from the
-  // visit in progress and never touches checklist state.
+  // The Emails tab: the After Visit email (built from the open visit) and the
+  // Follow-Up Call email (built from an uploaded tracker). Neither touches
+  // checklist state; the After Visit picks are their own visit field.
   function goFollowUp() {
     setView("followup");
     window.scrollTo({ top: 0 });
@@ -4742,14 +5307,50 @@ function SurveyPrepApp() {
     </div>
   ) : null;
 
+  // Inputs for the After Visit Email, built only while the Emails tab is shown.
+  function afterVisitEmailProps() {
+    const findings = buildAfterVisitFindings({
+      states, comments, op541Sections, op541States, op541Comments,
+      op541tSections, op541tStates, op541tComments, op541VehicleInfo,
+      personnelSlots, personnelItems, personnelAnswers, personnelComments,
+      jc427Slots, jc427Items, jc427Answers, jc427Dates, jc427Comments,
+    });
+    const followUpDisplay = meta.followUpDate
+      ? new Date(meta.followUpDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+        + (meta.followUpTime ? ` · ${formatFollowUpTime(meta.followUpTime)}` : "")
+      : "";
+    // Same totals as the Survey Prep Report's summary tiles.
+    const summary = buildSummaryData();
+    const totals = {
+      compliant: summary.reduce((a, s) => a + s.yes, 0),
+      issues:    summary.reduce((a, s) => a + s.no, 0),
+    };
+    const checkStatus = !currentVisitId ? "unsaved"
+      : checklistCheck.id === currentVisitId && checklistCheck.status !== "idle" ? checklistCheck.status : "checking";
+    return {
+      visit: { meta, findings, followUpDisplay, hasVisit: !!(meta.location || meta.lawson || currentVisitId || findings.length) },
+      draft: afterVisitEmail,
+      setDraft: updateAfterVisitEmail,
+      totals,
+      checklist: {
+        status: checkStatus,
+        url: currentVisitId ? checklistUrlFor(currentVisitId) : "",
+        busy: checklistLinkLoading,
+        onGenerate: generateChecklistLink,
+      },
+      onOpenChecklist: goChecklist,
+      onOpenDashboard: () => { setView("dashboard"); window.scrollTo({ top: 0 }); },
+    };
+  }
+
   const navItems = [
     { key: "dashboard", label: "Dashboard",    icon: "home",            active: view === "dashboard",                     onClick: () => { setView("dashboard"); window.scrollTo({ top: 0 }); } },
     { key: "form",      label: MODULE_LABEL,   icon: "clipboard-list",  active: view === "form" && !REFERENCE_TABS.includes(activeTab), onClick: goChecklist },
-    { key: "report",    label: "Report",       icon: "file-text",       active: view === "report" || view === "email",     onClick: goReport },
+    { key: "report",    label: "Report",       icon: "file-text",       active: view === "report",                         onClick: goReport },
     { key: "trends",    label: "Issue Trends", icon: "trending-up",     active: view === "form" && isTrendsTab,            onClick: () => goTab(TAB.trends) },
     { key: "planner",   label: "Team Planner", icon: "calendar",        active: view === "planner",                        onClick: goPlanner },
     { key: "circuit",   label: "Site Circuit", icon: "mail",            active: view === "circuit",                        onClick: goCircuit },
-    { key: "followup",  label: "Follow-Up Email", icon: "file-spreadsheet", active: view === "followup",                     onClick: goFollowUp },
+    { key: "followup",  label: "Emails",       icon: "send",            active: view === "followup",                     onClick: goFollowUp },
   ];
 
   const headerBtn = {
@@ -5102,8 +5703,17 @@ function SurveyPrepApp() {
       {/* SITE CIRCUIT — reads the planner's site visits, owns no visit data */}
       {view === "circuit" && <SiteCircuit onOpenPlanner={goPlanner} />}
 
-      {/* FOLLOW-UP EMAIL — reads an uploaded tracker, writes nothing */}
-      {view === "followup" && <FollowUpEmail />}
+      {/* EMAILS — After Visit (from the open visit) and Follow-Up Call (from an
+          uploaded tracker). Composed for Outlook; nothing is sent. */}
+      {view === "followup" && (
+        <Emails afterVisit={afterVisitEmailProps()}
+          followUp={{
+            findChecklist: findChecklistUrl,
+            openVisitId: currentVisitId,
+            generating: checklistLinkLoading,
+            onGenerate: generateChecklistLink,
+          }} />
+      )}
 
       {/* FORM VIEW */}
       {view === "form" && (
@@ -5252,7 +5862,7 @@ function SurveyPrepApp() {
                 style={showVisits ? { ...btnOutline, background: T.blue50 } : btnOutline}>
                 Saved Visits{savedVisits.length > 0 ? ` (${savedVisits.length})` : ""}
               </button>
-              <button onClick={generateOutputs} style={btnPrimary}>Generate Email &amp; Report</button>
+              <button onClick={goReport} style={btnPrimary}>Generate Report</button>
               {/* Destructive and rarely used — kept out of thumb's reach of
                   "Save Progress" rather than sitting next to it. */}
               <div ref={moreActionsRef} style={{ position: "relative" }}>
@@ -5515,7 +6125,11 @@ function SurveyPrepApp() {
           {/* OP 541 tab content */}
           {isOp541Tab && (
             <div>
-              {!op541FileName ? (
+              {/* No questions means nothing to show — offer the upload again
+                  rather than an empty page. A file name with no sections is the
+                  state a wrong-file upload left behind before the guard in
+                  handleOp541Upload existed, and it persists in the local draft. */}
+              {!op541FileName || op541Sections.length === 0 ? (
                 <div style={{ padding: "64px 24px", textAlign: "center", color: T.gray600 }}>
                   <div style={{ fontSize: 38, marginBottom: 12 }}>📂</div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>Upload the OP 541 Spreadsheet</div>
@@ -5524,7 +6138,7 @@ function SurveyPrepApp() {
                   </div>
                   <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 15, fontWeight: 600 }}>
                     Choose .xlsx File
-                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
+                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; e.target.value = ""; if (f) handleOp541Upload(f); }} />
                   </label>
                 </div>
               ) : (
@@ -5547,7 +6161,7 @@ function SurveyPrepApp() {
                       </button>
                       <label style={{ fontSize: 13, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
                         Change file
-                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541Upload(e.target.files[0])} />
+                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; e.target.value = ""; if (f) handleOp541Upload(f); }} />
                       </label>
                     </div>
                   </div>
@@ -5610,6 +6224,7 @@ function SurveyPrepApp() {
                                       {item.policy && <span style={{ fontSize: 12, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
                                       <span style={{ fontSize: 14, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
                                       {item.locComment && <div style={{ fontSize: 12, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
+                                      {isVehicleSdsItem(item.text, isVehicleSheet) && <VehicleSdsNote />}
                                     </div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                                       <span style={{
@@ -5641,6 +6256,11 @@ function SurveyPrepApp() {
                                       onChange={e => setOp541Comments(p => ({ ...p, [item.key]: e.target.value }))}
                                       rows={2}
                                       style={{ marginTop: 8, width: "50%", fontSize: 13, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
+                                  )}
+                                  {s === "no" && isExpiredProductsItem(item.text) && (
+                                    <ExpiredProductsPrompt
+                                      status={expiredFormStatus[expiredFormKey("op541", item.key)]}
+                                      onChange={v => setExpiredStatus(expiredFormKey("op541", item.key), v)} />
                                   )}
                                 </div>
                               );
@@ -5690,7 +6310,7 @@ function SurveyPrepApp() {
                   </div>
                   <label style={{ display: "inline-block", padding: "11px 28px", background: BRAND, color: "#fff", borderRadius: 6, cursor: "pointer", fontSize: 15, fontWeight: 600 }}>
                     Choose .xlsx File
-                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
+                    <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; e.target.value = ""; if (f) handleOp541tUpload(f); }} />
                   </label>
                 </div>
               ) : (
@@ -5712,7 +6332,7 @@ function SurveyPrepApp() {
                       </button>
                       <label style={{ fontSize: 13, color: BRAND, cursor: "pointer", textDecoration: "underline" }}>
                         Change file
-                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => e.target.files[0] && handleOp541tUpload(e.target.files[0])} />
+                        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; e.target.value = ""; if (f) handleOp541tUpload(f); }} />
                       </label>
                     </div>
                   </div>
@@ -5774,6 +6394,7 @@ function SurveyPrepApp() {
                                       {item.policy && <span style={{ fontSize: 12, color: T.gray500, marginRight: 8 }}>{item.policy}</span>}
                                       <span style={{ fontSize: 14, color: T.ink, lineHeight: 1.5 }}>{item.text}</span>
                                       {item.locComment && <div style={{ fontSize: 12, color: T.gray500, marginTop: 3 }}>{item.locComment}</div>}
+                                      {isVehicleSdsItem(item.text, isVehicleSheet) && <VehicleSdsNote />}
                                     </div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                                       <span style={{
@@ -5805,6 +6426,11 @@ function SurveyPrepApp() {
                                       onChange={e => setOp541tComments(p => ({ ...p, [item.key]: e.target.value }))}
                                       rows={2}
                                       style={{ marginTop: 8, width: "50%", fontSize: 13, padding: "6px 8px", border: `1px solid ${s === "no" ? T.errorBorder : T.successBorder}`, borderRadius: 5, resize: "vertical", color: T.ink, background: "#fff", boxSizing: "border-box", display: "block" }} />
+                                  )}
+                                  {s === "no" && isExpiredProductsItem(item.text) && (
+                                    <ExpiredProductsPrompt
+                                      status={expiredFormStatus[expiredFormKey("op541t", item.key)]}
+                                      onChange={v => setExpiredStatus(expiredFormKey("op541t", item.key), v)} />
                                   )}
                                 </div>
                               );
@@ -5858,11 +6484,20 @@ function SurveyPrepApp() {
                 <div>
                   <div style={{ padding: "10px 24px", background: T.gray50, borderBottom: `1px solid ${T.gray200}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                     <span style={{ fontSize: 13, color: T.gray500 }}>{jc427Items.length} of {JC427_ALL_ITEMS.length} items recognized</span>
-                    <button
-                      onClick={exportUpdatedJC427}
-                      style={{ fontSize: 13, padding: "5px 12px", background: T.success, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
-                      ⬇ Export Updated JC 427
-                    </button>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        onClick={goJC427Report}
+                        disabled={jc427Slots.length === 0}
+                        title={jc427Slots.length === 0 ? "Add at least one employee first" : undefined}
+                        style={{ fontSize: 13, padding: "5px 12px", background: T.white, color: T.blue600, border: `1.5px solid ${T.blue600}`, borderRadius: 5, cursor: jc427Slots.length === 0 ? "not-allowed" : "pointer", fontWeight: 600, opacity: jc427Slots.length === 0 ? 0.5 : 1 }}>
+                        View Report
+                      </button>
+                      <button
+                        onClick={exportUpdatedJC427}
+                        style={{ fontSize: 13, padding: "5px 12px", background: T.success, color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontWeight: 600 }}>
+                        ⬇ Export Updated JC 427
+                      </button>
+                    </div>
                   </div>
                   <div style={{ padding: "16px 24px" }}>
                     {jc427Items.length === 0 ? (
@@ -5882,6 +6517,7 @@ function SurveyPrepApp() {
                         onAddEmployee={addJC427Employee}
                         onRemoveEmployee={removeJC427Employee}
                         onUpdateSlot={updateJC427Slot}
+                        onViewReport={goJC427Report}
                         canAddEmployee={!!jc427Meta && jc427Slots.length < jc427SheetNames.length * jc427Meta.employeeCols.length}
                       />
                     )}
@@ -5918,22 +6554,32 @@ function SurveyPrepApp() {
         </div>
       )}
 
-      {/* EMAIL VIEW */}
-      {view === "email" && (
-        <div style={{ maxWidth: WIDTH_REPORT, margin: "0 auto", padding: "24px 28px 80px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>Manager Follow-Up Email</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => copyText(emailText)}
-                style={copied ? { ...btnOutline, background: T.successBg, color: T.success, borderColor: T.successBorder } : btnOutline}>
-                {copied ? "✓ Copied" : "Copy email"}
+      {/* JC 427 VISUAL REPORT — opened from the JC 427 tab ("Complete Review
+          & View Report"). Separate from the Visit Overview below, which
+          doesn't cover JC 427. */}
+      {view === "jc427report" && (
+        <div className="jc427-report-view" style={{ maxWidth: WIDTH_REPORT, margin: "0 auto", padding: "24px 16px 80px" }}>
+          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+            <button onClick={() => goTab(TAB.jc427)} style={{ ...btnOutline, display: "flex", alignItems: "center", gap: 6 }}>
+              ← Back to JC 427
+            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={exportUpdatedJC427} style={{ ...btnPrimary, background: T.success }}>
+                Export Excel
               </button>
-              <button onClick={() => setView("report")} style={btnPrimary}>View Report →</button>
+              <button onClick={downloadJC427Report} style={{ ...btnOutline, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="download" size={14} />Download HTML Report
+              </button>
+              <button onClick={printJC427Report} style={{ ...btnPrimary, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="printer" size={14} />Print / Save as PDF
+              </button>
             </div>
           </div>
-          <textarea value={emailText} onChange={e => setEmailText(e.target.value)} aria-label="Follow-up email body"
-            style={{ width: "100%", minHeight: 420, fontSize: 14, lineHeight: 1.7, padding: 14, border: `1.5px solid ${T.gray300}`, borderRadius: T.radius, resize: "vertical", color: T.ink, background: T.white, boxSizing: "border-box", fontFamily: "inherit" }} />
-          <div style={{ marginTop: 12, fontSize: 13, color: T.gray500 }}>You can edit this email before copying. Click “View Report →” for the full report.</div>
+          <JC427Report
+            rootRef={jc427ReportRef}
+            slots={jc427Slots} items={jc427Items} answers={jc427Answers} dates={jc427Dates} comments={jc427Comments}
+            meta={meta}
+          />
         </div>
       )}
 
@@ -6102,6 +6748,12 @@ function SurveyPrepApp() {
                         {iss.mismatch && (
                           <div style={{ fontSize: 11, color: T.warning, marginTop: 3, fontWeight: 600 }}>⚠ Mismatch — location self-audit marked compliant</div>
                         )}
+                        {iss.expiredForm === "submitted" && (
+                          <div style={{ fontSize: 11, color: T.success, marginTop: 3, fontWeight: 600 }}>✓ Expired Products Form submitted</div>
+                        )}
+                        {iss.expiredForm === "pending" && (
+                          <div style={{ fontSize: 11, color: T.warning, marginTop: 3, fontWeight: 600 }}>⚠ Expired Products Form — not yet submitted</div>
+                        )}
                         {iss.comment && (
                           <div style={{ fontSize: 12, color: "#7a3a3a", marginTop: 5, paddingTop: 5, borderTop: `1px solid ${iss.mismatch ? "#ffe082" : "#f5c6c6"}`, lineHeight: 1.4 }}>
                             <strong>Note:</strong> {iss.comment}
@@ -6209,6 +6861,51 @@ function SurveyPrepApp() {
         </button>
       )}
 
+      {/* Pre-report check: expired-products findings whose Expired Products
+          Form hasn't been marked submitted (see goReport). */}
+      {expiredCheck && (
+        <div className="no-print" role="dialog" aria-modal="true" aria-labelledby="expired-check-title"
+          style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(19,25,34,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: T.white, borderRadius: T.radiusCard, padding: "24px 22px", width: 480, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 18px 40px rgba(19,25,34,0.35)", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: T.warningBg, color: T.warning, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="alert-circle" size={20} />
+              </div>
+              <div>
+                <div id="expired-check-title" style={{ fontSize: 16, fontWeight: 700, color: T.ink, marginBottom: 4 }}>Expired Products Form not marked submitted</div>
+                <div style={{ fontSize: 13, color: T.gray600, lineHeight: 1.5 }}>
+                  {expiredCheck.length === 1 ? "This expired-products question is" : `These ${expiredCheck.length} expired-products questions are`} marked N.
+                  If expired products were found, complete the Expired Products Form before sending the report.
+                </div>
+              </div>
+            </div>
+            <ul style={{ listStyle: "none", margin: "0 0 16px", padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+              {expiredCheck.map(f => (
+                <li key={f.key} style={{ padding: "8px 10px", background: "#fff8f8", borderLeft: `3px solid ${T.errorBorder}`, borderRadius: "0 4px 4px 0", fontSize: 13, lineHeight: 1.45 }}>
+                  <div style={{ fontSize: 11, color: T.gray500, fontWeight: 600 }}>{f.where}</div>
+                  <div style={{ color: T.ink }}>{f.text}</div>
+                </li>
+              ))}
+            </ul>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <a href={EXPIRED_PRODUCTS_FORM_URL} target="_blank" rel="noopener noreferrer"
+                style={{ ...btnOutline, textAlign: "center", textDecoration: "none" }}>
+                Open Expired Products Form ↗
+              </a>
+              <button onClick={expiredCheckSubmitted} style={{ ...btnPrimary, fontWeight: 700 }}>
+                I've submitted it — generate report
+              </button>
+              <button onClick={expiredCheckAnyway} style={{ ...btnOutline, color: T.warning, borderColor: T.warning }}>
+                Generate anyway (form pending)
+              </button>
+              <button onClick={expiredCheckReview} style={{ ...btnOutline, color: T.gray600, borderColor: T.gray300, fontWeight: 500 }}>
+                Back to the {expiredCheck[0]?.tab === "op541t" ? "OP 541T" : "OP 541"} tab
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 30-minute save reminder */}
       {showSaveReminder && (
         <div className="no-print" role="dialog" aria-modal="true" aria-labelledby="save-reminder-title"
@@ -6237,6 +6934,7 @@ function SurveyPrepApp() {
       <style>{`
         @media print {
           .no-print { display: none !important; }
+          .jc427-report-view { padding: 0 !important; }
           #report-print-area { display: block !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           textarea { border: 1px solid #ccc !important; }
